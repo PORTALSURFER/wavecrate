@@ -23,6 +23,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         rotation_started_at INTEGER NOT NULL,
         cursor TEXT NOT NULL DEFAULT '',
         retry_cursor TEXT NOT NULL DEFAULT '',
+        retry_next INTEGER NOT NULL DEFAULT 0 CHECK(retry_next IN (0, 1)),
         checkpoint_revision INTEGER NOT NULL DEFAULT 0,
         verified_entries INTEGER NOT NULL DEFAULT 0,
         verified_bytes INTEGER NOT NULL DEFAULT 0,

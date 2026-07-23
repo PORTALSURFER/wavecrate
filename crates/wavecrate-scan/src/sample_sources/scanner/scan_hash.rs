@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -128,18 +128,67 @@ pub enum ContentAuditStorage {
 }
 
 impl ContentAuditStorage {
-    /// Conservatively classify a source root from platform path conventions.
+    /// Conservatively classify a source root from platform mount information.
     pub fn classify(root: &std::path::Path) -> Self {
         #[cfg(target_os = "windows")]
-        if root.to_string_lossy().starts_with(r"\\") {
-            return Self::ExternalOrNetwork;
+        {
+            classify_windows_storage(root)
         }
         #[cfg(target_os = "macos")]
-        if root.starts_with("/Volumes") {
-            return Self::ExternalOrNetwork;
+        {
+            if root.starts_with("/Volumes") {
+                Self::ExternalOrNetwork
+            } else {
+                Self::Local
+            }
         }
-        Self::Local
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            let _ = root;
+            Self::Local
+        }
     }
+}
+
+#[cfg(any(target_os = "windows", test))]
+const WINDOWS_DRIVE_REMOVABLE: u32 = 2;
+#[cfg(any(target_os = "windows", test))]
+const WINDOWS_DRIVE_FIXED: u32 = 3;
+#[cfg(any(target_os = "windows", test))]
+const WINDOWS_DRIVE_REMOTE: u32 = 4;
+
+#[cfg(any(target_os = "windows", test))]
+fn classify_windows_drive_type(drive_type: u32) -> ContentAuditStorage {
+    match drive_type {
+        WINDOWS_DRIVE_FIXED => ContentAuditStorage::Local,
+        WINDOWS_DRIVE_REMOVABLE | WINDOWS_DRIVE_REMOTE => ContentAuditStorage::ExternalOrNetwork,
+        _ => ContentAuditStorage::ExternalOrNetwork,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn classify_windows_storage(root: &std::path::Path) -> ContentAuditStorage {
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Component, Prefix};
+    use windows::Win32::Storage::FileSystem::GetDriveTypeW;
+    use windows::core::PCWSTR;
+
+    if root.to_string_lossy().starts_with(r"\\") {
+        return ContentAuditStorage::ExternalOrNetwork;
+    }
+    let Some(Component::Prefix(prefix)) = root.components().next() else {
+        return ContentAuditStorage::ExternalOrNetwork;
+    };
+    let drive = match prefix.kind() {
+        Prefix::Disk(drive) | Prefix::VerbatimDisk(drive) => drive,
+        _ => return ContentAuditStorage::ExternalOrNetwork,
+    };
+    let drive_root = std::ffi::OsString::from(format!("{}:\\", char::from(drive)));
+    let mut wide = drive_root.encode_wide().collect::<Vec<_>>();
+    wide.push(0);
+    // SAFETY: `wide` is a live, nul-terminated UTF-16 root path for the duration of the call.
+    let drive_type = unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) };
+    classify_windows_drive_type(drive_type)
 }
 
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
@@ -221,7 +270,7 @@ fn verify_content_batch_with_hooks(
             entry.relative_path.to_string_lossy().as_ref() > checkpoint.retry_cursor.as_str()
         })
         .unwrap_or(0);
-    let mut retry = due_retries
+    let retry = due_retries
         .iter()
         .cycle()
         .skip(retry_start)
@@ -229,39 +278,49 @@ fn verify_content_batch_with_hooks(
         .take(retry_limit)
         .cloned()
         .collect::<Vec<_>>();
-    let retry_paths = retry
-        .iter()
-        .map(|entry| entry.relative_path.clone())
-        .collect::<HashSet<_>>();
     let start = entries
         .iter()
         .position(|entry| {
             entry.relative_path.to_string_lossy().as_ref() > checkpoint.cursor.as_str()
         })
         .unwrap_or(0);
-    let mut forward = entries
+    let forward = entries
         .iter()
         .cycle()
         .skip(start)
         .take(entries.len())
         .filter(|entry| {
-            !retry_paths.contains(&entry.relative_path)
-                && states.get(&entry.relative_path).is_none_or(|state| {
-                    !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
-                })
+            states.get(&entry.relative_path).is_none_or(|state| {
+                !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
+            })
         })
         .take(budget.max_entries.saturating_sub(retry.len()))
         .cloned()
         .collect::<Vec<_>>();
     let mut selected = Vec::with_capacity(retry.len() + forward.len());
-    selected.append(&mut retry);
-    selected.append(&mut forward);
+    let mut retry = VecDeque::from(retry);
+    let mut forward = VecDeque::from(forward);
+    let mut retry_paths = HashSet::new();
+    let mut planned_retry_next = checkpoint.retry_next;
+    while selected.len() < budget.max_entries && (!retry.is_empty() || !forward.is_empty()) {
+        let take_retry = !retry.is_empty() && (planned_retry_next || forward.is_empty());
+        if take_retry {
+            let entry = retry.pop_front().expect("retry queue is non-empty");
+            retry_paths.insert(entry.relative_path.clone());
+            selected.push(entry);
+            planned_retry_next = false;
+        } else if let Some(entry) = forward.pop_front() {
+            selected.push(entry);
+            planned_retry_next = true;
+        }
+    }
     let mut stats = ScanStats::default();
     let mut verified = Vec::new();
     let mut skipped = Vec::new();
     let mut attempted_bytes = 0_u64;
     let mut last_forward = None;
     let mut last_retry = None;
+    let mut retry_next = checkpoint.retry_next;
     for entry in &selected {
         if cancel_requested(cancel) {
             break;
@@ -275,8 +334,10 @@ fn verify_content_batch_with_hooks(
         }
         if retry_paths.contains(&entry.relative_path) {
             last_retry = Some(entry.relative_path.clone());
+            retry_next = false;
         } else {
             last_forward = Some(entry.relative_path.clone());
+            retry_next = true;
         }
         let absolute = root.join(&entry.relative_path);
         if !is_supported_regular_audio_file(&absolute) {
@@ -414,6 +475,7 @@ fn verify_content_batch_with_hooks(
         batch.checkpoint_content_audit(
             last_forward.as_deref(),
             last_retry.as_deref(),
+            retry_next,
             manifest_revision,
             attempted_bytes,
             now,
@@ -1070,6 +1132,27 @@ mod tests {
     }
 
     #[test]
+    fn windows_mapped_removable_and_unknown_drive_types_are_conservative() {
+        assert_eq!(
+            classify_windows_drive_type(WINDOWS_DRIVE_FIXED),
+            ContentAuditStorage::Local
+        );
+        for drive_type in [
+            WINDOWS_DRIVE_REMOTE,
+            WINDOWS_DRIVE_REMOVABLE,
+            0, // DRIVE_UNKNOWN
+            1, // DRIVE_NO_ROOT_DIR
+            5, // DRIVE_CDROM
+            6, // DRIVE_RAMDISK
+        ] {
+            assert_eq!(
+                classify_windows_drive_type(drive_type),
+                ContentAuditStorage::ExternalOrNetwork
+            );
+        }
+    }
+
+    #[test]
     fn content_audit_resumes_without_recounting_committed_entries() {
         let (_directory, database) = content_fixture(10, 32);
         let budget = ContentAuditBudget {
@@ -1278,6 +1361,72 @@ mod tests {
                     .unwrap(),
                 1,
             )
+        );
+    }
+
+    #[test]
+    fn oversized_retry_yields_the_next_slice_to_forward_progress() {
+        let (directory, database) = content_fixture(2, 32);
+        let retry_path = directory.path().join("sample-00000.wav");
+        verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            ContentAuditBudget::entry_limited(1),
+            100,
+            &UncoordinatedScanWriter,
+            |path| {
+                assert_eq!(path, retry_path);
+                std::fs::write(path, [7_u8; 64]).expect("make first attempt unstable");
+            },
+        )
+        .expect("record unstable entry");
+        let constrained = ContentAuditBudget {
+            max_elapsed: Duration::MAX,
+            max_bytes: 16,
+            max_entries: 2,
+            target_coverage_age: Duration::from_secs(30 * 24 * 60 * 60),
+            retry_entries: 1,
+        };
+
+        let retry_slice = verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            constrained,
+            1_000,
+            &UncoordinatedScanWriter,
+            |path| {
+                assert_eq!(path, retry_path);
+                std::fs::write(path, [9_u8; 96]).expect("keep retry unstable");
+            },
+        )
+        .expect("bounded retry slice");
+        assert_eq!(retry_slice.hashes_computed, 0);
+        assert!(
+            !retry_slice
+                .content_audit
+                .expect("retry coverage")
+                .retry_next,
+            "an attempted retry must persist forward as the next lane"
+        );
+        let after_retry = database.content_audit_entry_states().unwrap();
+        assert_eq!(after_retry[Path::new("sample-00000.wav")].attempts, 2);
+        assert!(!after_retry.contains_key(Path::new("sample-00001.wav")));
+
+        drop(database);
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("reopen source");
+        let forward_slice =
+            verify_content_batch(&database, None, constrained, 2_000).expect("forward slice");
+        assert_eq!(forward_slice.hashes_computed, 1);
+        let after_forward = database.content_audit_entry_states().unwrap();
+        assert_eq!(
+            after_forward[Path::new("sample-00000.wav")].attempts,
+            2,
+            "the still-due oversized retry must not run before reserved forward work"
+        );
+        assert_eq!(
+            after_forward[Path::new("sample-00001.wav")].skip_reason,
+            None
         );
     }
 
