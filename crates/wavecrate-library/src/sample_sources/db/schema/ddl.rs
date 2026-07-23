@@ -321,7 +321,9 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         collection INTEGER,
         collections TEXT,
         tag_named INTEGER NOT NULL DEFAULT 0,
-        file_identity TEXT
+        file_identity TEXT,
+        staged_generation INTEGER NOT NULL DEFAULT 0,
+        staged_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS pending_wav_rename_destinations (
         path TEXT PRIMARY KEY,
@@ -341,8 +343,12 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON pending_wav_renames (content_hash);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_file_identity
          ON pending_wav_renames (file_identity);
+     CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_identity_facts
+         ON pending_wav_renames (file_identity, file_size, modified_ns);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_facts
          ON pending_wav_renames (file_size, modified_ns);
+     CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_generation
+         ON pending_wav_renames (staged_generation);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_source_job_status_created
          ON analysis_jobs (source_id, job_type, status, created_at);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_relative_path_status

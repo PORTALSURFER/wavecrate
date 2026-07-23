@@ -404,6 +404,8 @@ fn legacy_read_only_pending_renames_project_optional_defaults() {
     assert_eq!(entry.modified_ns, 5);
     assert_eq!(entry.content_hash.as_deref(), Some("hash-a"));
     assert_eq!(entry.file_identity, None);
+    assert_eq!(entry.staged_generation, 0);
+    assert_eq!(entry.staged_at, None);
     assert_eq!(entry.metadata.tag, Rating::KEEP_1);
     assert!(entry.metadata.looped);
     assert!(entry.metadata.locked);
@@ -417,6 +419,16 @@ fn legacy_read_only_pending_renames_project_optional_defaults() {
         vec![SampleCollection::new(2).unwrap()]
     );
     assert!(!entry.metadata.tag_named);
+    assert_eq!(
+        db.pending_rename_diagnostics().unwrap(),
+        super::super::PendingRenameDiagnostics {
+            candidate_count: 1,
+            authoritative_generation: 0,
+            oldest_staged_generation: Some(0),
+            oldest_staged_at: None,
+            oldest_candidate_age_seconds: None,
+        }
+    );
 }
 
 #[test]

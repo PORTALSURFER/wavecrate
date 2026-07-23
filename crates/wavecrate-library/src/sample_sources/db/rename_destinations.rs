@@ -192,13 +192,30 @@ impl SourceWriteBatch<'_> {
             .map_err(map_sql_error)
     }
 
-    /// Drop retained candidates whose path, content, or pending source no longer matches.
+    /// Drop destinations that an authoritative manifest proves cannot recover pending metadata.
     pub fn prune_invalid_retained_rename_destinations(&mut self) -> Result<(), SourceDbError> {
         self.tx
             .execute(
                 "DELETE FROM pending_wav_rename_destinations AS destination
-                 WHERE destination.retained_hash IS NOT NULL
-                   AND NOT EXISTS (
+                 WHERE NOT EXISTS (
+                           SELECT 1
+                           FROM wav_files AS present
+                           WHERE present.path = destination.path
+                             AND present.missing = 0
+                       )
+                    OR (
+                        destination.retained_hash IS NULL
+                        AND EXISTS (
+                            SELECT 1
+                            FROM wav_files AS present
+                            WHERE present.path = destination.path
+                              AND present.missing = 0
+                              AND present.content_hash IS NOT NULL
+                        )
+                    )
+                    OR (
+                       destination.retained_hash IS NOT NULL
+                       AND NOT EXISTS (
                        SELECT 1
                        FROM wav_files AS present
                        JOIN pending_wav_renames AS missing
@@ -206,7 +223,8 @@ impl SourceWriteBatch<'_> {
                        WHERE present.path = destination.path
                          AND present.missing = 0
                          AND present.content_hash = destination.retained_hash
-                   )",
+                       )
+                    )",
                 [],
             )
             .map_err(map_sql_error)?;

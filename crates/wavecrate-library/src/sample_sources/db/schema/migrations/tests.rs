@@ -171,6 +171,30 @@ fn pending_rename_migration_adds_extended_metadata_columns() {
     assert!(columns.contains("user_tag"));
     assert!(columns.contains("normal_tags"));
     assert!(columns.contains("file_identity"));
+    assert!(columns.contains("staged_generation"));
+    assert!(columns.contains("staged_at"));
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_pending_wav_renames_generation'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        1
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*)
+             FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_pending_wav_renames_identity_facts'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        1
+    );
 }
 
 #[test]

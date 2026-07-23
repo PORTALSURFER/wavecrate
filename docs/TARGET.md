@@ -314,6 +314,19 @@ The source database should store information that belongs to that source and its
 - per-file metadata, ratings, global tag assignments, labels, generated-name inputs, listen history, and analysis state where those records belong to files in that source
 - reconciliation state for missing, moved, renamed, changed, unsupported, or failed files
 
+Pending rename metadata is retained by completed authoritative source generations, not by a
+wall-clock TTL. A targeted watcher batch may stage or consume candidates but never ages them.
+Quick-scan candidates remain eligible through two later successfully completed full-source
+enumerations; a partial traversal, cancellation, unavailable root, failed audit verification, or
+database failure does not advance that generation. A complete hard scan may remove an unmatched
+candidate immediately after current destinations have been reconciled. Pruning and authoritative
+generation publication are one source-database transaction, and unresolved deferred-hash
+destinations defer pruning. Rename reconciliation queries current destination candidates through
+indexed unique lookups capped at two source rows, so memory and lookup work do not scale with
+historical deletions. Aggregate diagnostics expose the retained count, authoritative and oldest
+candidate generations, oldest diagnostic staging time and age, destinations considered, and
+candidates pruned without per-file logging.
+
 Global application state should live in a user-level `.wavecrate` folder. On Windows, the initial target should be a conventional user config/home location such as `%USERPROFILE%\.wavecrate`, similar in spirit to `.cargo`, `.codex`, and other developer/user configuration folders. Future macOS and Linux support should map this same logical root to the platform's appropriate user config/home location.
 
 The global `.wavecrate` folder should contain app-wide state such as:

@@ -813,6 +813,10 @@ fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled()
     let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     std::fs::write(dir.path().join("missed.wav"), b"missed watcher event").unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(false);
+    let generation_before = db
+        .pending_rename_diagnostics()
+        .unwrap()
+        .authoritative_generation;
 
     let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
         cancel.store(true, std::sync::atomic::Ordering::Release)
@@ -838,6 +842,13 @@ fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled()
     let coverage = db.content_audit_report(1_234).unwrap();
     assert_eq!(coverage.remaining_entries, 1);
     assert_eq!(coverage.verified_entries, 0);
+    assert_eq!(
+        db.pending_rename_diagnostics()
+            .unwrap()
+            .authoritative_generation,
+        generation_before,
+        "failed audit verification must not authorize retention pruning"
+    );
 }
 
 #[test]
@@ -847,6 +858,10 @@ fn manifest_audit_publishes_unchanged_committed_revision_when_verification_is_ca
     let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(false);
+    let generation_before = db
+        .pending_rename_diagnostics()
+        .unwrap()
+        .authoritative_generation;
 
     let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
         cancel.store(true, std::sync::atomic::Ordering::Release)
@@ -862,6 +877,12 @@ fn manifest_audit_publishes_unchanged_committed_revision_when_verification_is_ca
         db.get_revision().unwrap()
     );
     assert!(committed.committed_delta.revision > 0);
+    assert_eq!(
+        db.pending_rename_diagnostics()
+            .unwrap()
+            .authoritative_generation,
+        generation_before
+    );
 }
 
 #[test]

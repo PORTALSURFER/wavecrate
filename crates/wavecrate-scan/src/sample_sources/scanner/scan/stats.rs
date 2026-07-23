@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use wavecrate_library::sample_sources::SourceManifestEntry;
-use wavecrate_library::sample_sources::db::ContentAuditReport;
+use wavecrate_library::sample_sources::db::{ContentAuditReport, PendingRenameDiagnostics};
 
 /// One non-audio regular file observed during the authoritative source traversal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +61,12 @@ pub struct ScanStats {
     pub content_audit: Option<ContentAuditReport>,
     /// Number of missing rows reconciled to renamed files.
     pub renames_reconciled: usize,
+    /// Current destination candidates examined through indexed pending-source lookups.
+    pub pending_renames_considered: usize,
+    /// Expired pending-source candidates removed by authoritative completion.
+    pub pending_renames_pruned: usize,
+    /// Aggregate pending-source population after authoritative completion.
+    pub pending_rename_diagnostics: Option<PendingRenameDiagnostics>,
     /// Detailed list of files whose source-visible metadata was updated in place.
     pub updated_samples: Vec<UpdatedSample>,
     /// Detailed list of source-visible rename reconciliations.
@@ -85,6 +91,12 @@ impl ScanStats {
         self.content_audit = deferred.content_audit.take().or(self.content_audit.take());
         self.hashes_pending = self.hashes_pending.saturating_sub(deferred.hashes_computed);
         self.renames_reconciled += deferred.renames_reconciled;
+        self.pending_renames_considered += deferred.pending_renames_considered;
+        self.pending_renames_pruned += deferred.pending_renames_pruned;
+        self.pending_rename_diagnostics = deferred
+            .pending_rename_diagnostics
+            .take()
+            .or(self.pending_rename_diagnostics.take());
         self.updated_samples.append(&mut deferred.updated_samples);
         self.renamed_samples.append(&mut deferred.renamed_samples);
         self.changed_samples.append(&mut deferred.changed_samples);

@@ -57,6 +57,10 @@ fn hard_rescan_keeps_pending_rename_metadata_for_an_unreadable_subtree() {
     let mut batch = db.write_batch().unwrap();
     batch.stage_pending_rename(&tracked).unwrap();
     batch.commit().unwrap();
+    let generation_before = db
+        .pending_rename_diagnostics()
+        .unwrap()
+        .authoritative_generation;
 
     std::fs::remove_file(file_path).unwrap();
     let failure = force_directory_entry_failure(&protected);
@@ -70,6 +74,13 @@ fn hard_rescan_keeps_pending_rename_metadata_for_an_unreadable_subtree() {
             .unwrap()
             .iter()
             .any(|entry| entry.relative_path == Path::new("protected/kick.wav"))
+    );
+    assert_eq!(
+        db.pending_rename_diagnostics()
+            .unwrap()
+            .authoritative_generation,
+        generation_before,
+        "partial enumeration must not advance retention eligibility"
     );
 
     drop(failure);
