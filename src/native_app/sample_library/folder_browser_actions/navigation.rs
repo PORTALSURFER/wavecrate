@@ -62,12 +62,14 @@ impl NativeAppState {
             );
     }
 
-    pub(super) fn toggle_similarity_anchor(
+    pub(in crate::native_app) fn toggle_similarity_anchor(
         &mut self,
         file_id: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        self.library.folder_browser.clear_source_keyboard_focus();
+        self.library.folder_browser.hide_keyboard_focus();
         let clearing = self
             .library
             .folder_browser

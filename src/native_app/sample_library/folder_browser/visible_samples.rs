@@ -35,7 +35,6 @@ pub(in crate::native_app) struct VisibleSampleWindowPolicy<'a> {
 
 pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) total_count: usize,
-    pub(in crate::native_app) includes_subfolders: bool,
     pub(in crate::native_app) window: ui::VirtualListWindow,
     pub(in crate::native_app) rows: Vec<VisibleSampleRow<'a>>,
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
@@ -51,8 +50,9 @@ pub(super) struct VisibleSampleWindowFiles<'a> {
 
 pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
-    pub(in crate::native_app) explicitly_selected: bool,
+    pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) focused: bool,
+    pub(in crate::native_app) focus_alpha: u8,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -691,7 +691,6 @@ impl FolderBrowserState {
 
         VisibleSampleList {
             total_count: window_files.total_count,
-            includes_subfolders: self.folder_subtree_listing_enabled(),
             window,
             rows,
             columns: self.visible_file_columns(),
@@ -759,10 +758,19 @@ impl FolderBrowserState {
     ) -> VisibleSampleRow<'a> {
         let harvest_facts = harvest_lookup.facts_for_file(self, file);
         let selected = self.is_file_selected(&file.id);
+        let focused = self.pointer_focused_folder_id.is_none()
+            && !self.source_keyboard_focus_active()
+            && self.keyboard_focus_visible()
+            && self.selected_file_id() == Some(file.id.as_str());
         VisibleSampleRow {
             file,
-            explicitly_selected: selected && self.selection.selected_file_ids_explicit(),
-            focused: self.selected_file_id() == Some(file.id.as_str()),
+            selected,
+            focused,
+            focus_alpha: if focused {
+                self.keyboard_focus_alpha()
+            } else {
+                0
+            },
             copy_flash: self.copied_file_flash_active(&file.id),
             protected_source_error_flash: self.protected_source_error_file_flash_active(&file.id),
             drag_active: self.file_drag_active(),

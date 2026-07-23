@@ -5,8 +5,9 @@ mod projection;
 mod tests;
 
 use crate::native_app::app::{GuiMessage, MetadataMessage, SampleNameViewMode};
+use crate::native_app::app_chrome::palette::{ACCENT, TEXT_PRIMARY};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::model::FileColumn;
+use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use crate::native_app::sample_library::folder_browser::projection::FileColumnDragFeedback;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
@@ -20,8 +21,8 @@ use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_co
 
 const SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH: f32 = 22.0;
 const SAMPLE_SIMILARITY_ASPECT_HEADER_WIDTH: f32 = 14.0;
-const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
-const SAMPLE_BROWSER_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
+const SAMPLE_BROWSER_ICON_ACTIVE_COLOR: ui::Rgba8 = ACCENT;
+const SAMPLE_BROWSER_ICON_ENABLED_COLOR: ui::Rgba8 = TEXT_PRIMARY;
 const SAMPLE_BROWSER_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     SAMPLE_BROWSER_ICON_ENABLED_COLOR,
     SAMPLE_BROWSER_ICON_ACTIVE_COLOR,
@@ -164,24 +165,19 @@ fn sample_browser_header(
         .fill_width()
         .height(24.0);
     let details_header = match drag_marker_x {
-        Some(marker_x) => ui::stack([details_header, column_drop_marker(marker_x)])
-            .fill_width()
-            .height(24.0),
+        Some(marker_x) => ui::stack([
+            details_header,
+            column_drop_marker(marker_x + SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH),
+        ])
+        .fill_width()
+        .height(24.0),
         None => details_header,
     };
-    ui::row([
-        ui::spacer()
-            .width(SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH)
-            .height(24.0),
-        details_header,
-    ])
-    .spacing(0.0)
-    .fill_width()
-    .height(24.0)
+    details_header
 }
 
 fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
-    ui::local_drop_marker(x, ui::Rgba8::new(255, 160, 82, 230), 2.0, 20.0)
+    ui::local_drop_marker(x, ACCENT.with_alpha(230), 2.0, 20.0)
         .fill_width()
         .height(24.0)
         .padding_x(8.0)
@@ -193,6 +189,12 @@ fn sample_header_cell(
     sort: &radiant::application::DetailsSort,
 ) -> ui::View<GuiMessage> {
     let column = projection.column;
+    let width = column.width
+        + if column.kind() == FileColumnKind::Name {
+            SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH
+        } else {
+            0.0
+        };
     let sort_id = column.id.clone();
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
@@ -203,7 +205,7 @@ fn sample_header_cell(
     );
     radiant::application::compact_resizable_details_header_cell(
         label,
-        column.width,
+        width,
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
         move |drag| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag))

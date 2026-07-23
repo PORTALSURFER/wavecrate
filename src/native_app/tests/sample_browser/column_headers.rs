@@ -72,6 +72,37 @@ fn sample_browser_frame_paints_column_and_file_text() {
 }
 
 #[test]
+fn name_header_reaches_sample_list_leading_edge() {
+    let (mut state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("leading-edge.wav");
+    prepare_sample_browser_view(&mut state);
+    let runtime = native_runtime_for_tests(state, Vector2::new(1100.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let name_header_id = radiant::application::compact_details_header_sort_drag_id(
+        radiant::widgets::stable_widget_id(
+            crate::native_app::ui::ids::RETAINED_SAMPLE_HEADER_CELL_ID,
+            "name",
+        ),
+    );
+    let name_header_rect = runtime
+        .layout()
+        .rects
+        .get(&name_header_id)
+        .copied()
+        .expect("name column header hit target should be laid out");
+
+    assert!(
+        name_header_rect.min.x - list_rect.min.x <= 8.5,
+        "name header should use only the compact header inset, list={list_rect:?}, header={name_header_rect:?}",
+    );
+}
+
+#[test]
 fn full_gui_column_header_click_toggles_sort_direction() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
@@ -153,7 +184,7 @@ fn sample_browser_column_drag_paints_drop_marker() {
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
 
     assert!(frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == Rgba8::new(255, 160, 82, 230)
+        fill.color == Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() <= 2.5
             && fill.rect.height() >= 20.0
     }));

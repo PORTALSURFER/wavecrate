@@ -6,6 +6,8 @@ use std::time::Instant;
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct StatusBarViewModel {
     pub(in crate::native_app) selected_sample_count: usize,
+    pub(in crate::native_app) listed_audio_count: usize,
+    pub(in crate::native_app) listing_includes_subfolders: bool,
     pub(in crate::native_app) status_text: String,
     pub(in crate::native_app) status_severity: StatusSeverity,
     pub(in crate::native_app) worker_progress: Option<WorkerProgressViewModel>,
@@ -24,6 +26,14 @@ impl StatusBarViewModel {
         let worker = active_worker(state);
         Self {
             selected_sample_count: state.library.folder_browser.selected_audio_file_count(),
+            listed_audio_count: state
+                .library
+                .folder_browser
+                .selected_audio_file_count_matching_tags(&state.metadata.tags_by_file),
+            listing_includes_subfolders: state
+                .library
+                .folder_browser
+                .folder_subtree_listing_enabled(),
             status_text: bottom_status_text(state),
             status_severity: bottom_status_severity(state, worker.is_some()),
             worker_progress: worker.as_ref().map(|worker| worker.progress),

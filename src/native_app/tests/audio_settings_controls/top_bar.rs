@@ -13,7 +13,7 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         used_fallback: false,
     });
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(360.0, 30.0));
     let texts = frame.paint_plan.text_label_strings();
     let slider_fills = frame
         .paint_plan
@@ -32,7 +32,7 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 fn top_control_bar_places_help_button_after_settings_gear() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(1100.0, 38.0));
     let help = frame
         .layout
         .rects
@@ -43,13 +43,20 @@ fn top_control_bar_places_help_button_after_settings_gear() {
         .rects
         .get(&crate::native_app::test_support::settings::GENERAL_SETTINGS_BUTTON_ID)
         .expect("settings button should lay out");
+    let normalized = frame
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::settings::NORMALIZED_AUDITION_BUTTON_ID)
+        .expect("normalized audition button should lay out");
 
     assert!(
         settings.max.x <= help.min.x,
         "help button should sit to the right of the settings gear"
     );
-    assert_eq!(help.width(), 18.0);
-    assert_eq!(help.height(), 22.0);
+    assert_eq!(help.width(), 28.0);
+    assert!(help.height() >= 24.0);
+    assert_eq!(normalized.width(), 28.0);
+    assert!(normalized.height() >= 24.0);
 }
 
 #[test]
@@ -93,23 +100,30 @@ fn top_control_bar_hides_release_indicator_without_available_release() {
 }
 
 #[test]
-fn top_help_tooltips_button_paints_as_bare_question_mark() {
+fn top_help_and_normalized_audition_paint_as_framed_toggle_buttons() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
     let help_id = crate::native_app::test_support::settings::HELP_TOOLTIPS_BUTTON_ID;
+    let normalized_id = crate::native_app::test_support::settings::NORMALIZED_AUDITION_BUTTON_ID;
 
     let icon_rect = frame
         .paint_plan
         .first_svg_rect_for_widget(help_id)
         .expect("help button should paint the question mark icon");
     assert!(icon_rect.width() > 12.0);
-    assert!(icon_rect.width() <= 18.0);
+    assert!(icon_rect.width() <= 28.0);
     assert!(
-        !frame
+        frame
             .paint_plan
             .contains_visible_fill_polygon_for_widget(help_id),
-        "help button should not paint resting button fill"
+        "help toggle should paint standard button chrome"
+    );
+    assert!(
+        frame
+            .paint_plan
+            .contains_visible_fill_polygon_for_widget(normalized_id),
+        "normalized audition toggle should paint standard button chrome"
     );
 }
 
@@ -158,12 +172,12 @@ fn enabled_help_tooltips_paint_when_control_is_hovered() {
 }
 
 #[test]
-fn focused_top_volume_slider_does_not_paint_border() {
+fn focused_top_volume_slider_paints_only_passive_track_border() {
     let slider_id = crate::native_app::test_support::settings::VOLUME_SLIDER_ID;
     let mut surface = crate::native_app::test_support::settings::volume_slider(0.25).into_surface();
     let slider_bounds = radiant::gui::types::Rect::from_min_size(
         radiant::gui::types::Point::default(),
-        Vector2::new(92.0, 14.0),
+        Vector2::new(112.0, 16.0),
     );
 
     surface.dispatch_widget_input(
@@ -171,13 +185,16 @@ fn focused_top_volume_slider_does_not_paint_border() {
         slider_bounds,
         radiant::widgets::WidgetInput::FocusChanged(true),
     );
-    let frame = surface.frame_at_size_with_default_theme(Vector2::new(92.0, 14.0));
+    let frame = surface.frame_at_size_with_default_theme(Vector2::new(112.0, 16.0));
 
-    assert_eq!(
-        frame.paint_plan.stroke_rects_for_widget(slider_id).count(),
-        0,
-        "focused top volume slider should not paint a focus border"
-    );
+    let borders = frame
+        .paint_plan
+        .stroke_rects_for_widget(slider_id)
+        .collect::<Vec<_>>();
+    assert_eq!(borders.len(), 1);
+    assert_eq!(borders[0].rect.width(), 112.0);
+    assert_eq!(borders[0].rect.height(), 8.0);
+    assert_eq!(borders[0].width, 1.0);
     assert!(
         frame
             .paint_plan
@@ -186,6 +203,27 @@ fn focused_top_volume_slider_does_not_paint_border() {
             >= 2,
         "focused top volume slider should still paint track and fill"
     );
+}
+
+#[test]
+fn volume_slider_outline_remains_visible_at_empty_and_full_values() {
+    let slider_id = crate::native_app::test_support::settings::VOLUME_SLIDER_ID;
+    let theme = radiant::prelude::ThemeTokens::default();
+
+    for volume in [0.0, 1.0] {
+        let frame = crate::native_app::test_support::settings::volume_slider(volume)
+            .view_frame_at_size_with_default_theme(Vector2::new(112.0, 16.0));
+        let borders = frame
+            .paint_plan
+            .stroke_rects_for_widget(slider_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(borders.len(), 1, "volume={volume}");
+        assert_eq!(borders[0].rect.width(), 112.0, "volume={volume}");
+        assert_eq!(borders[0].rect.height(), 8.0, "volume={volume}");
+        assert_eq!(borders[0].width, 1.0, "volume={volume}");
+        assert_eq!(borders[0].color, theme.border_emphasis, "volume={volume}");
+    }
 }
 
 #[test]

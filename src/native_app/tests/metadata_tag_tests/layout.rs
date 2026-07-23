@@ -43,10 +43,10 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
     let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
-        .paint_plan
-        .first_widget_rect(
-            crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID,
-        )
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID)
+        .copied()
         .expect("metadata panel should paint");
     let status_text_rect = frame
         .paint_plan
@@ -79,10 +79,10 @@ fn metadata_section_keeps_configured_height_without_selected_file() {
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let metadata_rect = frame
-        .paint_plan
-        .first_widget_rect(
-            crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID,
-        )
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID)
+        .copied()
         .expect("metadata panel should stay in the sidebar without a selected file");
 
     assert_eq!(metadata_rect.height(), browser.metadata_panel_height());
@@ -204,10 +204,10 @@ fn metadata_section_collapses_to_header_only_height() {
     let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
-        .paint_plan
-        .first_widget_rect(
-            crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID,
-        )
+        .layout
+        .rects
+        .get(&crate::native_app::test_support::metadata_sidebar::METADATA_SIDEBAR_PANEL_ID)
+        .copied()
         .expect("metadata panel should paint");
 
     assert_eq!(
@@ -240,10 +240,10 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(frame.paint_plan.contains_text("deep-kick ->"));
+    assert!(frame.paint_plan.contains_text("DEEP-KICK ->"));
     let pending_tag_rect = frame
         .paint_plan
-        .first_text_rect("deep-kick ->")
+        .first_text_rect("DEEP-KICK ->")
         .expect("pending tag should paint");
     let category_input = metadata_tag_text_input(&frame).expect("category input should paint");
     assert_eq!(category_input.state.value, "sound");

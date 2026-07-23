@@ -10,6 +10,7 @@ use super::row_projection::SampleColumnDisplay;
 use super::row_widgets::RatingIndicator;
 use super::similarity_aspect_color;
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::palette::{ACCENT, ACCENT_SOFT, TEXT_MUTED, TEXT_PRIMARY};
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 #[cfg(test)]
@@ -19,10 +20,10 @@ mod projection;
 
 const SIMILARITY_TOGGLE_WIDTH: f32 = 22.0;
 const SIMILARITY_TOGGLE_SIZE: f32 = 18.0;
-const SIMILARITY_SCORE_TRACK: ui::Rgba8 = ui::Rgba8::new(64, 68, 72, 150);
-pub(super) const SIMILARITY_SCORE_FILL: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
-const SIMILARITY_ASPECT_TRACK: ui::Rgba8 = ui::Rgba8::new(38, 42, 46, 190);
-pub(super) const SIMILARITY_ASPECT_DISABLED_TRACK: ui::Rgba8 = ui::Rgba8::new(24, 26, 28, 210);
+const SIMILARITY_SCORE_TRACK: ui::Rgba8 = ui::Rgba8::new(48, 50, 50, 150);
+pub(super) const SIMILARITY_SCORE_FILL: ui::Rgba8 = ACCENT.with_alpha(230);
+const SIMILARITY_ASPECT_TRACK: ui::Rgba8 = ui::Rgba8::new(40, 43, 44, 190);
+pub(super) const SIMILARITY_ASPECT_DISABLED_TRACK: ui::Rgba8 = ui::Rgba8::new(24, 27, 28, 210);
 const SIMILARITY_ASPECT_WIDTH: f32 = 14.0;
 const SAMPLE_NAME_BADGE_LIMIT: usize = 4;
 pub(super) const RATING_MARKER_SIDE: u8 = 5;
@@ -31,23 +32,29 @@ pub(super) const LOCKED_KEEP_RATING_COLOR: ui::Rgba8 = ui::Rgba8::new(232, 188, 
 /// Keeps compact column content left of the header resize-divider gutter.
 pub(super) const COMPACT_COLUMN_CONTENT_TRAILING_GUTTER: f32 = 14.0;
 const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
-    ui::Rgba8::new(238, 238, 238, 220),
-    ui::Rgba8::new(255, 160, 82, 255),
-    ui::Rgba8::new(142, 146, 150, 210),
+    TEXT_PRIMARY.with_alpha(220),
+    ACCENT,
+    TEXT_MUTED.with_alpha(210),
 );
 
 /// Render one projected sample-browser cell.
-pub(super) fn sample_column_cell(column: SampleColumnDisplay) -> ui::View<GuiMessage> {
-    render_sample_cell(sample_cell_projection(column))
+pub(super) fn sample_column_cell(
+    column: SampleColumnDisplay,
+    selected_name: bool,
+) -> ui::View<GuiMessage> {
+    render_sample_cell(sample_cell_projection(column), selected_name)
 }
 
-fn render_sample_cell(projection: SampleCellProjection) -> ui::View<GuiMessage> {
+fn render_sample_cell(
+    projection: SampleCellProjection,
+    selected_name: bool,
+) -> ui::View<GuiMessage> {
     match projection.content {
         SampleCellContentProjection::Name {
             text,
             badges,
             muted,
-        } => sample_name_cell(text, badges, muted, projection.width),
+        } => sample_name_cell(text, badges, muted, selected_name, projection.width),
         SampleCellContentProjection::Curation { badges, muted } => {
             sample_badge_run_cell(badges, muted, projection.width)
         }
@@ -79,9 +86,21 @@ pub(super) fn similarity_anchor_toggle(
     strength: Option<f32>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    let button = ui::icon_button(similarity_anchor_icon(active, strength.is_some()))
-        .subtle()
-        .active(active)
+    let available = strength.is_some();
+    let button = ui::icon_button(similarity_anchor_icon(active, available))
+        // The anchor occupies the leading sample gutter, but must not paint a
+        // second boxed column edge beside the pane resize divider.
+        .bare()
+        // The sample row remains the keyboard-navigation owner. The nested
+        // sphere is a pointer toggle and must not replace row focus state.
+        .focus(ui::FocusBehavior::Pointer)
+        .hover_icon(SIMILARITY_ANCHOR_ICON.icon(if active {
+            ACCENT_SOFT
+        } else if available {
+            ACCENT
+        } else {
+            TEXT_PRIMARY
+        }))
         .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::ToggleSimilarityAnchor(file_id.clone()),
         ))
@@ -254,16 +273,40 @@ fn sample_name_cell(
     text: String,
     badges: Vec<String>,
     muted: bool,
+    selected: bool,
     width: f32,
 ) -> ui::View<GuiMessage> {
     if badges.is_empty() {
-        return sample_file_cell_with_tone(text, width, muted);
+        let name = selected_sample_name_text(compact_text(text), muted, selected);
+        return compact_column_content_cell(name, width);
     }
     let mut cells = Vec::with_capacity(badges.len() + 1);
-    let name = compact_text(text).fill_width();
-    cells.push(if muted { name.muted_text() } else { name });
+    let name = selected_sample_name_text(compact_text(text).fill_width(), muted, selected);
+    cells.push(name);
     cells.extend(sample_badge_views(badges));
     compact_column_content_cell(ui::row(cells).spacing(4.0).fill_width(), width)
+}
+
+fn selected_sample_name_text(
+    name: ui::View<GuiMessage>,
+    muted: bool,
+    selected: bool,
+) -> ui::View<GuiMessage> {
+    if selected {
+        name.text_color(ui::TextColorRole::Custom(ACCENT))
+    } else if muted {
+        name.muted_text()
+    } else {
+        name
+    }
+}
+
+#[cfg(test)]
+pub(super) fn selected_sample_name_cell_for_tests(
+    value: String,
+    width: f32,
+) -> ui::View<GuiMessage> {
+    sample_name_cell(value, Vec::new(), false, true, width)
 }
 
 fn sample_badge_run_cell(badges: Vec<String>, muted: bool, width: f32) -> ui::View<GuiMessage> {

@@ -38,6 +38,9 @@ impl NativeAppState {
             MetadataMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);
             }
+            MetadataMessage::RemoveMetadataTag(tag) => {
+                self.remove_metadata_tag(tag, context);
+            }
             #[cfg(test)]
             MetadataMessage::ToggleMetadataTagForFiles { tag, file_ids } => {
                 self.toggle_metadata_tag_for_file_ids(tag, file_ids, context);

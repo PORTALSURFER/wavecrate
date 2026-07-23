@@ -3,7 +3,7 @@ use super::super::cells::{
     LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE, SIMILARITY_ASPECT_DISABLED_TRACK,
     SIMILARITY_SCORE_FILL, muted_sample_file_cell, sample_collection_cell, sample_file_cell,
     sample_harvest_badge_cell, sample_playback_type_cell, sample_rating_cell,
-    sample_similarity_cell,
+    sample_similarity_cell, selected_sample_name_cell_for_tests,
 };
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
@@ -53,6 +53,46 @@ fn fill_rects(frame: &radiant::runtime::SurfaceFrame) -> Vec<radiant::prelude::R
         .into_iter()
         .map(|(rect, _)| rect)
         .collect()
+}
+
+#[test]
+fn active_similarity_anchor_keeps_sample_selection_and_focus_chrome() {
+    let frame = sample_browser_row(
+        SampleRowDisplay {
+            file_id: "anchor.wav",
+            selected: true,
+            focused: true,
+            focus_alpha: u8::MAX,
+            copy_flash: false,
+            protected_source_error_flash: false,
+            cut_pending: false,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            missing: false,
+            similarity_anchor: true,
+            similarity_strength: Some(1.0),
+            columns: Vec::new(),
+        },
+        false,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(320.0, SAMPLE_BROWSER_ROW_HEIGHT));
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == crate::native_app::app_chrome::palette::SELECTED_ROW_FILL),
+        "an active anchor must not suppress persistent sample selection"
+    );
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width),
+        "an active anchor must not suppress keyboard focus chrome"
+    );
 }
 
 #[test]
@@ -115,6 +155,20 @@ fn sample_text_uses_primary_theme_color() {
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "sample rows should not express loaded/cache state through text color"
+    );
+}
+
+#[test]
+fn selected_sample_name_uses_global_accent_color() {
+    let theme = ThemeTokens::default();
+    let frame = selected_sample_name_cell_for_tests(String::from("kick_deep"), 120.0)
+        .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
+
+    assert!(
+        frame.paint_plan.text_runs().any(|run| {
+            run.text == "kick_deep" && run.color == crate::native_app::app_chrome::palette::ACCENT
+        }),
+        "selected sample names should use the same coral accent as selected source and folder labels"
     );
 }
 

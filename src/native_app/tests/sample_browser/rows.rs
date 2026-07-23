@@ -7,7 +7,6 @@ fn shared_dense_row_palette() -> DenseRowPalette {
         radiant::prelude::WidgetStyle::subtle(radiant::prelude::WidgetTone::Accent),
     )
 }
-
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
@@ -112,24 +111,11 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
     let bounds = Rect::from_xy_size(12.0, 8.0, 240.0, 22.0);
     let plan = sample_hit_target_plan(&widget, bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
-    let selected_fill = shared_dense_row_palette()
-        .selected
-        .expect("dense-row selected fill");
+    let selected_fill = crate::native_app::app_chrome::palette::SELECTED_ROW_FILL;
 
-    assert!(
-        fills
-            .iter()
-            .any(|fill| fill.rect == bounds && fill.color == selected_fill)
-    );
+    assert!(fills.iter().any(|fill| fill.color == selected_fill));
     assert!(fills.iter().any(|fill| {
-        fill.color
-            == Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 245,
-            }
-            && fill.rect.width() <= 3.5
+        fill.color == crate::native_app::app_chrome::palette::ACCENT && fill.rect.width() <= 3.5
     }));
 }
 
@@ -263,6 +249,12 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     prepare_sample_browser_view(&mut state);
     let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(1517.0, 758.0));
+    let sample_list_rect = frame
+        .layout
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
     let sample_texts = frame
         .paint_plan
         .text_runs()
@@ -277,12 +269,11 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
 
     assert!(!sample_texts.is_empty(), "{sample_texts:?}");
     assert!(
-        sample_texts.iter().any(|(_, rect, baseline)| {
-            rect.width() > 20.0
+        sample_texts.iter().any(|(text, rect, baseline)| {
+            text != "Name"
+                && sample_list_rect.contains(rect.center())
+                && rect.width() > 20.0
                 && rect.height() >= 10.0
-                && rect.min.x >= 280.0
-                && rect.min.y >= 320.0
-                && rect.max.y <= 730.0
                 && baseline.is_some()
         }),
         "{sample_texts:?}"

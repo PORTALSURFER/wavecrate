@@ -119,8 +119,16 @@ fn toggle_focused_sample_selection_marks_visible_row_as_explicit_selection() {
         .expect("focused row before toggle");
 
     assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
-    assert!(focused_before.focused);
-    assert!(!focused_before.explicitly_selected);
+    assert!(
+        focused_before.focused,
+        "pointer selection should paint transient focus while retaining navigation ownership"
+    );
+    assert!(focused_before.focus_alpha > 0);
+    assert!(
+        focused_before.selected,
+        "pointer selection should keep persistent selected-row chrome after release"
+    );
+    assert!(!browser.selected_file_ids_explicit_for_diagnostics());
 
     browser
         .toggle_focused_sample_selection(&Default::default())
@@ -138,7 +146,7 @@ fn toggle_focused_sample_selection_marks_visible_row_as_explicit_selection() {
 
     assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
     assert!(focused_after.focused);
-    assert!(focused_after.explicitly_selected);
+    assert!(browser.selected_file_ids_explicit_for_diagnostics());
 
     let _ = fs::remove_dir_all(root);
 }

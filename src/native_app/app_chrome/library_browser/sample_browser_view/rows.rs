@@ -44,6 +44,7 @@ pub(super) fn sample_browser_rows(
     .overscan_px(SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32)
     .on_window_changed(GuiMessage::SampleBrowserWindowChanged)
     .view()
+    .without_chrome()
     .id(SAMPLE_BROWSER_LIST_ID)
     .fill()
 }
@@ -68,6 +69,11 @@ fn sample_browser_row(
 ) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
     let file_id_for_toggle = row.file_id.to_string();
+    let selected_name = (row.selected || row.focused)
+        && !row.copy_flash
+        && !row.protected_source_error_flash
+        && !row.cut_pending
+        && !row.missing;
     let row_content = ui::row([
         similarity_anchor_toggle(
             file_id_for_toggle,
@@ -75,18 +81,23 @@ fn sample_browser_row(
             row.similarity_strength,
             help_tooltips_enabled,
         ),
-        radiant::application::compact_details_row(row.columns.into_iter().map(sample_column_cell))
-            .fill_width(),
+        radiant::application::compact_details_row(
+            row.columns
+                .into_iter()
+                .map(|column| sample_column_cell(column, selected_name)),
+        )
+        .fill_width(),
     ])
     .spacing(0.0)
     .fill_width()
     .height(SAMPLE_BROWSER_ROW_HEIGHT);
-    let row = sample_file_hit_target(
+    sample_file_hit_target(
         row_content,
         SampleFileHitTargetModel {
             file_id: row.file_id,
-            explicitly_selected: row.explicitly_selected,
+            selected: row.selected,
             focused: row.focused,
+            focus_alpha: row.focus_alpha,
             copy_flash: row.copy_flash,
             protected_source_error_flash: row.protected_source_error_flash,
             cut_pending: row.cut_pending,
@@ -99,8 +110,7 @@ fn sample_browser_row(
         },
     )
     .fill_width()
-    .height(SAMPLE_BROWSER_ROW_HEIGHT);
-    row.style(ui::WidgetStyle::default())
+    .height(SAMPLE_BROWSER_ROW_HEIGHT)
 }
 
 #[cfg(test)]

@@ -32,7 +32,7 @@ impl NativeAppState {
         if self.library.folder_browser.selected_source_id() == source {
             self.library
                 .folder_browser
-                .focus_selected_source_for_keyboard();
+                .focus_selected_source_for_pointer();
         }
         log_select_source_phase("select_source", selection_started_at);
         let prep_started_at = Instant::now();
@@ -61,6 +61,9 @@ impl NativeAppState {
             return;
         };
         self.select_folder_browser_source(source_id, context);
+        self.library
+            .folder_browser
+            .focus_selected_source_for_keyboard();
     }
 }
 

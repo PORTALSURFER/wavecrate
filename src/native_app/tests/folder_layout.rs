@@ -4,7 +4,7 @@ use crate::native_app::test_support::{
     sample_browser::{DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH},
     state::{FolderBrowserState, GuiMessage, NativeAppStateFixture},
 };
-use radiant::runtime::Command;
+use radiant::runtime::{Command, Event};
 use radiant::{
     gui::types::{Point, Vector2},
     runtime::SurfaceFrame,
@@ -32,6 +32,143 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
     state.resize_folder_browser(DragHandleMessage::ended(Point::new(-900.0, 0.0)));
     assert_eq!(state.ui.chrome.folder_panel.size(), MIN_FOLDER_WIDTH);
     assert!(!state.ui.chrome.folder_panel.is_resizing());
+}
+
+#[test]
+fn folder_tree_and_sample_list_share_one_pixel_boundary() {
+    let tempdir = tempfile::tempdir().expect("create temp root");
+    let root = tempdir.path().join("wavecrate-pane-boundary");
+    fs::create_dir_all(&root).expect("create source root");
+    fs::write(root.join("sample.wav"), []).expect("write sample");
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .with_folder_browser(FolderBrowserState::from_root(root))
+        .build();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let tree = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::FOLDER_TREE_LIST_ID)
+        .copied()
+        .expect("folder tree list should be laid out");
+    let samples = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::sample_library::sample_list::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample list should be laid out");
+
+    assert!(
+        (samples.min.x - tree.max.x - 1.0).abs() < 0.01,
+        "the resize divider should be the only column between panes: tree={tree:?}, samples={samples:?}"
+    );
+    let frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let rail = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            (fill.rect.min.x - tree.max.x).abs() < 0.01
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.color == radiant::prelude::ThemeTokens::default().border_emphasis
+        })
+        .expect("the outer sidebar resize boundary should paint one continuous rail");
+    assert!(rail.rect.min.y <= tree.min.y);
+    assert!(rail.rect.max.y >= samples.max.y);
+    assert!(
+        frame.paint_plan.stroke_rects().all(|stroke| {
+            ((stroke.rect.max.x - tree.max.x).abs() >= 0.01
+                && (stroke.rect.min.x - samples.min.x).abs() >= 0.01)
+                || stroke.rect.height() <= 40.0
+        }),
+        "inner lists must not paint structural edges beside the continuous sidebar rail"
+    );
+
+    let hover = Point::new(samples.min.x - 3.0, samples.center().y);
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(hover)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID),
+        "the resize hit target should extend inward from the one-pixel rail"
+    );
+    let hovered_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let crossing_rail = hovered_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            (fill.rect.min.x - tree.max.x).abs() < 0.01
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.rect.min.y <= tree.min.y
+                && fill.rect.max.y >= samples.max.y
+        })
+        .expect("resize rail during a fast pointer crossing");
+    assert_eq!(crossing_rail.rect, rail.rect);
+    assert_eq!(
+        crossing_rail.color,
+        radiant::prelude::ThemeTokens::default().border_emphasis,
+        "a fast pointer crossing should not flash the resize highlight"
+    );
+
+    let initial_width = runtime.bridge().state().ui.chrome.folder_panel.size();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(hover)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    let pressed_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let active_rail = pressed_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.widget_id == crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.color != radiant::prelude::ThemeTokens::default().border_emphasis
+        })
+        .expect("pointer-down should light the resize rail immediately");
+    let active_rail_index = pressed_frame
+        .paint_plan
+        .primitives
+        .iter()
+        .rposition(|primitive| {
+            primitive.widget_id()
+                == Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+                && primitive.rects().any(|rect| rect == active_rail.rect)
+        })
+        .expect("active resize rail paint primitive");
+    assert!(
+        pressed_frame.paint_plan.primitives[active_rail_index + 1..]
+            .iter()
+            .filter(|primitive| primitive.is_paint())
+            .flat_map(|primitive| primitive.rects())
+            .all(|rect| !rect.overlaps(active_rail.rect)),
+        "the resize rail must remain unobscured by later sidebar or workspace paint"
+    );
+
+    let drag = Point::new(hover.x + 20.0, hover.y);
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(drag)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.folder_panel.size(),
+        initial_width + 20.0
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(drag)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    let _ = runtime.dispatch_event(Event::pointer_move(drag));
+    let released_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let released_rail = released_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.widget_id == crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID
+                && (fill.rect.width() - 1.0).abs() < 0.01
+        })
+        .expect("released sidebar resize rail");
+    assert_eq!(
+        released_rail.color,
+        radiant::prelude::ThemeTokens::default().border_emphasis,
+        "releasing the mouse should immediately clear active resize highlighting"
+    );
 }
 
 #[test]
@@ -88,16 +225,18 @@ fn full_gui_folder_tree_pointer_selection_preserves_manual_scroll_window() {
     let state = NativeAppStateFixture::default()
         .with_folder_browser(FolderBrowserState::from_root(root))
         .build();
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 900.0));
     let tree_rect = runtime
         .layout()
         .rects
         .get(&crate::native_app::ui::ids::FOLDER_TREE_LIST_ID)
         .copied()
         .expect("folder tree list should be laid out");
-    let scroll_point = Point::new(tree_rect.center().x, tree_rect.min.y + 48.0);
+    let scroll_point = text_center(&runtime.frame_with_default_theme(), "folder_00");
     for _ in 0..24 {
-        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+        if !runtime.wheel_or_scroll_at(scroll_point, Vector2::new(0.0, 110.0)) {
+            break;
+        }
     }
 
     let before = runtime
@@ -106,6 +245,10 @@ fn full_gui_folder_tree_pointer_selection_preserves_manual_scroll_window() {
         .library
         .folder_browser
         .tree_view_start();
+    assert!(
+        before > 0,
+        "fixture should establish a manually scrolled tree: rect={tree_rect:?}, point={scroll_point:?}"
+    );
     let viewport_rows = (tree_rect.height()
         / crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT)
         .ceil()
@@ -177,6 +320,8 @@ fn x_toggle_marks_focused_folder_without_sample_focus() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    fs::write(drums.join("kick.wav"), []).expect("write drums sample");
+    fs::write(loops.join("loop.wav"), []).expect("write loops sample");
     let mut state = NativeAppStateFixture::default()
         .with_folder_browser(FolderBrowserState::from_root(root.clone()))
         .build();

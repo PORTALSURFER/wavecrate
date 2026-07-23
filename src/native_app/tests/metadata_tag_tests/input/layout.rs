@@ -68,16 +68,16 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(larger.paint_plan.contains_text("distorted"));
+    assert!(larger.paint_plan.contains_text("DISTORTED ×"));
     assert!(!larger.paint_plan.contains_text("More"));
     assert!(frame_has_clip_height(&small, 24.0));
     let first_tag = larger
         .paint_plan
-        .first_text_rect("kick")
+        .first_text_rect("KICK ×")
         .expect("first tag should paint");
     let wrapped_tag = larger
         .paint_plan
-        .first_text_rect("distorted")
+        .first_text_rect("DISTORTED ×")
         .expect("wrapped tag should paint");
     assert!(wrapped_tag.min.y > first_tag.min.y);
 }
@@ -104,12 +104,15 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
     )
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    let tag_clip = frame
+    let clip_heights = frame
         .paint_plan
         .clip_starts()
-        .find_map(|clip| ((clip.rect.height() - 129.0).abs() < 0.01).then_some(clip.rect));
+        .map(|clip| clip.rect.height())
+        .collect::<Vec<_>>();
     assert!(
-        tag_clip.is_some(),
-        "combined tag field should clip overflowing tag rows"
+        clip_heights
+            .iter()
+            .any(|height| (*height - 124.0).abs() < 0.01),
+        "combined tag field should clip overflowing tag rows, clip heights={clip_heights:?}"
     );
 }

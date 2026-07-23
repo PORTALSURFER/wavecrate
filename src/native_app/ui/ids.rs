@@ -51,6 +51,7 @@ pub(in crate::native_app) const FOLDER_TREE_INCLUDE_SUBFOLDERS_TOGGLE_ID: u64 = 
 pub(in crate::native_app) const FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID: u64 = FOLDER_TREE.id(2);
 /// Scope for retained folder-row input identity.
 pub(in crate::native_app) const RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE: u64 = FOLDER_TREE.id(3);
+pub(in crate::native_app) const LIBRARY_SIDEBAR_RESIZE_HANDLE_ID: u64 = FOLDER_TREE.id(4);
 
 pub(in crate::native_app) const SAMPLE_BROWSER_LIST_ID: u64 = SAMPLE_BROWSER.id(0);
 pub(in crate::native_app) const SAMPLE_BROWSER_MAP_ID: u64 = SAMPLE_BROWSER.id(2);
@@ -83,7 +84,7 @@ pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 = AUDIO_SETTINGS.i
 
 pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = TRANSACTION_HISTORY.id(0);
 pub(in crate::native_app) const WORKER_PROGRESS_ROOT_ID: u64 = STATUS_BAR.id(0);
-pub(in crate::native_app) const WORKER_PROGRESS_ACTIVITY_OVERLAY_ID: u64 = STATUS_BAR.id(1);
+pub(in crate::native_app) const WORKER_PROGRESS_PULSE_CORE_ID: u64 = STATUS_BAR.id(1);
 pub(in crate::native_app) const JOB_DETAILS_CURRENT_ROW_ID_BASE: u64 = STATUS_BAR.id(10);
 
 pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = TOOLBAR.id(0);

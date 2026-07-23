@@ -3,7 +3,10 @@ use super::projection::{
     NORMALIZED_AUDITION_TOOLTIP, RELEASE_UPDATE_TOOLTIP, TopControlBarProjection,
     VOLUME_SLIDER_TOOLTIP,
 };
-use super::{GENERAL_SETTINGS_BUTTON_ID, SETTINGS_GEAR_ICON_SVG, settings_gear_icon};
+use super::{
+    GENERAL_SETTINGS_BUTTON_ID, NORMALIZED_AUDITION_ICON_SVG, SETTINGS_GEAR_ICON_SVG,
+    settings_gear_icon,
+};
 use crate::native_app::test_support::state::{AppSettingsTab, NativeAppStateFixture};
 use radiant::{
     prelude::{Point, Rect, Vector2},
@@ -135,4 +138,11 @@ fn settings_gear_icon_uses_cog_silhouette_with_center_hole() {
             .count(),
         1
     );
+}
+
+#[test]
+fn normalized_audition_icon_uses_speaker_silhouette() {
+    assert!(NORMALIZED_AUDITION_ICON_SVG.contains("M2 6h2.5L8 3.2v9.6L4.5 10H2z"));
+    assert!(NORMALIZED_AUDITION_ICON_SVG.contains("stroke-linecap=\"round\""));
+    assert!(!NORMALIZED_AUDITION_ICON_SVG.contains("M2 10.2h1.4"));
 }

@@ -14,6 +14,7 @@ mod rows;
 #[cfg(test)]
 mod tests;
 
+use super::edge_aligned_resize_panel;
 use rows::collection_row;
 
 /// Stable layout node id for collection-panel resize regression coverage.
@@ -24,29 +25,23 @@ const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_
 
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
-    ui::panel_section_from_header_parts(
-        radiant::application::PanelSectionHeaderParts::resize_header(
-            "collections-resize-header",
-            SIDEBAR_PANEL_HEADER_HEIGHT,
-            ui::scroll(
-                ui::column(rows)
-                    .spacing(COLLECTION_ROW_SPACING)
-                    .fill_width()
-                    .height(model.list_height),
-            )
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
-            .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
-            .fill_width()
-            .fill_height(),
-            |message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
-            },
+    edge_aligned_resize_panel(
+        "collections-resize-header",
+        COLLECTIONS_RESIZE_HEADER_ID,
+        SIDEBAR_PANEL_HEADER_HEIGHT,
+        ui::scroll(
+            ui::column(rows)
+                .spacing(COLLECTION_ROW_SPACING)
+                .fill_width()
+                .height(model.list_height),
         )
-        .header_id(COLLECTIONS_RESIZE_HEADER_ID)
-        .padding(COLLECTIONS_PANEL_PADDING)
-        .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
-        .height(model.panel_height),
+        .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
+        .fill_width()
+        .fill_height(),
+        model.panel_height,
+        COLLECTIONS_PANEL_PADDING,
+        COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
+        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message)),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)
-    .fill_width()
 }

@@ -28,7 +28,11 @@ fn metadata_category_completion_mouse_click_commits_pending_tag() {
         .paint_plan
         .first_text_rect("Character")
         .expect("category option should paint");
-    runtime.dispatch_primary_click(category_rect.center());
+    let click = runtime.dispatch_primary_click(category_rect.center());
+    assert!(
+        click.completed_on_same_widget(),
+        "category click should retain one target across press/release, click={click:?}"
+    );
 
     let state = runtime.bridge().state();
     assert_eq!(

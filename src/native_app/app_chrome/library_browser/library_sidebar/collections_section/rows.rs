@@ -6,6 +6,7 @@ use super::identity::{
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
+use crate::native_app::app_chrome::palette::{ACCENT, ListItemState};
 use crate::native_app::app_chrome::view_models::library_sidebar::CollectionRowViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
@@ -46,16 +47,20 @@ fn collection_input(
     visual: ui::View<GuiMessage>,
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
-    sidebar_row_underlay(visual)
-        .tracked_drop_target(collection.drag_active, collection.drop_target)
-        .stable_row_identity(
-            RETAINED_COLLECTION_ROW_INPUT_SCOPE,
-            retained_collection_row_key(collection_id),
-        )
-        .selected(collection.selected)
-        .actions(collection_row_actions(collection_id))
-        .fill_width()
-        .height(COLLECTION_ROW_HEIGHT)
+    sidebar_row_underlay(
+        visual,
+        ListItemState::new(collection.selected, collection.focused)
+            .with_focus_alpha(collection.focus_alpha),
+    )
+    .tracked_drop_target(collection.drag_active, collection.drop_target)
+    .stable_row_identity(
+        RETAINED_COLLECTION_ROW_INPUT_SCOPE,
+        retained_collection_row_key(collection_id),
+    )
+    .selected(collection.selected)
+    .actions(collection_row_actions(collection_id))
+    .fill_width()
+    .height(COLLECTION_ROW_HEIGHT)
 }
 
 fn collection_row_actions(
@@ -90,23 +95,39 @@ fn collection_row_actions(
 
 /// Builds the visible collection row contents above the input layer.
 fn collection_visual(collection: &SampleCollectionView) -> ui::View<GuiMessage> {
-    let label = format!("{}  {}", collection.hotkey, collection.name);
+    let label = format!(
+        "{}  {}",
+        collection.hotkey,
+        collection.name.to_ascii_uppercase()
+    );
     ui::row([
-        collection_swatch(collection.color).width(16.0),
-        ui::text_line(label, COLLECTION_ROW_HEIGHT),
+        collection_swatch(collection.color).width(22.0),
+        collection_label(label, collection.selected || collection.focused),
         collection_count(collection.assigned_count),
     ])
-    .padding_x(6.0)
+    .padding_x(8.0)
     .fill_width()
     .height(COLLECTION_ROW_HEIGHT)
     .spacing(0.0)
 }
 
+fn collection_label(label: String, selected: bool) -> ui::View<GuiMessage> {
+    let label = ui::text_line(label, COLLECTION_ROW_HEIGHT);
+    if selected {
+        label.text_color(ui::TextColorRole::Custom(ACCENT))
+    } else {
+        label
+    }
+}
+
 /// Builds the reusable collection color swatch.
 fn collection_swatch(color: ui::Rgba8) -> ui::View<GuiMessage> {
     ui::color_marker(Some(color))
+        .side(10)
+        .inset(0)
+        .align(ui::ColorMarkerAlign::Left)
         .view()
-        .width(16.0)
+        .width(22.0)
         .height(COLLECTION_ROW_HEIGHT)
 }
 

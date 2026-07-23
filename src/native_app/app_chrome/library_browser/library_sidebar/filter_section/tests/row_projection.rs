@@ -18,12 +18,12 @@ fn filter_section_projects_name_text_input() {
     assert_eq!(input.state.value, "");
     assert_eq!(
         input.placeholder.as_ref().map(|value| value.as_str()),
-        Some("Any")
+        Some("ANY")
     );
     assert!(
         !frame
             .paint_plan
-            .contains_text_after_x("Any", input.rect.min.x),
+            .contains_text_after_x("ANY", input.rect.min.x),
         "name filter should not paint Any as a read-only property value"
     );
 }
@@ -39,12 +39,12 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
     ));
     let inputs = frame.paint_plan.text_inputs().collect::<Vec<_>>();
 
-    assert!(frame.paint_plan.contains_text("Name"));
-    assert!(frame.paint_plan.contains_text("Tags"));
-    assert!(frame.paint_plan.contains_text("Curate"));
-    assert!(frame.paint_plan.contains_text("Harvest"));
-    assert!(frame.paint_plan.contains_text("Type"));
-    assert!(frame.paint_plan.contains_text("Rating"));
+    assert!(frame.paint_plan.contains_text("NAME"));
+    assert!(frame.paint_plan.contains_text("TAGS"));
+    assert!(frame.paint_plan.contains_text("CURATE"));
+    assert!(frame.paint_plan.contains_text("HARVEST"));
+    assert!(frame.paint_plan.contains_text("TYPE"));
+    assert!(frame.paint_plan.contains_text("RATING"));
     assert!(
         !frame.paint_plan.contains_text("Curat")
             && !frame.paint_plan.contains_text("Harve")
@@ -67,26 +67,38 @@ fn filter_section_filter_name_labels_are_readable_and_fit_label_cells() {
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
-    let labels = ["Name", "Tags", "Curate", "Harvest", "Type", "Rating"];
+    let layout = filter_section(&model)
+        .view_layout_at_size(ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT));
+    let labels = [
+        ("NAME", "Name"),
+        ("TAGS", "Tags"),
+        ("CURATE", "Curate"),
+        ("HARVEST", "Harvest"),
+        ("TYPE", "Type"),
+        ("RATING", "Rating"),
+    ];
     let label_runs = labels
         .iter()
-        .map(|label| {
+        .map(|(display_label, identity_label)| {
             frame
                 .paint_plan
-                .first_text_run(label)
-                .unwrap_or_else(|| panic!("missing filter label {label}"))
+                .first_text_run(display_label)
+                .map(|run| (run, *identity_label))
+                .unwrap_or_else(|| panic!("missing filter label {display_label}"))
         })
         .collect::<Vec<_>>();
 
     assert!(
         label_runs
             .iter()
-            .all(|run| run.font_size == label_runs[0].font_size)
+            .all(|(run, _)| run.font_size == label_runs[0].0.font_size)
     );
-    for run in label_runs {
-        let label_rect = frame
-            .paint_plan
-            .first_widget_rect(automation_filter_family_label_toggle_id(&run.text))
+    for (run, identity_label) in label_runs {
+        let widget_id = automation_filter_family_label_toggle_id(identity_label);
+        let label_rect = layout
+            .rects
+            .get(&widget_id)
+            .copied()
             .unwrap_or_else(|| panic!("missing {} label hit target", run.text));
 
         assert_eq!(label_rect.width(), FILTER_LABEL_WIDTH);
@@ -96,6 +108,24 @@ fn filter_section_filter_name_labels_are_readable_and_fit_label_cells() {
             run.text,
             label_rect,
             run.rect
+        );
+        assert!(
+            frame
+                .paint_plan
+                .fill_rects_for_widget(widget_id)
+                .next()
+                .is_none(),
+            "{} label hit target must not paint a background",
+            run.text
+        );
+        assert!(
+            frame
+                .paint_plan
+                .stroke_rects_for_widget(widget_id)
+                .next()
+                .is_none(),
+            "{} label hit target must not paint a border",
+            run.text
         );
     }
 }
@@ -127,15 +157,21 @@ fn filter_section_rows_share_uniform_height_contract() {
             .get(&control_id)
             .copied()
             .unwrap_or_else(|| panic!("missing {label} control hit target"));
-        let row_top = label_rect.min.y - FILTER_ROW_VERTICAL_INSET;
+        let row_top = control_rect.min.y - FILTER_ROW_VERTICAL_INSET;
 
         assert_close(label_rect.height(), FILTER_ROW_CONTROL_HEIGHT);
         assert_close(control_rect.height(), FILTER_ROW_CONTROL_HEIGHT);
-        assert_close(control_rect.min.y, label_rect.min.y);
-        assert_close(control_rect.center().y, label_rect.center().y);
+        assert_close(
+            control_rect.min.y - label_rect.min.y,
+            FILTER_LABEL_VERTICAL_SHIFT,
+        );
+        assert_close(
+            control_rect.center().y - label_rect.center().y,
+            FILTER_LABEL_VERTICAL_SHIFT,
+        );
         assert_close(
             row_top + FILTER_ROW_HEIGHT,
-            label_rect.max.y + FILTER_ROW_VERTICAL_INSET,
+            control_rect.max.y + FILTER_ROW_VERTICAL_INSET,
         );
 
         if let Some(previous_top) = previous_row_top {
@@ -162,7 +198,7 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             automation_filter_family_label_toggle_id("Name"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Name, false)
@@ -171,7 +207,7 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             automation_filter_family_label_toggle_id("Rating"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Rating, false)
@@ -180,11 +216,47 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             automation_filter_family_label_toggle_id("Tags"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Tags, true)
         ))
+    );
+}
+
+#[test]
+fn enabled_filter_family_uses_shared_selected_row_chrome() {
+    let inactive_state = FolderBrowserState::load_default();
+    let inactive_model = FilterSectionViewModel::from_folder_browser(&inactive_state, false);
+    let inactive_frame = filter_section(&inactive_model).view_frame_at_size_with_default_theme(
+        ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT),
+    );
+
+    let mut active_state = FolderBrowserState::load_default();
+    active_state.apply_message(FolderBrowserMessage::NameFilterInput(
+        TextInputMessage::Changed {
+            value: String::from("kick"),
+        },
+    ));
+    let active_model = FilterSectionViewModel::from_folder_browser(&active_state, false);
+    let active_frame = filter_section(&active_model).view_frame_at_size_with_default_theme(
+        ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT),
+    );
+    let selected_fill = sidebar_row_selected_fill_for_tests();
+
+    assert!(
+        inactive_frame
+            .paint_plan
+            .fill_rects()
+            .all(|fill| fill.color != selected_fill),
+        "inactive filter rows must not paint persistent selection chrome"
+    );
+    assert!(
+        active_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == selected_fill),
+        "enabled filters should use the shared selected-row fill"
     );
 }
 
@@ -211,7 +283,7 @@ fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
             .first_widget_rect(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
             .is_some()
     );
-    assert!(frame.paint_plan.contains_text("Rate  v"));
+    assert!(frame.paint_plan.contains_text("RATE"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             CURATION_FILTER_DROPDOWN_TRIGGER_ID,
@@ -258,7 +330,7 @@ fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
         .expect("Tags option should render in the overlay");
     assert!(all_rect.min.x > 0.0);
     assert!(
-        (120.0..=180.0).contains(&all_rect.width()),
+        (100.0..=160.0).contains(&all_rect.width()),
         "curation overlay options should stay fixed to the compact sidebar control width, got {}",
         all_rect.width()
     );
@@ -307,7 +379,7 @@ fn filter_section_uses_harvest_dropdown_as_only_filter_mode_trigger() {
         None,
         "Harvest should not render a separate arrow button for the dropdown mode"
     );
-    assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert!(frame.paint_plan.contains_text("NEEDS REVIEW"));
     assert_close(harvest_rect.min.x, curation_rect.min.x);
     assert_close(harvest_rect.width(), curation_rect.width());
     assert_eq!(
@@ -335,7 +407,7 @@ fn filter_section_projects_harvest_filter_dropdown_and_dispatches_changes() {
             .first_widget_rect(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
             .is_some()
     );
-    assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert!(frame.paint_plan.contains_text("NEEDS REVIEW"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             HARVEST_FILTER_DROPDOWN_TRIGGER_ID,
@@ -403,7 +475,7 @@ fn filter_section_projects_default_harvest_all_after_family_toggle() {
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
 
-    assert!(frame.paint_plan.contains_text("All  v"));
+    assert!(frame.paint_plan.contains_text("ALL"));
 }
 
 #[test]
@@ -518,25 +590,27 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
+    let layout = filter_section(&model)
+        .view_layout_at_size(ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT));
 
     assert!(
-        frame
-            .paint_plan
-            .first_widget_rect(automation_playback_type_filter_toggle_id("1-Shot"))
+        layout
+            .rects
+            .get(&automation_playback_type_filter_toggle_id("1-Shot"))
             .is_some()
     );
     assert!(
-        frame
-            .paint_plan
-            .first_widget_rect(automation_playback_type_filter_toggle_id("Loop"))
+        layout
+            .rects
+            .get(&automation_playback_type_filter_toggle_id("Loop"))
             .is_some()
     );
-    assert!(frame.paint_plan.contains_text("1-Shot"));
-    assert!(frame.paint_plan.contains_text("Loop"));
+    assert!(frame.paint_plan.contains_text("1-SHOT,"));
+    assert!(frame.paint_plan.contains_text("LOOP"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             automation_playback_type_filter_toggle_id("1-Shot"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: true }),
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::TogglePlaybackTypeFilter(PlaybackTypeFilter::OneShot, true)
@@ -545,7 +619,7 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             automation_playback_type_filter_toggle_id("Loop"),
-            ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
+            ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::TogglePlaybackTypeFilter(PlaybackTypeFilter::Loop, false)
@@ -556,25 +630,56 @@ fn filter_section_projects_playback_type_toggles_and_dispatches_changes() {
 #[test]
 fn filter_section_playback_type_toggles_share_style_family() {
     let inactive_frame = playback_type_filter_frame(&[]);
-    let inactive_one_shot = playback_type_toggle_chrome(&inactive_frame.paint_plan, "1-Shot");
-    let inactive_loop = playback_type_toggle_chrome(&inactive_frame.paint_plan, "Loop");
+    let inactive_one_shot = playback_type_toggle_text_color(&inactive_frame.paint_plan, "1-Shot");
+    let inactive_loop = playback_type_toggle_text_color(&inactive_frame.paint_plan, "Loop");
     assert_eq!(
         inactive_one_shot, inactive_loop,
-        "inactive playback-type toggles should render with matching chrome and text colors"
+        "inactive playback-type toggles should render with matching text colors"
     );
 
     let active_frame =
         playback_type_filter_frame(&[PlaybackTypeFilter::OneShot, PlaybackTypeFilter::Loop]);
-    let active_one_shot = playback_type_toggle_chrome(&active_frame.paint_plan, "1-Shot");
-    let active_loop = playback_type_toggle_chrome(&active_frame.paint_plan, "Loop");
+    let active_one_shot = playback_type_toggle_text_color(&active_frame.paint_plan, "1-Shot");
+    let active_loop = playback_type_toggle_text_color(&active_frame.paint_plan, "Loop");
     assert_eq!(
         active_one_shot, active_loop,
-        "active playback-type toggles should render with matching chrome and text colors"
+        "active playback-type toggles should render with matching text colors"
     );
     assert_ne!(
         inactive_one_shot, active_one_shot,
         "active and inactive playback-type toggle states should remain visually distinct"
     );
+    for label in ["1-Shot", "Loop"] {
+        let widget_id = automation_playback_type_filter_toggle_id(label);
+        assert!(
+            inactive_frame
+                .paint_plan
+                .fill_rects_for_widget(widget_id)
+                .next()
+                .is_none()
+        );
+        assert!(
+            inactive_frame
+                .paint_plan
+                .stroke_rects_for_widget(widget_id)
+                .next()
+                .is_none()
+        );
+        assert!(
+            active_frame
+                .paint_plan
+                .fill_rects_for_widget(widget_id)
+                .next()
+                .is_none()
+        );
+        assert!(
+            active_frame
+                .paint_plan
+                .stroke_rects_for_widget(widget_id)
+                .next()
+                .is_none()
+        );
+    }
 }
 
 fn playback_type_filter_frame(active_filters: &[PlaybackTypeFilter]) -> SurfaceFrame {
@@ -589,27 +694,10 @@ fn playback_type_filter_frame(active_filters: &[PlaybackTypeFilter]) -> SurfaceF
     ))
 }
 
-fn playback_type_toggle_chrome(
-    plan: &SurfacePaintPlan,
-    label: &'static str,
-) -> (Rgba8, Rgba8, Rgba8) {
-    let widget_id = automation_playback_type_filter_toggle_id(label);
-    let fill = plan
-        .fill_rects_for_widget(widget_id)
-        .next()
-        .unwrap_or_else(|| panic!("missing fill for {label} playback-type toggle"))
-        .color;
-    let stroke = plan
-        .stroke_rects_for_widget(widget_id)
-        .next()
-        .unwrap_or_else(|| panic!("missing stroke for {label} playback-type toggle"))
-        .color;
-    let text = plan
-        .text_runs()
-        .find(|run| run.widget_id == widget_id && run.text.as_str() == label)
+fn playback_type_toggle_text_color(plan: &SurfacePaintPlan, label: &'static str) -> Rgba8 {
+    let display_label = if label == "1-Shot" { "1-SHOT," } else { "LOOP" };
+    plan.first_text_color(display_label)
         .unwrap_or_else(|| panic!("missing label for {label} playback-type toggle"))
-        .color;
-    (fill, stroke, text)
 }
 
 #[test]

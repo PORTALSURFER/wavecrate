@@ -33,7 +33,7 @@ fn cached_base_with_runtime_overlay(
 fn playmark_label_background_count(plan: &SurfacePaintPlan) -> usize {
     plan.fill_rects()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (25, 18, 16, 214)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (24, 27, 28, 230)
         })
         .count()
 }
@@ -79,7 +79,7 @@ fn beat_guide_fills<'a>(fills: &'a [&PaintFillRect]) -> Vec<&'a PaintFillRect> {
         .iter()
         .copied()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
         })
         .collect()
 }
@@ -114,17 +114,17 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let fills = fill_rects(&plan);
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (233, 88, 67, 245)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.375).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b) == (82, 168, 255)
+            && (fill.color.r, fill.color.g, fill.color.b) == (174, 176, 173)
             && fill.color.a == 230
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.25).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b) == (71, 220, 255)
-            && fill.color.a == 245
+            && (fill.color.r, fill.color.g, fill.color.b) == (231, 229, 223)
+            && fill.color.a == 210
     }));
 }
 
@@ -138,7 +138,7 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
     let playhead = fill_rects(&plan)
         .into_iter()
         .find(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 210)
         })
         .expect("playhead fill paints");
     assert_eq!(playhead.rect.width(), 2.0);
@@ -158,7 +158,7 @@ fn playhead_cursor_paints_for_static_small_playmark_selection() {
     let playhead = fill_rects(&plan)
         .into_iter()
         .find(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 210)
         })
         .expect("static playhead fill paints");
     assert!((playhead.rect.center().x / 400.0 - 0.503).abs() < 0.01);
@@ -444,7 +444,7 @@ fn playhead_cursor_paints_around_occlusion_rect() {
     let playhead_segments = fill_rects(&plan)
         .into_iter()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 210)
         })
         .collect::<Vec<_>>();
 
@@ -462,7 +462,7 @@ fn playhead_cursor_paints_around_occlusion_rect() {
 }
 
 #[test]
-fn hover_cursor_paints_thin_white_overlay_line() {
+fn hover_cursor_paints_thin_warm_gray_overlay_line() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(400.0, 80.0);
@@ -474,7 +474,7 @@ fn hover_cursor_paints_thin_white_overlay_line() {
     let cursor = fill_rects(&plan)
         .into_iter()
         .find(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 190)
         })
         .expect("hover cursor fill paints");
     assert_eq!(cursor.rect.width(), 1.0);
@@ -500,7 +500,7 @@ fn playmark_slide_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 111.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 7.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 255)
     }));
     assert!(!fills.iter().any(
         |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
@@ -526,14 +526,14 @@ fn playmark_resize_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 124.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 255)
     }));
     assert!(!fills.iter().any(|fill| {
         (fill.rect.min.x - 112.5).abs() < 0.001
             && (fill.rect.max.x - 127.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 180)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 180)
     }));
     assert_no_white_hover_border(&plan);
 }
@@ -557,14 +557,14 @@ fn playmark_export_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 120.0).abs() < 0.001
             && (fill.rect.min.y - 64.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 255)
     }));
     assert!(!fills.iter().any(|fill| {
         (fill.rect.min.x - 100.0).abs() < 0.001
             && (fill.rect.max.x - 124.0).abs() < 0.001
             && (fill.rect.min.y - 60.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 180)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 180)
     }));
     assert!(!fills.iter().any(
         |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 255, 255, 210)
@@ -591,7 +591,7 @@ fn editmark_slide_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 111.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 7.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
 }
 
@@ -608,14 +608,14 @@ fn editmark_bottom_resize_handles_paint_on_base_edit_selection() {
             && (fill.rect.max.x - 43.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 116.5).abs() < 0.001
             && (fill.rect.max.x - 123.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     }));
 }
 
@@ -630,29 +630,29 @@ fn playmark_resize_handles_paint_above_boundary_and_play_start_lines() {
 
     let left_boundary = fill_index(&fills, "left playmark boundary", |fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 230)
     });
     let right_boundary = fill_index(&fills, "right playmark boundary", |fill| {
         (fill.rect.center().x - 120.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 230)
     });
     let play_start_marker = fill_index(&fills, "play-start marker", |fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (233, 88, 67, 245)
     });
     let left_handle = fill_index(&fills, "left playmark resize handle", |fill| {
         (fill.rect.min.x - 35.5).abs() < 0.001
             && (fill.rect.max.x - 44.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 220)
     });
     let right_handle = fill_index(&fills, "right playmark resize handle", |fill| {
         (fill.rect.min.x - 115.5).abs() < 0.001
             && (fill.rect.max.x - 124.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 220)
     });
 
     assert!(
@@ -679,25 +679,25 @@ fn editmark_resize_handles_paint_above_boundary_lines() {
 
     let left_boundary = fill_index(&fills, "left editmark boundary", |fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 230)
     });
     let right_boundary = fill_index(&fills, "right editmark boundary", |fill| {
         (fill.rect.center().x - 120.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 230)
     });
     let left_handle = fill_index(&fills, "left editmark resize handle", |fill| {
         (fill.rect.min.x - 36.5).abs() < 0.001
             && (fill.rect.max.x - 43.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     });
     let right_handle = fill_index(&fills, "right editmark resize handle", |fill| {
         (fill.rect.min.x - 116.5).abs() < 0.001
             && (fill.rect.max.x - 123.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     });
 
     assert!(
@@ -727,14 +727,14 @@ fn editmark_bottom_resize_handle_hides_on_faded_side() {
             && (fill.rect.max.x - 43.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     }));
     assert!(!fills.iter().any(|fill| {
         (fill.rect.min.x - 116.5).abs() < 0.001
             && (fill.rect.max.x - 123.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
     }));
 }
 
@@ -757,7 +757,7 @@ fn editmark_bottom_resize_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 123.5).abs() < 0.001
             && (fill.rect.min.y - 58.0).abs() < 0.001
             && (fill.rect.max.y - 80.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
     assert_no_white_hover_border(&plan);
 }
@@ -783,7 +783,7 @@ fn editmark_gain_handle_hover_paints_bright_center_tab() {
             && (fill.rect.max.x - 86.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 10.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
 }
 
@@ -800,7 +800,7 @@ fn editmark_gain_handle_paints_on_base_edit_selection() {
             && (fill.rect.max.x - 86.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 10.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 225)
     }));
 }
 
@@ -823,7 +823,7 @@ fn edit_fade_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 65.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 10.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
 }
 
@@ -845,7 +845,7 @@ fn edit_fade_outer_gain_handle_paints_at_current_gain_height() {
             && (fill.rect.max.x - 25.0).abs() < 0.001
             && (fill.rect.min.y - 35.0).abs() < 0.001
             && (fill.rect.max.y - 45.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 205)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 205)
     }));
 }
 
@@ -874,7 +874,7 @@ fn edit_fade_outer_gain_handle_hover_paints_bright_overlay() {
             && (fill.rect.max.x - 25.0).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 10.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
 }
 
@@ -887,14 +887,14 @@ fn play_start_marker_is_hidden_at_sample_start() {
 
     assert!(
         !fill_rects(&plan).iter().any(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (233, 88, 67, 245)
         }),
         "play-start marker should be implicit when playback starts at sample head"
     );
 }
 
 #[test]
-fn play_start_marker_paints_cyan_white_when_start_deviates_from_sample_start() {
+fn play_start_marker_paints_coral_when_start_deviates_from_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.125);
     let widget = waveform_widget_for_state(&state);
@@ -902,7 +902,7 @@ fn play_start_marker_paints_cyan_white_when_start_deviates_from_sample_start() {
 
     assert!(fill_rects(&plan).iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (233, 88, 67, 245)
     }));
 }
 
@@ -916,7 +916,7 @@ fn play_start_marker_paints_even_when_play_selection_exists() {
 
     assert!(fill_rects(&plan).iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.4).abs() < 0.01
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (233, 88, 67, 245)
     }));
 }
 
@@ -930,7 +930,7 @@ fn beat_guides_paint_internal_lines_inside_play_selection() {
     let guides = fill_rects(&plan)
         .into_iter()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
         })
         .collect::<Vec<_>>();
 
@@ -957,7 +957,7 @@ fn beat_guides_paint_internal_lines_inside_edit_selection() {
     let guides = fill_rects(&plan)
         .into_iter()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
         })
         .collect::<Vec<_>>();
 
@@ -983,7 +983,7 @@ fn beat_guides_do_not_paint_when_toggle_is_off() {
     let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
     assert!(!fill_rects(&plan).iter().any(|fill| {
-        (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
     }));
 }
 
@@ -1029,15 +1029,15 @@ fn selection_fill_paints_as_overlay_widget_rects() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 230)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 120.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 230)
     }));
 }
 
@@ -1137,7 +1137,7 @@ fn extracted_ranges_paint_while_playmark_selection_drag_is_active() {
         runtime_fills.iter().any(|fill| {
             (fill.rect.min.x - 80.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "the live playmark selection itself should keep painting"
     );
@@ -1178,7 +1178,7 @@ fn extracted_ranges_paint_while_editmark_selection_drag_is_active() {
         runtime_fills.iter().any(|fill| {
             (fill.rect.min.x - 80.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 46)
         }),
         "the live editmark selection itself should keep painting"
     );
@@ -1206,7 +1206,7 @@ fn resize_selection_paints_once_from_base_layer_when_preview_is_live() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "app-state play selection should paint the current resize range"
     );
@@ -1217,7 +1217,7 @@ fn resize_selection_paints_once_from_base_layer_when_preview_is_live() {
         runtime_fills.iter().all(|fill| {
             !((fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48))
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48))
         }),
         "runtime resize preview should not double-paint the same translucent selection"
     );
@@ -1247,7 +1247,7 @@ fn playmark_resize_drag_ghost_paints_active_handle_without_double_painting_selec
                 && (fill.rect.max.x - 164.5).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 22.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 178)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 178)
         }),
         "active resize handle should paint a drag ghost"
     );
@@ -1255,7 +1255,7 @@ fn playmark_resize_drag_ghost_paints_active_handle_without_double_painting_selec
         runtime_fills.iter().all(|fill| {
             !((fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48))
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48))
         }),
         "drag ghost must not reintroduce runtime double-painting of the playmark range"
     );
@@ -1284,7 +1284,7 @@ fn playmark_move_drag_ghost_paints_body_handle_on_live_preview() {
                 && (fill.rect.max.x - 121.0).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 7.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 178)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 178)
         }),
         "active move handle should paint a drag ghost over the live preview"
     );
@@ -1308,7 +1308,7 @@ fn committed_selection_paints_as_resize_fallback_until_preview_is_live() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 120.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "committed play selection should remain visible until the live resize preview paints"
     );
@@ -1334,7 +1334,7 @@ fn beat_guides_paint_from_live_playmark_creation_preview() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 120.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "the live playmark creation preview should still paint"
     );
@@ -1360,7 +1360,7 @@ fn beat_guides_paint_from_live_editmark_creation_preview() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 120.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 46)
         }),
         "the live editmark creation preview should still paint"
     );
@@ -1427,7 +1427,7 @@ fn beat_guides_paint_from_live_playmark_slide_preview() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 70.0).abs() < 0.001
                 && (fill.rect.max.x - 150.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "the live slid playmark selection should still paint"
     );
@@ -1455,7 +1455,7 @@ fn beat_guides_paint_from_live_editmark_slide_preview() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 70.0).abs() < 0.001
                 && (fill.rect.max.x - 150.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 46)
         }),
         "the live slid editmark selection should still paint"
     );
@@ -1504,7 +1504,7 @@ fn beat_guides_paint_from_base_layer_during_live_playmark_resize() {
     let guides = fills
         .iter()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
         })
         .collect::<Vec<_>>();
 
@@ -1523,7 +1523,7 @@ fn beat_guides_paint_from_base_layer_during_live_playmark_resize() {
         fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 160.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
         }),
         "the live resized playmark selection should still paint"
     );
@@ -1532,7 +1532,7 @@ fn beat_guides_paint_from_base_layer_during_live_playmark_resize() {
     let runtime_fills = fill_rects(&runtime_plan);
     assert!(
         runtime_fills.iter().all(
-            |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (255, 214, 188, 170)
+            |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (231, 229, 223, 150)
         ),
         "runtime resize preview should not double-paint beat guides over the base layer"
     );
@@ -1554,7 +1554,7 @@ fn beat_guides_paint_as_resize_fallback_until_preview_is_live() {
     let guides = fills
         .iter()
         .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (231, 229, 223, 150)
         })
         .collect::<Vec<_>>();
 
@@ -1615,7 +1615,7 @@ fn live_selection_preview_paints_in_runtime_overlay() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
     }));
 }
 
@@ -1637,11 +1637,11 @@ fn sample_slide_preview_paints_thin_bottom_strip() {
             && (fill.rect.max.y - 80.0).abs() < 0.001
             && (fill.rect.min.x - 0.0).abs() < 0.001
             && (fill.rect.max.x - 200.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 120)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 120)
     }));
     assert!(
         fills.iter().all(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b) != (255, 202, 112)
+            (fill.color.r, fill.color.g, fill.color.b) != (241, 121, 98)
                 || fill.rect.height() <= 4.0
         }),
         "sample slide preview should stay a bottom strip"
@@ -1667,7 +1667,7 @@ fn live_playmark_preview_paints_full_interactive_chrome() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 48)
     }));
     assert!(
         fills.iter().any(|fill| {
@@ -1675,7 +1675,7 @@ fn live_playmark_preview_paints_full_interactive_chrome() {
                 && (fill.rect.max.x - 111.0).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 7.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 185)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 185)
         }),
         "live playmark drag should keep the move handle visible"
     );
@@ -1685,7 +1685,7 @@ fn live_playmark_preview_paints_full_interactive_chrome() {
                 && (fill.rect.max.x - 120.0).abs() < 0.001
                 && (fill.rect.min.y - 64.0).abs() < 0.001
                 && (fill.rect.max.y - 80.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 235)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (241, 121, 98, 235)
         }),
         "live playmark drag should keep the export handle visible"
     );
@@ -1710,7 +1710,7 @@ fn live_editmark_preview_paints_full_interactive_chrome() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 46)
     }));
     assert!(
         fills.iter().any(|fill| {
@@ -1718,7 +1718,7 @@ fn live_editmark_preview_paints_full_interactive_chrome() {
                 && (fill.rect.max.x - 111.0).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 7.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 180)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 180)
         }),
         "live editmark drag should keep the move handle visible"
     );
@@ -1728,7 +1728,7 @@ fn live_editmark_preview_paints_full_interactive_chrome() {
                 && (fill.rect.max.x - 43.5).abs() < 0.001
                 && (fill.rect.min.y - 58.0).abs() < 0.001
                 && (fill.rect.max.y - 80.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 190)
         }),
         "live editmark drag should keep resize handles visible"
     );
@@ -1738,7 +1738,7 @@ fn live_editmark_preview_paints_full_interactive_chrome() {
                 && (fill.rect.max.x - 86.0).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 10.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 225)
         }),
         "live editmark drag should keep the gain handle visible"
     );
@@ -1819,11 +1819,11 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
     let fills = fill_rects(&plan);
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 230)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 120.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 230)
     }));
 }
 
@@ -1839,15 +1839,15 @@ fn edit_selection_flash_paints_bright_overlay() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 118)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 118)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 40.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
     assert!(fills.iter().any(|fill| {
         (fill.rect.center().x - 120.0).abs() < 1.0
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 255)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (174, 176, 173, 255)
     }));
 }
 
@@ -1927,7 +1927,7 @@ fn edit_fade_curve_paints_s_curve_shape_as_polyline() {
                 stroke.color.g,
                 stroke.color.b,
                 stroke.color.a,
-            ) == (82, 168, 255, 225)
+            ) == (174, 176, 173, 225)
                 && stroke.width == 2.0
                 && stroke.points.len() >= 10
         })
@@ -1980,7 +1980,7 @@ fn contains_denied_selection_fill(plan: &SurfacePaintPlan) -> bool {
     fill_rects(plan).iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 72, 82, 130)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (239, 76, 61, 130)
     })
 }
 
@@ -2004,7 +2004,7 @@ fn edit_fade_curve_stays_inside_selection_when_outer_mute_extends_handles() {
                 stroke.color.g,
                 stroke.color.b,
                 stroke.color.a,
-            ) == (82, 168, 255, 225)
+            ) == (174, 176, 173, 225)
                 && stroke.width == 2.0
                 && stroke.points.len() >= 10
         })

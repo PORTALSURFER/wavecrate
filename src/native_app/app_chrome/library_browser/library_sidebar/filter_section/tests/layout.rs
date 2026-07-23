@@ -77,10 +77,9 @@ fn filter_resize_header_uses_full_width_hit_target() {
         .expect("filter resize header layout rect");
     let drag = ui::DragHandleMessage::started(ui::Point::new(header.center().x, header.center().y));
 
-    assert!(
-        header.width() >= section.width() - FILTER_PANEL_PADDING * 2.0,
-        "filter resize header should span the useful panel width, section={section:?}, header={header:?}"
-    );
+    assert_eq!(header.min.x, section.min.x);
+    assert_eq!(header.max.x, section.max.x);
+    assert_eq!(header.min.y, section.min.y);
     assert_eq!(
         filter_section(&model)
             .view_dispatch_widget_output(FILTER_RESIZE_HEADER_ID, ui::WidgetOutput::typed(drag),),
@@ -122,13 +121,16 @@ fn filter_section_wide_labels_keep_harvest_controls_aligned_in_cramped_width() {
         180.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
-    let harvest_label = frame
-        .paint_plan
-        .first_widget_rect(automation_filter_family_label_toggle_id("Harvest"))
+    let layout = filter_section(&model)
+        .view_layout_at_size(ui::Vector2::new(180.0, FILTER_SECTION_TEST_FRAME_HEIGHT));
+    let harvest_label = layout
+        .rects
+        .get(&automation_filter_family_label_toggle_id("Harvest"))
+        .copied()
         .expect("Harvest label should render");
     let harvest_text = frame
         .paint_plan
-        .first_text_run("Harvest")
+        .first_text_run("HARVEST")
         .expect("Harvest text should render")
         .rect;
     let harvest_dropdown = frame

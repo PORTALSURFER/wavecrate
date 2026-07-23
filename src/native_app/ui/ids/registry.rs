@@ -99,6 +99,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         FOLDER_TREE_SHOW_EMPTY_FOLDERS_TOGGLE_ID,
         "folder_tree.show_empty_folders_toggle"
     ),
+    registered_widget_id!(
+        FolderTree,
+        LIBRARY_SIDEBAR_RESIZE_HANDLE_ID,
+        "folder_tree.sidebar_resize_handle"
+    ),
     registered_widget_id!(SampleBrowser, SAMPLE_BROWSER_LIST_ID, "sample_browser.list"),
     registered_widget_id!(
         SampleBrowserHeader,

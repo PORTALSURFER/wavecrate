@@ -1,9 +1,10 @@
 use radiant::prelude as ui;
-#[cfg(test)]
-use radiant::{gui::list as list_ui, theme::ThemeTokens};
 
 use super::identity;
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::palette::{
+    ListItemState, WavecrateListRowStyle, selected_row_marker, selected_row_palette,
+};
 
 const SAMPLE_ROW_STYLE: ui::WidgetStyle = ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
 const COPY_FLASH_FILL: ui::Rgba8 = ui::Rgba8 {
@@ -60,31 +61,21 @@ const MISSING_MARKER: ui::Rgba8 = ui::Rgba8 {
     b: 54,
     a: 250,
 };
-const SELECTED_MARKER: ui::Rgba8 = ui::Rgba8 {
-    r: 255,
-    g: 82,
-    b: 62,
-    a: 245,
-};
-const FOCUSED_OUTLINE: ui::Rgba8 = ui::Rgba8 {
-    r: 80,
-    g: 190,
-    b: 255,
-    a: 235,
-};
-const FOCUSED_OUTLINE_INSET: f32 = 0.5;
-const FOCUSED_OUTLINE_WIDTH: f32 = 1.5;
 const CACHED_MARKER: ui::Rgba8 = ui::Rgba8 {
     r: 226,
     g: 226,
     b: 226,
     a: 210,
 };
+const SAMPLE_LIST_SCROLLBAR_WIDTH: f32 = 3.0;
+const CACHED_MARKER_SCROLLBAR_GAP: f32 = 2.0;
+const CACHED_MARKER_EDGE_INSET: f32 = SAMPLE_LIST_SCROLLBAR_WIDTH + CACHED_MARKER_SCROLLBAR_GAP;
 
 pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
-    pub(in crate::native_app) explicitly_selected: bool,
+    pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) focused: bool,
+    pub(in crate::native_app) focus_alpha: u8,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) cut_pending: bool,
@@ -119,27 +110,26 @@ fn sample_file_hit_target_builder(
 ) -> ui::InteractiveRowUnderlayBuilder<GuiMessage> {
     let underlay = ui::interactive_row_underlay(content)
         .dense_row_policy(sample_file_row_policy(model))
+        .wavecrate_list_row_style(
+            SAMPLE_ROW_STYLE,
+            ListItemState::new(model.selected, model.focused).with_focus_alpha(model.focus_alpha),
+        )
         .leading_marker_if(
-            model.explicitly_selected || model.cut_pending || model.missing,
-            ui::DenseRowMarkerStyle::new(
-                radiant::gui::list::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
-                if model.missing {
-                    MISSING_MARKER
-                } else if model.cut_pending {
-                    CUT_PENDING_MARKER
-                } else {
-                    SELECTED_MARKER
-                },
-            ),
+            model.selected || model.cut_pending || model.missing,
+            sample_file_leading_marker(model),
         )
         .trailing_marker_if(
-            model.cached && !model.explicitly_selected && !model.copy_flash && !model.cut_pending,
+            model.cached
+                && !model.selected
+                && !model.focused
+                && !model.copy_flash
+                && !model.cut_pending,
             ui::DenseRowMarkerStyle::new(
-                radiant::gui::list::DenseRowMarkerParts::trailing(2.0),
+                radiant::gui::list::DenseRowMarkerParts::trailing(2.0)
+                    .edge_inset(CACHED_MARKER_EDGE_INSET),
                 CACHED_MARKER,
             ),
-        )
-        .outline_if(model.focused, sample_file_focus_outline());
+        );
     if let Some(palette) = sample_file_row_palette(model) {
         underlay.dense_chrome_palette(palette)
     } else {
@@ -149,7 +139,7 @@ fn sample_file_hit_target_builder(
 
 fn sample_file_row_policy(model: &SampleFileHitTargetModel<'_>) -> ui::DenseRowPolicy {
     let visual_state = radiant::widgets::InteractiveRowVisualStateParts {
-        selected: model.explicitly_selected
+        selected: model.selected
             || model.copy_flash
             || model.protected_source_error_flash
             || model.cut_pending
@@ -215,15 +205,26 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
                 .interaction_fills(CUT_PENDING_HOVER_FILL, CUT_PENDING_HOVER_FILL),
         );
     }
+    if model.selected {
+        return Some(selected_row_palette(SAMPLE_ROW_STYLE));
+    }
     None
 }
 
-fn sample_file_focus_outline() -> ui::DenseRowOutlineStyle {
-    ui::DenseRowOutlineStyle::new(
-        FOCUSED_OUTLINE_INSET,
-        FOCUSED_OUTLINE,
-        FOCUSED_OUTLINE_WIDTH,
-    )
+fn sample_file_leading_marker(model: &SampleFileHitTargetModel<'_>) -> ui::DenseRowMarkerStyle {
+    if model.missing {
+        return ui::DenseRowMarkerStyle::new(
+            radiant::gui::list::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+            MISSING_MARKER,
+        );
+    }
+    if model.cut_pending {
+        return ui::DenseRowMarkerStyle::new(
+            radiant::gui::list::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+            CUT_PENDING_MARKER,
+        );
+    }
+    selected_row_marker()
 }
 
 #[cfg(test)]
@@ -240,7 +241,7 @@ pub(in crate::native_app) fn sample_file_hit_target_for_tests(
 
 #[cfg(test)]
 fn sample_row_palette_for_tests() -> ui::DenseRowPalette {
-    list_ui::dense_row_palette_from_style(&ThemeTokens::default(), SAMPLE_ROW_STYLE)
+    selected_row_palette(SAMPLE_ROW_STYLE)
 }
 
 #[cfg(test)]

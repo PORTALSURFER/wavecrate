@@ -23,8 +23,9 @@ fn sample_hit_target(
 ) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        explicitly_selected: selected,
+        selected,
         focused: false,
+        focus_alpha: 0,
         copy_flash: false,
         protected_source_error_flash: false,
         cut_pending: false,
@@ -46,14 +47,15 @@ fn sample_hit_target_with_focus(
 }
 
 fn sample_hit_target_with_focus_and_explicit_selection(
-    explicitly_selected: bool,
+    selected: bool,
     focused: bool,
     cached: bool,
 ) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        explicitly_selected,
+        selected,
         focused,
+        focus_alpha: if focused { u8::MAX } else { 0 },
         copy_flash: false,
         protected_source_error_flash: false,
         cut_pending: false,
@@ -69,8 +71,9 @@ fn sample_hit_target_with_focus_and_explicit_selection(
 fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        explicitly_selected: selected,
+        selected,
         focused: false,
+        focus_alpha: 0,
         copy_flash: true,
         protected_source_error_flash: false,
         cut_pending: false,
@@ -86,8 +89,9 @@ fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<
 fn sample_hit_target_with_cut_pending(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        explicitly_selected: selected,
+        selected,
         focused: false,
+        focus_alpha: 0,
         copy_flash: false,
         protected_source_error_flash: false,
         cut_pending: true,
@@ -155,8 +159,9 @@ fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
         ui::empty(),
         SampleFileHitTargetModel {
             file_id: "sample.wav",
-            explicitly_selected: false,
+            selected: false,
             focused: false,
+            focus_alpha: 0,
             copy_flash: false,
             protected_source_error_flash: false,
             cut_pending: false,
@@ -222,22 +227,44 @@ fn selected_fill() -> ui::Rgba8 {
         .expect("dense-row selected fill")
 }
 
+fn selected_hover_fill() -> ui::Rgba8 {
+    sample_row_palette_for_tests()
+        .selected_hovered
+        .expect("dense-row selected hover fill")
+}
+
 fn paints_selection_marker(plan: &SurfacePaintPlan, bounds: ui::Rect) -> bool {
+    let marker = selected_row_marker();
     plan.fill_rects().any(|fill| {
-        fill.rect.min.x == bounds.min.x + 1.0
-            && fill.rect.width() == 3.0
-            && fill.color == SELECTED_MARKER
+        fill.rect.min.x >= bounds.min.x
+            && fill.rect.max.x <= bounds.max.x
+            && fill.rect.width() == marker.parts.width
+            && fill.rect.height() == bounds.height()
+            && fill.color == marker.color
     })
 }
 
-fn paints_focus_outline(plan: &SurfacePaintPlan) -> bool {
-    plan.stroke_rects()
-        .any(|stroke| stroke.color == FOCUSED_OUTLINE && stroke.width == FOCUSED_OUTLINE_WIDTH)
+fn paints_focus_marker(plan: &SurfacePaintPlan, bounds: ui::Rect) -> bool {
+    let marker = crate::native_app::app_chrome::palette::focused_row_marker();
+    plan.fill_rects().any(|fill| {
+        fill.rect.min.x == bounds.min.x
+            && fill.rect.width() == marker.parts.width
+            && fill.color == marker.color
+    })
+}
+
+fn paints_hover_trailing_marker(plan: &SurfacePaintPlan, bounds: ui::Rect) -> bool {
+    let marker = crate::native_app::app_chrome::palette::hovered_row_trailing_marker();
+    plan.fill_rects().any(|fill| {
+        fill.rect.max.x == bounds.max.x
+            && fill.rect.width() == marker.parts.width
+            && fill.color == marker.color
+    })
 }
 
 #[test]
 /// Verifies selected rows keep the existing fill and leading marker without adding focus chrome.
-fn selected_rows_paint_selection_fill_and_marker_without_focus_outline() {
+fn selected_rows_paint_selection_fill_and_marker_without_focus_marker() {
     let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = sample_hit_target_with_focus(true, false, false);
     let plan = sample_widget_plan(&target, bounds);
@@ -251,8 +278,8 @@ fn selected_rows_paint_selection_fill_and_marker_without_focus_outline() {
         "selected rows should keep the leading selected marker"
     );
     assert!(
-        !paints_focus_outline(&plan),
-        "selection alone should not paint the focused-row outline"
+        !paints_focus_marker(&plan, bounds),
+        "selection alone should not paint the focused-row marker"
     );
 }
 
@@ -264,8 +291,8 @@ fn implicit_focused_selection_does_not_paint_explicit_selection_chrome() {
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(
-        paints_focus_outline(&plan),
-        "the current sample should keep the focused-row outline"
+        paints_focus_marker(&plan, bounds),
+        "the current sample should keep the focused-row marker"
     );
     assert!(
         !plan.fill_rects().any(|fill| fill.color == selected_fill()),
@@ -279,14 +306,14 @@ fn implicit_focused_selection_does_not_paint_explicit_selection_chrome() {
 
 #[test]
 /// Verifies focus can move independently from the selected set.
-fn focused_rows_paint_outline_without_selection_fill_or_marker() {
+fn focused_rows_paint_focus_marker_without_selection_fill_or_marker() {
     let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = sample_hit_target_with_focus(false, true, false);
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(
-        paints_focus_outline(&plan),
-        "focused rows should paint a crisp outline"
+        paints_focus_marker(&plan, bounds),
+        "focused rows should paint a crisp leading marker"
     );
     assert!(
         !plan.fill_rects().any(|fill| fill.color == selected_fill()),
@@ -314,14 +341,51 @@ fn selected_focused_rows_paint_selection_and_focus_together() {
         "selected + focused rows should keep the selected marker"
     );
     assert!(
-        paints_focus_outline(&plan),
-        "selected + focused rows should also paint the focus outline"
+        paints_focus_marker(&plan, bounds),
+        "selected + focused rows should also paint the focus marker"
     );
 }
 
 #[test]
+/// Verifies mouse-down borrows focus chrome without replacing selection with an opaque bar.
+fn selected_pointer_press_uses_focus_marker_until_release() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let mut target = sample_hit_target_with_focus(true, false, false);
+
+    dispatch(
+        &mut target,
+        bounds,
+        WidgetInput::primary_press(Point::new(34.0, 28.0)),
+    );
+    let pressed = sample_widget_plan(&target, bounds);
+
+    assert!(paints_focus_marker(&pressed, bounds));
+    assert!(
+        pressed
+            .fill_rects()
+            .any(|fill| fill.color == selected_fill())
+    );
+    assert!(paints_selection_marker(&pressed, bounds));
+
+    dispatch(
+        &mut target,
+        bounds,
+        WidgetInput::primary_release(Point::new(34.0, 28.0)),
+    );
+    let released = sample_widget_plan(&target, bounds);
+
+    assert!(!paints_focus_marker(&released, bounds));
+    assert!(
+        released
+            .fill_rects()
+            .any(|fill| fill.color == selected_hover_fill())
+    );
+    assert!(paints_selection_marker(&released, bounds));
+}
+
+#[test]
 /// Verifies hover feedback does not mask the focus marker.
-fn focused_hover_rows_keep_focus_outline() {
+fn focused_hover_rows_keep_focus_marker() {
     let bounds = ui::Rect::from_size(120.0, 22.0);
     let mut target = sample_hit_target_with_focus(false, true, false);
     dispatch(
@@ -333,9 +397,10 @@ fn focused_hover_rows_keep_focus_outline() {
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(paints_hover_fill(&plan));
+    assert!(paints_hover_trailing_marker(&plan, bounds));
     assert!(
-        paints_focus_outline(&plan),
-        "hover feedback should not erase the focused-row outline"
+        paints_focus_marker(&plan, bounds),
+        "hover feedback should not erase the focused-row marker"
     );
 }
 
@@ -351,9 +416,9 @@ fn copied_rows_paint_flash_fill_without_selection_marker() {
         "copied rows should paint the transient copy flash fill"
     );
     assert!(
-        !plan
-            .fill_rects()
-            .any(|fill| fill.rect.min.x == bounds.min.x && fill.color == SELECTED_MARKER),
+        !plan.fill_rects().any(
+            |fill| fill.rect.min.x == bounds.min.x && fill.color == selected_row_marker().color
+        ),
         "copy flash must not add the selection marker"
     );
     assert!(
@@ -576,6 +641,7 @@ fn hover_fill_is_neutral_not_selection_red() {
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(paints_hover_fill(&plan));
+    assert!(paints_hover_trailing_marker(&plan, bounds));
     assert!(!plan.fill_rects().any(|fill| fill.color == selected_fill()));
 }
 
@@ -650,18 +716,20 @@ fn pressed_and_hover_state_survive_retained_widget_refresh() {
 }
 
 #[test]
-/// Verifies cached sample rows paint the loaded marker.
-fn loaded_rows_paint_right_edge_marker() {
+/// Verifies cached sample rows reserve a separate rail before the scrollbar.
+fn loaded_rows_paint_readiness_marker_clear_of_scrollbar() {
     let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = sample_hit_target(false, false, false, true);
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(
-        plan.fill_rects()
-            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
-                && fill.rect.width() == 2.0
-                && fill.color == CACHED_MARKER),
-        "loaded rows should show a near-white right-edge marker"
+        plan.fill_rects().any(|fill| fill.rect.min.x
+            == bounds.max.x - CACHED_MARKER_EDGE_INSET - 2.0
+            && fill.rect.max.x
+                == bounds.max.x - SAMPLE_LIST_SCROLLBAR_WIDTH - CACHED_MARKER_SCROLLBAR_GAP
+            && fill.rect.width() == 2.0
+            && fill.color == CACHED_MARKER),
+        "loaded rows should show a near-white readiness marker clear of the scrollbar lane"
     );
 }
 
@@ -675,9 +743,7 @@ fn unloaded_rows_do_not_paint_loaded_marker() {
     assert!(
         !plan
             .fill_rects()
-            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
-                && fill.rect.width() == 2.0
-                && fill.color == CACHED_MARKER),
+            .any(|fill| fill.rect.width() == 2.0 && fill.color == CACHED_MARKER),
         "unloaded rows should not show the loaded marker"
     );
 }

@@ -4,6 +4,8 @@ use crate::native_app::app::GuiMessage;
 #[cfg(test)]
 use crate::native_app::app::NativeAppState;
 use crate::native_app::app::SampleBrowserDisplayMode;
+#[cfg(test)]
+use crate::native_app::app_chrome::palette::ACCENT;
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewModel;
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::sample_browser::SampleBrowserViewProjection;
@@ -41,7 +43,7 @@ pub(in crate::native_app) fn sample_browser_from_state(
 pub(in crate::native_app) fn sample_browser(
     model: SampleBrowserViewModel<'_>,
 ) -> ui::View<GuiMessage> {
-    let mut sections = Vec::with_capacity(4);
+    let mut sections = Vec::with_capacity(3);
     sections.push(sample_browser_header_bar(SampleBrowserHeaderBar {
         columns: model.visible_samples.columns.as_slice(),
         sort: model.visible_samples.sort,
@@ -81,13 +83,8 @@ pub(in crate::native_app) fn sample_browser(
         )
         .fill(),
     });
-    sections.push(sample_browser_status(
-        model.visible_samples.total_count,
-        model.visible_samples.includes_subfolders,
-    ));
     ui::column(sections)
         .spacing(0.0)
-        .style(ui::WidgetStyle::default())
         .fill()
         .pointer_target_if(
             model.file_drag_active,
@@ -144,26 +141,6 @@ pub(super) fn similarity_aspect_color(aspect: SimilarityAspect) -> ui::Rgba8 {
     }
 }
 
-fn sample_browser_status(audio_count: usize, includes_subfolders: bool) -> ui::View<GuiMessage> {
-    let scope = if includes_subfolders {
-        "selected folder + subfolders"
-    } else {
-        "selected folder"
-    };
-    ui::row([
-        ui::text("Listed").height(20.0).width(90.0),
-        ui::text(format!(
-            "{audio_count} audio file{} in {scope}",
-            if audio_count == 1 { "" } else { "s" }
-        ))
-        .height(20.0)
-        .fill_width(),
-    ])
-    .padding_x(3.0)
-    .fill_width()
-    .height(28.0)
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -187,6 +164,17 @@ mod tests {
     use crate::native_app::ui::ids as widget_ids;
 
     #[test]
+    fn similarity_anchor_gutter_paints_no_boxed_column_chrome() {
+        let frame =
+            super::cells::similarity_anchor_toggle(String::from("sample.wav"), false, None, false)
+                .view_frame_at_size_with_default_theme(Vector2::new(22.0, 22.0));
+
+        assert_eq!(frame.paint_plan.svgs().count(), 1);
+        assert!(frame.paint_plan.fill_rects().next().is_none());
+        assert!(frame.paint_plan.stroke_rects().next().is_none());
+    }
+
+    #[test]
     fn sample_list_stacked_pointer_targets_route_each_event_to_matching_domain_action() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = radiant::application::DetailsSort::new(
@@ -203,7 +191,6 @@ mod tests {
                 sample_browser(SampleBrowserViewModel {
                     visible_samples: VisibleSampleList {
                         total_count: 0,
-                        includes_subfolders: false,
                         window: ui::VirtualListWindow::default(),
                         rows: Vec::new(),
                         columns: columns.clone(),
@@ -263,7 +250,6 @@ mod tests {
         let frame = sample_browser(SampleBrowserViewModel {
             visible_samples: VisibleSampleList {
                 total_count: 1,
-                includes_subfolders: false,
                 window: ui::VirtualListWindow::default(),
                 rows: Vec::new(),
                 columns,
@@ -276,7 +262,7 @@ mod tests {
                 label: String::from("kick"),
                 x: 0.5,
                 y: 0.5,
-                color: ui::Rgba8::new(255, 160, 82, 220),
+                color: ACCENT.with_alpha(220),
                 selected: false,
                 focused: false,
                 copy_flash: false,
@@ -327,7 +313,6 @@ mod tests {
         let frame = sample_browser(SampleBrowserViewModel {
             visible_samples: VisibleSampleList {
                 total_count: 2,
-                includes_subfolders: false,
                 window: ui::VirtualListWindow::default(),
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -340,7 +325,7 @@ mod tests {
                 label: String::from("kick"),
                 x: 0.5,
                 y: 0.5,
-                color: ui::Rgba8::new(255, 160, 82, 220),
+                color: ACCENT.with_alpha(220),
                 selected: false,
                 focused: false,
                 copy_flash: false,
@@ -391,7 +376,6 @@ mod tests {
         let frame = sample_browser(SampleBrowserViewModel {
             visible_samples: VisibleSampleList {
                 total_count: 1,
-                includes_subfolders: false,
                 window: ui::VirtualListWindow::default(),
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -404,7 +388,7 @@ mod tests {
                 label: String::from("kick"),
                 x: 0.5,
                 y: 0.5,
-                color: ui::Rgba8::new(255, 160, 82, 220),
+                color: ACCENT.with_alpha(220),
                 selected: false,
                 focused: false,
                 copy_flash: false,
@@ -452,7 +436,7 @@ mod tests {
                 label: String::from("kick"),
                 x: 0.5,
                 y: 0.5,
-                color: ui::Rgba8::new(255, 160, 82, 220),
+                color: ACCENT.with_alpha(220),
                 selected: false,
                 focused: false,
                 copy_flash: false,
@@ -556,7 +540,6 @@ mod tests {
         let frame = sample_browser(SampleBrowserViewModel {
             visible_samples: VisibleSampleList {
                 total_count: 0,
-                includes_subfolders: false,
                 window: ui::VirtualListWindow::default(),
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -610,7 +593,6 @@ mod tests {
                     sample_browser(SampleBrowserViewModel {
                         visible_samples: VisibleSampleList {
                             total_count: 2,
-                            includes_subfolders: false,
                             window: ui::VirtualListWindow::default(),
                             rows: Vec::new(),
                             columns: Vec::new(),
@@ -623,7 +605,7 @@ mod tests {
                             label: String::from("kick"),
                             x: 0.5,
                             y: 0.5,
-                            color: ui::Rgba8::new(255, 160, 82, 220),
+                            color: ACCENT.with_alpha(220),
                             selected: false,
                             focused: false,
                             copy_flash: false,
@@ -665,15 +647,15 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
 
         runtime.dispatch_input_at(
-            ui::Point::new(260.0, 160.0),
-            WidgetInput::primary_press(ui::Point::new(260.0, 160.0)),
+            ui::Point::new(260.0, 172.0),
+            WidgetInput::primary_press(ui::Point::new(260.0, 172.0)),
         );
 
         assert_eq!(
             runtime.bridge().state(),
             &[GuiMessage::BeginStarmapAuditionDrag {
                 path: Some(sample_path),
-                position: ui::Point::new(260.0, 160.0),
+                position: ui::Point::new(260.0, 172.0),
                 modifiers: PointerModifiers::default(),
             }]
         );
@@ -693,7 +675,6 @@ mod tests {
                 sample_browser(SampleBrowserViewModel {
                     visible_samples: VisibleSampleList {
                         total_count: 2,
-                        includes_subfolders: false,
                         window: ui::VirtualListWindow::default(),
                         rows: Vec::new(),
                         columns: Vec::new(),
@@ -706,7 +687,7 @@ mod tests {
                         label: String::from("kick"),
                         x: 0.5,
                         y: 0.5,
-                        color: ui::Rgba8::new(255, 160, 82, 220),
+                        color: ACCENT.with_alpha(220),
                         selected: false,
                         focused: false,
                         copy_flash: false,
@@ -748,14 +729,14 @@ mod tests {
 
         assert!(
             runtime
-                .wheel_or_scroll_at(ui::Point::new(260.0, 160.0), ui::Vector2::new(0.0, -120.0),)
+                .wheel_or_scroll_at(ui::Point::new(260.0, 172.0), ui::Vector2::new(0.0, -120.0),)
         );
 
         assert_eq!(
             runtime.bridge().state(),
             &[GuiMessage::ChangeStarmapViewport(
                 StarmapViewportChange::Zoom {
-                    anchor: ui::Vector2::new(0.5, 0.50769234),
+                    anchor: ui::Vector2::new(0.5, 0.5),
                     factor: 1.15,
                 }
             )]
@@ -781,7 +762,6 @@ mod tests {
                     sample_browser(SampleBrowserViewModel {
                         visible_samples: VisibleSampleList {
                             total_count: 2,
-                            includes_subfolders: false,
                             window: ui::VirtualListWindow::default(),
                             rows: Vec::new(),
                             columns: Vec::new(),
@@ -795,7 +775,7 @@ mod tests {
                                 label: String::from("kick"),
                                 x: 0.30,
                                 y: 0.5,
-                                color: ui::Rgba8::new(255, 160, 82, 220),
+                                color: ACCENT.with_alpha(220),
                                 selected: false,
                                 focused: false,
                                 copy_flash: false,
@@ -851,22 +831,22 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
 
         runtime.dispatch_input_at(
-            ui::Point::new(156.0, 160.0),
-            WidgetInput::primary_press(ui::Point::new(156.0, 160.0)),
+            ui::Point::new(156.0, 172.0),
+            WidgetInput::primary_press(ui::Point::new(156.0, 172.0)),
         );
-        runtime.dispatch_pointer_move_with_outcome(ui::Point::new(364.0, 160.0));
+        runtime.dispatch_pointer_move_with_outcome(ui::Point::new(364.0, 172.0));
 
         assert_eq!(
             runtime.bridge().state(),
             &[
                 GuiMessage::BeginStarmapAuditionDrag {
                     path: Some(left_path),
-                    position: ui::Point::new(156.0, 160.0),
+                    position: ui::Point::new(156.0, 172.0),
                     modifiers: PointerModifiers::default(),
                 },
                 GuiMessage::UpdateStarmapAuditionDrag {
                     paths: vec![right_path],
-                    position: ui::Point::new(364.0, 160.0),
+                    position: ui::Point::new(364.0, 172.0),
                     modifiers: PointerModifiers::default(),
                 },
             ]
@@ -893,7 +873,6 @@ mod tests {
                     sample_browser(SampleBrowserViewModel {
                         visible_samples: VisibleSampleList {
                             total_count: 2,
-                            includes_subfolders: false,
                             window: ui::VirtualListWindow::default(),
                             rows: Vec::new(),
                             columns: Vec::new(),
@@ -907,7 +886,7 @@ mod tests {
                                 label: String::from("kick"),
                                 x: 0.30,
                                 y: 0.5,
-                                color: ui::Rgba8::new(255, 160, 82, 220),
+                                color: ACCENT.with_alpha(220),
                                 selected: false,
                                 focused: false,
                                 copy_flash: false,
@@ -963,14 +942,14 @@ mod tests {
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
 
         runtime.dispatch_input_at(
-            ui::Point::new(156.0, 160.0),
-            WidgetInput::primary_press(ui::Point::new(156.0, 160.0)),
+            ui::Point::new(156.0, 172.0),
+            WidgetInput::primary_press(ui::Point::new(156.0, 172.0)),
         );
-        runtime.dispatch_pointer_move_deferred_refresh_with_outcome(ui::Point::new(364.0, 160.0));
+        runtime.dispatch_pointer_move_deferred_refresh_with_outcome(ui::Point::new(364.0, 172.0));
 
         let mut overlay = Vec::new();
         runtime.runtime_overlay_paint_into(&ThemeTokens::default(), &mut overlay);
-        let expected_right_center_x = 4.0 + (516.0 - 4.0) * 0.70;
+        let expected_right_center_x = 520.0 * 0.70;
 
         assert!(
             overlay.iter().any(|primitive| matches!(

@@ -9,8 +9,8 @@ use crate::native_app::waveform::{
 
 const WAVEFORM_STATUS_HEIGHT: f32 = 16.0;
 const WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH: f32 = 14.0;
-pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
-pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 202.0;
+pub(in crate::native_app) const WAVEFORM_VIEW_HEIGHT: f32 = 196.0;
+pub(in crate::native_app) const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 
 pub(in crate::native_app) fn waveform_panel(
     model: WaveformPanelViewModel<'_>,
@@ -28,8 +28,7 @@ pub(in crate::native_app) fn waveform_panel(
         waveform_viewport_with_loading_state(&model),
         waveform_scrollbar(model.waveform),
     ])
-    .spacing(1.0)
-    .style(ui::WidgetStyle::default())
+    .spacing(0.0)
     .fill_width()
     .height(WAVEFORM_PANEL_HEIGHT)
 }

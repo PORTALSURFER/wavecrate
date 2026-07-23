@@ -1,5 +1,74 @@
 use super::*;
 use radiant::runtime::{PaintPrimitive, RepaintScope};
+use std::time::{Duration, Instant};
+
+#[test]
+fn folder_focus_fade_invalidates_the_cached_row_projection() {
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.capture_frame_surface_inputs_at(started_at);
+
+    assert_eq!(
+        state.frame_scope_since_at(before, started_at + Duration::from_millis(125)),
+        RepaintScope::Projection,
+        "time-derived folder focus opacity must reproject cached rows while it fades"
+    );
+    assert_eq!(
+        state.frame_scope_since_at(before, started_at + Duration::from_millis(300)),
+        RepaintScope::Projection,
+        "the final transparent focus frame must clear the cached focus marker"
+    );
+}
+
+#[test]
+fn folder_focus_fade_reprojects_during_retained_playback_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+
+    state
+        .library
+        .folder_browser
+        .advance_keyboard_focus_fade(started_at + Duration::from_millis(125));
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::Projection,
+        "retained playback must still reproject rows while focus opacity changes"
+    );
+}
+
+#[test]
+fn folder_focus_fade_reprojects_during_retained_starmap_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+
+    state
+        .library
+        .folder_browser
+        .advance_keyboard_focus_fade(started_at + Duration::from_millis(125));
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::Projection,
+        "retained starmap frames must reproject rows while focus opacity changes"
+    );
+}
 
 #[test]
 fn playback_frame_uses_paint_only_when_only_playhead_changes() {
@@ -595,7 +664,7 @@ fn scene_source_processing_frame_uses_paint_only_repaint_scope() {
 }
 
 #[test]
-fn source_processing_activity_moves_in_transient_overlay_without_input() {
+fn worker_progress_indicator_pulses_in_transient_overlay_without_input() {
     let mut state = gui_state_for_span_tests();
     state.background.source_processing_progress = Some(
         crate::native_app::test_support::state::SourceProcessingProgress {
@@ -614,12 +683,12 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
 
-    let activity_x = |runtime: &mut NativeRuntimeForTests, animation_time| {
+    let pulse = |runtime: &mut NativeRuntimeForTests, animation_time| {
         let mut primitives = Vec::new();
         runtime
             .bridge_mut()
             .state_mut()
-            .paint_source_processing_activity_overlay(
+            .paint_worker_progress_indicator(
                 TransientOverlayContext::new(
                     &frame.paint_plan,
                     Vector2::new(900.0, 620.0),
@@ -628,21 +697,29 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
                 &mut primitives,
             );
         primitives
-            .iter()
-            .filter_map(|primitive| primitive.fill_rect())
-            .next()
-            .expect("source processing activity fill")
-            .rect
-            .center()
-            .x
     };
 
-    let first_x = activity_x(&mut runtime, Duration::ZERO);
-    let later_x = activity_x(&mut runtime, Duration::from_millis(250));
+    let initial = pulse(&mut runtime, Duration::ZERO);
+    let later = pulse(&mut runtime, Duration::from_millis(250));
 
-    assert!(
-        later_x > first_x,
-        "paint-only source activity must advance from animation time"
+    assert_eq!(initial.len(), 1, "worker pulse paints one breathing fill");
+    assert_eq!(later.len(), 1, "worker pulse remains one circular fill");
+    let path_parts = |primitive: &PaintPrimitive| match primitive {
+        PaintPrimitive::FillPath(path) => match path.brush {
+            radiant::runtime::PaintBrush::Solid(color) => (path.path.clone(), color.a),
+            other => panic!("expected solid circular pulse fill, got {other:?}"),
+        },
+        other => panic!("expected circular pulse path, got {other:?}"),
+    };
+    let (initial_path, initial_alpha) = path_parts(&initial[0]);
+    let (later_path, later_alpha) = path_parts(&later[0]);
+    assert_eq!(
+        initial_path, later_path,
+        "worker pulse keeps one fixed circle geometry"
+    );
+    assert_ne!(
+        initial_alpha, later_alpha,
+        "paint-only worker pulse must vary only its fill intensity"
     );
 }
 
@@ -671,7 +748,7 @@ fn source_processing_source_pulse_uses_animation_time_not_frame_count() {
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
 
-    let pulse_alpha = |runtime: &mut NativeRuntimeForTests, animation_time| {
+    let processing_rail = |runtime: &mut NativeRuntimeForTests, animation_time| {
         let mut primitives = Vec::new();
         runtime
             .bridge_mut()
@@ -685,27 +762,66 @@ fn source_processing_source_pulse_uses_animation_time_not_frame_count() {
                 &mut primitives,
             );
         primitives
-            .iter()
-            .filter_map(|primitive| primitive.fill_rect())
-            .next()
-            .expect("source processing pulse fill")
-            .color
-            .a
     };
 
-    let initial = pulse_alpha(&mut runtime, Duration::ZERO);
+    let initial = processing_rail(&mut runtime, Duration::ZERO);
     runtime.bridge_mut().state_mut().background.progress_tick = 0.5;
-    let after_frame_count_change = pulse_alpha(&mut runtime, Duration::ZERO);
-    let later = pulse_alpha(&mut runtime, Duration::from_millis(250));
+    let after_frame_count_change = processing_rail(&mut runtime, Duration::ZERO);
+    let later = processing_rail(&mut runtime, Duration::from_millis(250));
 
     assert_eq!(
         after_frame_count_change, initial,
         "playback frame cadence must not change the pulse phase"
     );
-    assert_ne!(
-        later, initial,
-        "the pulse must advance from monotonic animation time"
+    assert_eq!(initial.len(), 2, "processing paints a track and gradient");
+    assert_eq!(
+        initial[0], later[0],
+        "the quiet processing track stays fixed beneath the activity segment"
     );
+    let gradient = |primitive: &PaintPrimitive| match primitive {
+        PaintPrimitive::FillPath(fill) => match fill.brush {
+            radiant::runtime::PaintBrush::LinearGradient(gradient) => gradient,
+            other => panic!("expected gradient source-processing rail, got {other:?}"),
+        },
+        other => panic!("expected source-processing gradient path, got {other:?}"),
+    };
+    let initial_gradient = gradient(&initial[1]);
+    assert_eq!(initial_gradient.start_color.a, 0);
+    assert!(initial_gradient.end_color.a > initial_gradient.start_color.a);
+    assert_eq!(
+        later.len(),
+        3,
+        "the segment splits across both track edges while wrapping"
+    );
+    assert_ne!(
+        gradient(&later[2]).end.x,
+        initial_gradient.end.x,
+        "the bright head must continue moving from monotonic animation time"
+    );
+}
+
+#[test]
+fn source_processing_gradient_wraps_without_respawning() {
+    let track = radiant::prelude::Rect::from_min_max(
+        radiant::prelude::Point::new(10.0, 20.0),
+        radiant::prelude::Point::new(110.0, 22.0),
+    );
+    let before_wrap =
+        crate::native_app::app_chrome::status_bar::source_processing_gradient_slices_for_tests(
+            track, 0.98,
+        );
+    let after_wrap =
+        crate::native_app::app_chrome::status_bar::source_processing_gradient_slices_for_tests(
+            track, 0.02,
+        );
+
+    assert_eq!(before_wrap.len(), 1);
+    assert_eq!(after_wrap.len(), 2);
+    assert_eq!(before_wrap[0].1.start_color.a, 0);
+    assert_eq!(after_wrap[0].1.start_color.a, 0);
+    assert_eq!(before_wrap[0].1.end_color, after_wrap[0].1.end_color);
+    assert_eq!(after_wrap[0].0.max.x, track.max.x);
+    assert_eq!(after_wrap[1].0.min.x, track.min.x);
 }
 
 #[test]
@@ -791,12 +907,7 @@ fn scene_installs_playback_cursor_transient_overlay() {
         primitives
             .iter()
             .filter_map(|primitive| primitive.fill_rect())
-            .any(|fill| {
-                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
-                    && fill.color.r == 71
-                    && fill.color.g == 220
-                    && fill.color.b == 255
-            }),
+            .any(is_playback_cursor_fill),
         "root scene should install the paint-only playback cursor overlay"
     );
 }
@@ -937,7 +1048,7 @@ fn waveform_context_menu_suppresses_waveform_transient_overlay() {
 }
 
 #[test]
-fn waveform_context_menu_occludes_stopped_playhead_surface_marker() {
+fn waveform_context_menu_layers_above_stopped_playhead_surface_marker() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
     state.waveform.current.stop_playback();
@@ -955,18 +1066,17 @@ fn waveform_context_menu_occludes_stopped_playhead_surface_marker() {
     let stopped_playhead_fills = frame
         .paint_plan
         .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
-        .filter(|fill| fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255)
+        .filter(|fill| is_playback_cursor_fill(fill))
         .collect::<Vec<_>>();
-
     assert!(
         !stopped_playhead_fills.is_empty(),
         "waveform context menus should keep the stopped playhead visible outside menu chrome"
     );
     assert!(
-        !stopped_playhead_fills
+        stopped_playhead_fills
             .iter()
             .any(|fill| rects_overlap(fill.rect, menu_rect)),
-        "stopped playhead marker should not paint through the context-menu rectangle"
+        "the context-menu overlay should cover the stopped surface marker by paint order"
     );
 }
 
@@ -998,7 +1108,7 @@ fn playback_cursor_paints_as_transient_overlay() {
         !frame
             .paint_plan
             .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
-            .any(|fill| { fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255 }),
+            .any(is_playback_cursor_fill),
         "live playback cursor should not be baked into the cached surface"
     );
 
@@ -1016,12 +1126,7 @@ fn playback_cursor_paints_as_transient_overlay() {
         primitives
             .iter()
             .filter_map(|primitive| primitive.fill_rect())
-            .any(|fill| {
-                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
-                    && fill.color.r == 71
-                    && fill.color.g == 220
-                    && fill.color.b == 255
-            }),
+            .any(is_playback_cursor_fill),
         "paint-only playback overlay should append the live cursor"
     );
 }
@@ -1047,12 +1152,7 @@ fn playback_cursor_transient_overlay_keeps_subpixel_position() {
     let cursor = primitives
         .iter()
         .filter_map(|primitive| primitive.fill_rect())
-        .find(|fill| {
-            fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
-                && fill.color.r == 71
-                && fill.color.g == 220
-                && fill.color.b == 255
-        })
+        .find(|fill| is_playback_cursor_fill(fill))
         .expect("paint-only playback overlay should append the live cursor");
     assert!(
         cursor.rect.min.x.fract().abs() > 0.001,
@@ -1557,10 +1657,11 @@ fn waveform_cursor_x_from_ratio(
 }
 
 fn is_playback_cursor_fill(fill: &radiant::runtime::PaintFillRect) -> bool {
+    let accent = crate::native_app::app_chrome::palette::ACCENT;
     fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
-        && fill.color.r == 71
-        && fill.color.g == 220
-        && fill.color.b == 255
+        && fill.color.r == accent.r
+        && fill.color.g == accent.g
+        && fill.color.b == accent.b
 }
 
 fn assert_cursor_xs_monotonic_and_bounded(label: &str, cursor_xs: &[f32], max_delta: f32) {

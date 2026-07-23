@@ -26,16 +26,44 @@ pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = identity::TOOLBAR_RANDO
 pub(in crate::native_app) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 =
     identity::TOOLBAR_ZERO_CROSSING_SNAP_ID;
 
+#[cfg(test)]
 pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::View<GuiMessage> {
-    let projection = ToolbarProjection::from_model(model);
-    let controls = projection
-        .controls
-        .iter()
-        .map(|control| toolbar_control(*control, projection.help_tooltips_enabled))
-        .collect::<Vec<_>>();
-
     radiant::application::toolbar_from_parts(
-        radiant::application::ToolbarParts::new(controls).alignment(ui::ToolbarAlignment::End),
+        radiant::application::ToolbarParts::new(main_toolbar_controls(model))
+            .alignment(ui::ToolbarAlignment::End),
+    )
+}
+
+pub(in crate::native_app) fn main_toolbar_controls(
+    model: MainToolbarViewModel,
+) -> Vec<ui::View<GuiMessage>> {
+    let projection = ToolbarProjection::from_model(model);
+    let mut utility_controls = Vec::with_capacity(projection.controls.len());
+    let mut playback_controls = Vec::with_capacity(2);
+    for control in &projection.controls {
+        let view = toolbar_control(*control, projection.help_tooltips_enabled);
+        if control_is_playback(*control) {
+            playback_controls.push(view);
+        } else {
+            utility_controls.push(view);
+        }
+    }
+    if !playback_controls.is_empty() {
+        utility_controls.push(
+            ui::row(playback_controls)
+                .spacing(2.0)
+                .height(24.0)
+                .intrinsic(),
+        );
+    }
+    utility_controls
+}
+
+fn control_is_playback(control: ToolbarControlProjection) -> bool {
+    matches!(
+        control,
+        ToolbarControlProjection::Icon(button)
+            if matches!(button.icon, ToolbarIcon::Play | ToolbarIcon::Stop)
     )
 }
 

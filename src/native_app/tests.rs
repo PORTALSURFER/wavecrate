@@ -177,6 +177,10 @@ fn toggle_metadata_tag(tag: String) -> super::test_support::state::GuiMessage {
     metadata_message(super::test_support::state::MetadataMessage::ToggleMetadataTag(tag))
 }
 
+fn remove_metadata_tag(tag: String) -> super::test_support::state::GuiMessage {
+    metadata_message(super::test_support::state::MetadataMessage::RemoveMetadataTag(tag))
+}
+
 fn toggle_metadata_tag_for_files(
     tag: String,
     file_ids: Vec<String>,

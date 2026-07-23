@@ -60,13 +60,13 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .tags_by_file
         .insert(String::from("known.wav"), vec![String::from("kick")]);
     state.metadata.tag_draft = String::from("ki");
-    let (clicked_folder_id, initially_expanded) = state
+    let (clicked_folder_id, _initially_expanded) = state
         .library
         .folder_browser
         .first_visible_child_folder_expansion_for_tests()
         .expect("visible child folder with expander");
 
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 900.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = metadata_tag_text_input(&frame)
         .map(|input| input.rect)
@@ -80,17 +80,26 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .file_name()
         .and_then(|name| name.to_str())
         .expect("clicked folder should have a display label");
-    let folder_rect = frame
+    let folder_row_id =
+        crate::native_app::app_chrome::library_browser::library_sidebar::folder_row_widget_id(
+            &clicked_folder_id,
+        );
+    let folder_row_rect = frame
         .paint_plan
-        .text_runs()
-        .find_map(|text| {
-            text.text
-                .as_str()
-                .eq(clicked_folder_label)
-                .then_some(text.rect)
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            radiant::runtime::PaintPrimitive::Text(text)
+                if text.widget_id == folder_row_id
+                    && text.text.as_str() == clicked_folder_label =>
+            {
+                Some(text.rect)
+            }
+            _ => None,
         })
         .expect("folder row label should paint");
-    let point = ui::Point::new(folder_rect.min.x - 14.0, folder_rect.center().y);
+    let point = folder_row_rect.center();
+    let target = runtime.widget_at(point);
 
     runtime.dispatch_primary_click(point);
 
@@ -100,9 +109,9 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
             .state()
             .library
             .folder_browser
-            .folder_expansion_for_tests(&clicked_folder_id),
-        Some(!initially_expanded),
-        "autocomplete popup must not prevent clicking folder row {clicked_folder_label}"
+            .selected_folder_id(),
+        Some(clicked_folder_id.as_str()),
+        "autocomplete popup must not prevent clicking folder row {clicked_folder_label}; target={target:?}, row={folder_row_id}, rect={folder_row_rect:?}"
     );
 }
 
@@ -158,10 +167,13 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     fs::write(second_root.join("beta.wav"), []).expect("second sample");
 
     let mut state = gui_state_for_span_tests();
+    let first_source = wavecrate::sample_sources::SampleSource::new(first_root.clone());
+    let second_source = wavecrate::sample_sources::SampleSource::new(second_root.clone());
+    let second_source_id = second_source.id.clone();
     state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
-            wavecrate::sample_sources::SampleSource::new(first_root.clone()),
-            wavecrate::sample_sources::SampleSource::new(second_root.clone()),
+            first_source,
+            second_source,
         ]);
     let first_file = first_root.join("alpha.wav").display().to_string();
     state.library.folder_browser.select_file(first_file);
@@ -181,10 +193,16 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
+    let source_row_id =
+        crate::native_app::app_chrome::library_browser::library_sidebar::source_row_widget_id(
+            second_source_id.as_str(),
+        );
     let source_rect = runtime
         .frame_with_default_theme()
-        .paint_plan
-        .first_text_rect("Beta Samples")
+        .layout
+        .rects
+        .get(&source_row_id)
+        .copied()
         .expect("second source should paint");
     let point = source_rect.center();
     runtime.dispatch_primary_click(point);

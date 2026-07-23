@@ -5,6 +5,9 @@ mod projection;
 mod tests;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, SettingsMessage};
+use crate::native_app::app_chrome::palette::{ACCENT, TEXT_MUTED, TEXT_PRIMARY};
+use crate::native_app::app_chrome::toolbar::main_toolbar_controls;
+use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
 use crate::native_app::ui::ids as widget_ids;
 
 use self::projection::{
@@ -17,17 +20,18 @@ pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDE
 pub(in crate::native_app) const NORMALIZED_AUDITION_BUTTON_ID: u64 =
     widget_ids::NORMALIZED_AUDITION_BUTTON_ID;
 const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
-    width: 92.0,
-    height: 14.0,
+    width: 112.0,
+    height: 16.0,
 };
+const VOLUME_SLIDER_TRACK_HEIGHT: f32 = 8.0;
 const NORMALIZED_AUDITION_BUTTON_SIZE: ControlSize = ControlSize {
-    width: 18.0,
-    height: 18.0,
+    width: 28.0,
+    height: 24.0,
 };
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = widget_ids::HELP_TOOLTIPS_BUTTON_ID;
 const HELP_TOOLTIPS_BUTTON_SIZE: ControlSize = ControlSize {
-    width: 18.0,
-    height: 22.0,
+    width: 28.0,
+    height: 24.0,
 };
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
 const AUDIO_ENGINE_PILL_SIZE: ControlSize = ControlSize {
@@ -46,11 +50,12 @@ const RELEASE_UPDATE_BUTTON_SIZE: ControlSize = ControlSize {
     width: 24.0,
     height: 24.0,
 };
-const SETTINGS_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
-    ui::Rgba8::new(238, 238, 238, 255),
-    ui::Rgba8::new(255, 160, 82, 255),
-    ui::Rgba8::new(145, 145, 145, 255),
-);
+const SETTINGS_ICON_TINTS: ui::SvgIconTintPalette =
+    ui::SvgIconTintPalette::new(TEXT_PRIMARY, ACCENT, TEXT_MUTED);
+#[cfg(target_os = "macos")]
+const NATIVE_WINDOW_CONTROLS_INSET: f32 = 76.0;
+#[cfg(not(target_os = "macos"))]
+const NATIVE_WINDOW_CONTROLS_INSET: f32 = 0.0;
 
 struct ControlSize {
     width: f32,
@@ -59,21 +64,33 @@ struct ControlSize {
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let projection = TopControlBarProjection::from_app_state(state);
+    let mut toolbar_controls = Vec::with_capacity(12);
+    toolbar_controls.push(ui::spacer().width(NATIVE_WINDOW_CONTROLS_INSET).height(1.0));
+    toolbar_controls.extend(main_toolbar_controls(MainToolbarViewModel::from_app_state(
+        state,
+    )));
     radiant::application::toolbar_from_parts(
-        radiant::application::ToolbarParts::new([
-            volume_slider(projection.volume.value)
-                .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip),
-            normalized_audition_button(projection.normalized_audition).tooltip_if(
-                projection.help_tooltips_enabled,
-                projection.normalized_audition.tooltip,
-            ),
-        ])
-        .trailing(settings_controls(projection.settings_controls))
-        .spacing(6.0)
-        .padding_x(12.0)
-        .padding_y(4.0)
-        .height(30.0),
+        radiant::application::ToolbarParts::new(toolbar_controls)
+            .trailing(trailing_controls(projection))
+            .spacing(6.0)
+            .padding_x(8.0)
+            .padding_y(6.0)
+            .height(38.0),
     )
+}
+
+fn trailing_controls(projection: TopControlBarProjection) -> ui::View<GuiMessage> {
+    ui::row([
+        volume_slider(projection.volume.value)
+            .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip),
+        normalized_audition_button(projection.normalized_audition).tooltip_if(
+            projection.help_tooltips_enabled,
+            projection.normalized_audition.tooltip,
+        ),
+        settings_controls(projection.settings_controls),
+    ])
+    .spacing(6.0)
+    .height(24.0)
 }
 
 fn settings_controls(model: SettingsControlsProjection) -> ui::View<GuiMessage> {
@@ -96,7 +113,6 @@ fn settings_controls(model: SettingsControlsProjection) -> ui::View<GuiMessage> 
 
 fn help_tooltips_button(projection: HelpTooltipsButtonProjection) -> ui::View<GuiMessage> {
     let button = ui::icon_button(help_tooltips_icon(projection.active))
-        .bare()
         .active(projection.active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleHelpTooltips))
         .id(HELP_TOOLTIPS_BUTTON_ID)
@@ -146,6 +162,8 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
 fn volume_slider_from_projection(projection: VolumeSliderProjection) -> ui::View<GuiMessage> {
     ui::slider(projection.value)
         .compact()
+        .track_height(VOLUME_SLIDER_TRACK_HEIGHT)
+        .track_border()
         .paint_focus(false)
         .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
         .id(VOLUME_SLIDER_ID)
@@ -156,7 +174,6 @@ fn normalized_audition_button(
     projection: NormalizedAuditionButtonProjection,
 ) -> ui::View<GuiMessage> {
     ui::icon_button(normalized_audition_icon(projection.active))
-        .bare()
         .active(projection.active)
         .message(GuiMessage::Settings(
             SettingsMessage::SetNormalizedAuditionEnabled(!projection.active),
@@ -191,12 +208,14 @@ static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
 </svg>"#,
 );
 
-static NORMALIZED_AUDITION_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
-    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <path d="M2 10.2h1.4l1-3.8 1.4 6.1 1.5-9 1.5 7.2 1.1-3.2.9 2.7H14v1.4h-4.2l-.8-2.2-1.5 4.2L6.2 7 4.9 13H3.3l-1-2.8z"/>
-  <path d="M11.8 2.2h1.3v2.1h2.1v1.3h-2.1v2.1h-1.3V5.6H9.7V4.3h2.1z"/>
-</svg>"#,
-);
+const NORMALIZED_AUDITION_ICON_SVG: &str = r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 6h2.5L8 3.2v9.6L4.5 10H2z" fill="currentColor"/>
+  <path d="M10 5.3c.9.7 1.4 1.6 1.4 2.7s-.5 2-1.4 2.7" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+  <path d="M11.8 3.6c1.4 1.1 2.2 2.6 2.2 4.4s-.8 3.3-2.2 4.4" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+</svg>"#;
+
+static NORMALIZED_AUDITION_ICON: ui::SvgIconTintCache =
+    ui::SvgIconTintCache::new(NORMALIZED_AUDITION_ICON_SVG);
 
 const SETTINGS_GEAR_ICON_SVG: &str = r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path fill-rule="evenodd" d="M6.9 1.5h2.2l.35 1.45c.31.09.61.22.9.37l1.25-.78 1.56 1.56-.78 1.25c.15.29.28.59.37.9l1.45.35v2.2l-1.45.35c-.09.31-.22.61-.37.9l.78 1.25-1.56 1.56-1.25-.78c-.29.15-.59.28-.9.37L9.1 14.2H6.9l-.35-1.45c-.31-.09-.61-.22-.9-.37l-1.25.78-1.56-1.56.78-1.25c-.15-.29-.28-.59-.37-.9L1.8 9.1V6.9l1.45-.35c.09-.31.22-.61.37-.9L2.84 4.4 4.4 2.84l1.25.78c.29-.15.59-.28.9-.37L6.9 1.5zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/>

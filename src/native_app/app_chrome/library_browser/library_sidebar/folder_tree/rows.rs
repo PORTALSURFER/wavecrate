@@ -3,6 +3,9 @@ use radiant::{gui::list as list_ui, prelude as ui};
 use super::identity::{RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE, retained_folder_row_key};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
+#[cfg(test)]
+use crate::native_app::app_chrome::palette::selected_row_palette;
+use crate::native_app::app_chrome::palette::{ACCENT, WavecrateTreeRowStyle};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::{
@@ -10,6 +13,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
 };
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
+pub(super) const FOLDER_LABEL_INSET_X: f32 = 10.0;
 const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
     g: 238,
@@ -22,8 +26,6 @@ pub(super) const FOLDER_TREE_EMPTY_LABEL: ui::Rgba8 = ui::Rgba8 {
     b: 156,
     a: 255,
 };
-pub(super) const FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA: u8 = 245;
-pub(super) const FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH: f32 = 3.0;
 const FOLDER_LOCK_ICON_COLOR: ui::Rgba8 = ui::Rgba8 {
     r: 232,
     g: 221,
@@ -98,12 +100,22 @@ fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessag
         .drag_drop_state(folder_tree_drag_drop_state(folder))
         .row_height(TREE_ROW_HEIGHT)
         .expander_width(FOLDER_EXPANDER_WIDTH)
+        .label_inset_x(FOLDER_LABEL_INSET_X)
         .style(SIDEBAR_ROW_STYLE)
+        .wavecrate_tree_row_style(
+            SIDEBAR_ROW_STYLE,
+            crate::native_app::app_chrome::palette::ListItemState::new(
+                folder.selected,
+                folder.focused,
+            )
+            .with_focus_alpha(folder.focus_alpha),
+        )
         .guide_style(folder_tree_guide_style())
-        .selected_hover_marker(folder_tree_selected_hover_marker())
         .highlighted_label_color(folder_tree_highlighted_label_color(folder));
 
-    let row = if let Some(label_color) = folder_tree_label_color(folder) {
+    let row = if folder.selected || folder.focused {
+        row.label_color(ACCENT)
+    } else if let Some(label_color) = folder_tree_label_color(folder) {
         row.label_color(label_color)
     } else {
         row
@@ -170,7 +182,9 @@ pub(super) fn folder_tree_label_color(folder: &VisibleFolder) -> Option<ui::Rgba
 }
 
 fn folder_tree_highlighted_label_color(folder: &VisibleFolder) -> ui::Rgba8 {
-    if folder.empty {
+    if folder.selected || folder.focused {
+        ACCENT
+    } else if folder.empty {
         FOLDER_TREE_EMPTY_LABEL
     } else {
         FOLDER_TREE_HIGHLIGHTED_LABEL
@@ -193,18 +207,11 @@ pub(super) fn folder_tree_guide_style() -> ui::StyledTreeGuideStyle {
 
 #[cfg(test)]
 pub(super) fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
-    list_ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
-}
-
-pub(super) fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
-    ui::DenseRowMarkerStyle::new(
-        radiant::gui::list::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
-            .edge_inset(1.0)
-            .vertical_inset(3.0),
-        ui::ThemeTokens::default()
-            .accent_mint
-            .with_alpha(FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA),
-    )
+    let mut palette = list_ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE);
+    let selected = selected_row_palette(SIDEBAR_ROW_STYLE);
+    palette.selected = selected.selected;
+    palette.selected_hovered = selected.selected_hovered;
+    palette
 }
 
 fn folder_lock_icon(inherited: bool) -> ui::SvgIcon {

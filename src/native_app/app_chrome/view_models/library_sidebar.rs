@@ -39,13 +39,14 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) role: SourceRole,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
+    pub(in crate::native_app) focus_alpha: u8,
     pub(in crate::native_app) reorder_enabled: bool,
     pub(in crate::native_app) reorder_drag_active: bool,
     pub(in crate::native_app) reorder_drag_source: bool,
     pub(in crate::native_app) reorder_drop_target: bool,
     pub(in crate::native_app) reorder_drop_after: bool,
     pub(in crate::native_app) scanning: bool,
-    pub(in crate::native_app) processing: bool,
     pub(in crate::native_app) missing: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) primary_source_acceptance_flash: bool,
@@ -185,15 +186,9 @@ impl LibrarySidebarViewModel {
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
-            source_selector: SourceSelectorViewModel::from_folder_browser_with_processing(
+            source_selector: SourceSelectorViewModel::from_folder_browser_with_scanning(
                 folder_browser,
                 state.ui.chrome.help_tooltips_enabled,
-                state
-                    .background
-                    .source_processing_progress
-                    .as_ref()
-                    .filter(|progress| progress.active && progress.source_row_active)
-                    .map(|progress| progress.source_id.as_str()),
                 state
                     .library
                     .folder_progress()
@@ -225,13 +220,12 @@ impl SourceSelectorViewModel {
         folder_browser: &FolderBrowserState,
         help_tooltips_enabled: bool,
     ) -> Self {
-        Self::from_folder_browser_with_processing(folder_browser, help_tooltips_enabled, None, None)
+        Self::from_folder_browser_with_scanning(folder_browser, help_tooltips_enabled, None)
     }
 
-    fn from_folder_browser_with_processing(
+    fn from_folder_browser_with_scanning(
         folder_browser: &FolderBrowserState,
         help_tooltips_enabled: bool,
-        processing_source_id: Option<&str>,
         scanning_source_id: Option<&str>,
     ) -> Self {
         let selected_source_id = folder_browser.selected_source_id();
@@ -243,7 +237,6 @@ impl SourceSelectorViewModel {
                     source,
                     selected_source_id,
                     folder_browser,
-                    processing_source_id,
                     scanning_source_id,
                 )
             })
@@ -263,24 +256,31 @@ impl SourceRowViewModel {
         source: &SourceEntry,
         selected_source_id: &str,
         folder_browser: &FolderBrowserState,
-        processing_source_id: Option<&str>,
         scanning_source_id: Option<&str>,
     ) -> Self {
         let reorder_drag_source =
             folder_browser.source_reorder_drag_source_id() == Some(source.id.as_str());
         let reorder_drop_after = folder_browser.source_reorder_drop_marker_after(&source.id);
+        let selected = selected_source_id == source.id;
+        let focus_alpha = if selected && folder_browser.source_keyboard_focus_active() {
+            folder_browser.keyboard_focus_alpha()
+        } else {
+            0
+        };
+        let focused = focus_alpha > 0;
         Self {
             id: source.id.clone(),
             label: source.label.clone(),
             role: source.role,
-            selected: selected_source_id == source.id,
+            selected,
+            focused,
+            focus_alpha,
             reorder_enabled: folder_browser.source_reorder_enabled(&source.id),
             reorder_drag_active: folder_browser.source_reorder_drag_active(),
             reorder_drag_source,
             reorder_drop_target: reorder_drop_after.is_some(),
             reorder_drop_after: reorder_drop_after.unwrap_or(false),
             scanning: scanning_source_id == Some(source.id.as_str()),
-            processing: processing_source_id == Some(source.id.as_str()),
             missing: source.is_missing(),
             protected_source_error_flash: folder_browser
                 .source_protected_error_flash_active(&source.id),
@@ -550,20 +550,12 @@ mod tests {
         });
 
         let waiting = LibrarySidebarViewModel::from_app_state(&state);
-        let processing_row = waiting
-            .source_selector
-            .rows
-            .iter()
-            .find(|row| row.id == processing_source.id.as_str())
-            .expect("processing row");
         let queued_row = waiting
             .source_selector
             .rows
             .iter()
             .find(|row| row.id == queued_source.id.as_str())
             .expect("queued row");
-        assert!(processing_row.processing);
-        assert!(!processing_row.scanning);
         assert!(
             !queued_row.scanning,
             "a scan waiting for the single source lane must not claim to be scanning"
@@ -605,15 +597,13 @@ mod tests {
             detail: String::from("Checking the source manifest"),
         });
         let maintenance = LibrarySidebarViewModel::from_app_state(&state);
-        let maintenance_row = maintenance
-            .source_selector
-            .rows
-            .iter()
-            .find(|row| row.id == processing_source.id.as_str())
-            .expect("maintenance row");
         assert!(
-            !maintenance_row.processing,
-            "manifest maintenance must not flash the source-processing pulse"
+            maintenance
+                .source_selector
+                .rows
+                .iter()
+                .any(|row| row.id == processing_source.id.as_str()),
+            "manifest maintenance must preserve the source row projection"
         );
 
         state.background.source_processing_progress = Some(SourceProcessingProgress {
@@ -627,15 +617,13 @@ mod tests {
             detail: String::from("Queueing unfinished jobs | 256 reconciliation steps completed"),
         });
         let sustained_discovery = LibrarySidebarViewModel::from_app_state(&state);
-        let discovery_row = sustained_discovery
-            .source_selector
-            .rows
-            .iter()
-            .find(|row| row.id == processing_source.id.as_str())
-            .expect("sustained discovery row");
         assert!(
-            discovery_row.processing,
-            "grace-surviving discovery must pulse its active source row"
+            sustained_discovery
+                .source_selector
+                .rows
+                .iter()
+                .any(|row| row.id == processing_source.id.as_str()),
+            "grace-surviving discovery must preserve the active source row"
         );
     }
 }

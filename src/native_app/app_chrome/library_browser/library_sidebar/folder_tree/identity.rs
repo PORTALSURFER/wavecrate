@@ -11,7 +11,7 @@ pub(super) fn retained_folder_row_key(folder_id: &str) -> String {
 
 #[cfg(test)]
 /// Retained input id for a folder-tree row.
-pub(super) fn retained_folder_row_input_id(folder_id: &str) -> u64 {
+pub(in crate::native_app) fn retained_folder_row_input_id(folder_id: &str) -> u64 {
     radiant::widgets::stable_widget_id(
         RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE,
         retained_folder_row_key(folder_id),

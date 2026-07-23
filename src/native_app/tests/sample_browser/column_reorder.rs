@@ -111,7 +111,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 
     let dragging_frame = runtime.frame_with_default_theme();
     assert!(dragging_frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == Rgba8::new(255, 160, 82, 230)
+        fill.color == Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() <= 2.5
             && fill.rect.height() >= 20.0
     }));
@@ -155,7 +155,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
 
     let released_frame = runtime.frame_with_default_theme();
     assert!(!released_frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == Rgba8::new(255, 160, 82, 230)
+        fill.color == Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() <= 2.5
             && fill.rect.height() >= 20.0
     }));
@@ -224,7 +224,7 @@ fn column_drop_marker_rect(frame: &SurfaceFrame) -> Rect {
         .paint_plan
         .fill_rects()
         .find(|fill| {
-            fill.color == Rgba8::new(255, 160, 82, 230)
+            fill.color == Rgba8::new(233, 88, 67, 230)
                 && fill.rect.width() <= 2.5
                 && fill.rect.height() >= 20.0
         })

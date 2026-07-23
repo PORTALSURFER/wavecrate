@@ -1,11 +1,11 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
-    SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
+    SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT, SOURCE_ROW_INSET_X,
     SOURCE_ROW_LABEL_PADDING_X, source_acceptance_fill_for_tests, source_add_button,
     source_add_button_tooltip_for_tests, source_missing_color_for_tests,
-    source_processing_fill_for_tests, source_processing_marker_color_for_tests,
     source_protected_error_icon_color_for_tests, source_role_icon_color_for_source_for_tests,
-    source_role_icon_color_for_tests, source_row, source_row_outline_for_tests,
+    source_role_icon_color_for_tests, source_row, source_selected_fill_for_tests,
+    source_selected_marker_color_for_tests,
 };
 use super::source_selector;
 use crate::native_app::app::GuiMessage;
@@ -13,6 +13,7 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
     sidebar_row_hover_fill_for_tests, sidebar_row_palette_for_tests,
     sidebar_row_selected_fill_for_tests,
 };
+use crate::native_app::app_chrome::palette::SELECTED_ROW_MARKER_WIDTH;
 use crate::native_app::app_chrome::view_models::library_sidebar::{
     SourceRowViewModel, SourceSelectorViewModel,
 };
@@ -148,13 +149,14 @@ fn source_row_routes_drop_to_source_root() {
         label: String::from("Drop Source"),
         role: SourceRole::Normal,
         selected: false,
+        focused: false,
+        focus_alpha: 0,
         reorder_enabled: true,
         reorder_drag_active: false,
         reorder_drag_source: false,
         reorder_drop_target: false,
         reorder_drop_after: false,
         scanning: false,
-        processing: false,
         missing: false,
         protected_source_error_flash: false,
         primary_source_acceptance_flash: false,
@@ -198,53 +200,109 @@ fn source_row_routes_drag_lifecycle_by_stable_source_id() {
 }
 
 #[test]
-fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
+fn selected_source_row_uses_flat_highlight_with_left_active_marker() {
     let source = test_source("source-active");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-    let selected_fill = sidebar_row_palette_for_tests()
-        .selected
-        .expect("source selected fill");
+    let selected_fill = source_selected_fill_for_tests();
 
     assert!(
         frame
             .paint_plan
             .fill_rects()
             .any(|fill| fill.color == selected_fill),
-        "selected source should keep the orange selected highlight"
+        "selected source should paint the restrained accent tint"
     );
     assert!(
-        !frame.paint_plan.fill_rects().any(|fill| {
-            fill.rect.width() <= 3.5 && fill.rect.min.x <= 4.5 && fill.rect.height() < 20.0
+        frame.paint_plan.fill_rects().any(|fill| {
+            fill.color == source_selected_marker_color_for_tests()
+                && (fill.rect.width() - SELECTED_ROW_MARKER_WIDTH).abs() < 0.5
+                && (fill.rect.min.x - SOURCE_ROW_INSET_X).abs() < 0.5
         }),
-        "selected source should not paint a separate left active marker"
+        "selected source should paint an inset left active marker"
+    );
+    assert!(
+        frame.paint_plan.fill_rects().all(|fill| {
+            fill.color != source_selected_marker_color_for_tests()
+                || (fill.rect.max.x - 180.0).abs() >= 0.5
+        }),
+        "selected source should keep the reference's single leading selection rail"
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("Source"),
+        Some(source_selected_marker_color_for_tests()),
+        "selected source label should use the accent color"
     );
 }
 
 #[test]
-fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
-    let source = test_source("source-processing");
-    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
-    let row = model.rows.first_mut().expect("source row");
-    row.processing = true;
+fn keyboard_navigation_layers_focus_over_active_source_selection() {
+    let source = test_source("source-focused");
+    let mut state =
+        FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    state.focus_selected_source_for_keyboard();
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
 
-    let pulse_fill = source_processing_fill_for_tests();
+    assert!(row.selected);
+    assert!(row.focused);
     assert!(
         frame
             .paint_plan
             .fill_rects()
-            .any(|fill| fill.color == pulse_fill && fill.rect.width() > 100.0),
-        "processing highlight must paint across the idle row without requiring hover"
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width)
     );
-    assert!(frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == source_processing_marker_color_for_tests() && fill.rect.width() <= 3.0
-    }));
+}
+
+#[test]
+fn source_focus_fade_overlays_the_fixed_selected_rail_without_a_horizontal_jump() {
+    let source = test_source("source-focused-fade");
+    let mut state =
+        FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    state.focus_selected_source_for_keyboard();
+    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first_mut().expect("source row");
+    row.focus_alpha = 128;
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+    let selected_color = source_selected_marker_color_for_tests();
+    let focus_color = crate::native_app::app_chrome::palette::PALE_MARKER.with_alpha(128);
+    let selected = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == selected_color
+                && (fill.rect.width() - SELECTED_ROW_MARKER_WIDTH).abs() < 0.5
+        })
+        .expect("selected rail");
+    let focus = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == focus_color
+                && (fill.rect.width()
+                    - crate::native_app::app_chrome::palette::FOCUSED_ROW_MARKER_WIDTH)
+                    .abs()
+                    < 0.5
+        })
+        .expect("fading focus rail");
+
+    assert_eq!(selected.rect.min.x, focus.rect.min.x);
+    assert_eq!(selected.rect.min.x, SOURCE_ROW_INSET_X);
+}
+
+#[test]
+fn source_row_keeps_actions_enabled_while_processing_feedback_is_overlay_owned() {
+    let source = test_source("source-processing");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first_mut().expect("source row");
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
             retained_source_row_input_id(source.id.as_str()),
@@ -258,32 +316,24 @@ fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
 }
 
 #[test]
-fn source_rows_use_slim_outlined_item_chrome() {
+fn source_rows_use_slim_flat_item_chrome() {
     let source = test_source("source-bordered");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-    let outline = source_row_outline_for_tests();
-    let stroke = frame
-        .paint_plan
-        .stroke_rects_for_widget(retained_source_row_input_id(source.id.as_str()))
-        .find(|stroke| stroke.color == outline.color)
-        .expect("source rows should paint a subtle item outline");
-
     assert_eq!(
         SOURCE_ROW_HEIGHT, 22.0,
         "source rows should stay slimmer than the old 24px baseline"
     );
-    assert_eq!(stroke.width, outline.width);
-    assert_eq!(stroke.rect.min.x, outline.inset);
-    assert_eq!(stroke.rect.min.y, outline.inset);
-    assert_eq!(stroke.rect.max.y, SOURCE_ROW_HEIGHT - outline.inset);
-    assert_ne!(
-        outline.color,
-        sidebar_row_selected_fill_for_tests(),
-        "source item outlines should not recreate the old selected rectangle"
+    assert!(
+        frame
+            .paint_plan
+            .stroke_rects_for_widget(retained_source_row_input_id(source.id.as_str()))
+            .next()
+            .is_none(),
+        "source item chrome should not draw a boxed outline"
     );
 }
 
@@ -382,8 +432,8 @@ fn primary_source_row_uses_role_icon_instead_of_text_badge() {
     assert!(icon_rect.height() <= SOURCE_ROW_HEIGHT);
     assert_eq!(
         source_role_icon_color_for_tests(),
-        ui::Rgba8::new(255, 255, 255, 255),
-        "source role icons should use a white tint"
+        ui::Rgba8::new(216, 215, 211, 255),
+        "source role icons should use the warm primary tint"
     );
     assert!(
         !frame.paint_plan.contains_text("PRI"),
@@ -469,8 +519,8 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
     assert!(icon_rect.height() <= SOURCE_ROW_HEIGHT);
     assert_eq!(
         source_role_icon_color_for_tests(),
-        ui::Rgba8::new(255, 255, 255, 255),
-        "source role icons should use a white tint"
+        ui::Rgba8::new(216, 215, 211, 255),
+        "source role icons should use the warm primary tint"
     );
     assert!(
         !frame.paint_plan.contains_text("PRO") && !frame.paint_plan.contains_text("PROT"),

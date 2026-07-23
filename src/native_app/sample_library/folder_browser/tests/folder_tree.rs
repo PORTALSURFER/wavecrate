@@ -21,6 +21,68 @@ fn visible_folder_depths_are_stable_for_siblings() {
     assert_eq!(sibling_depths, vec![2, 2, 2]);
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn pointer_folder_activation_shows_transient_focus_and_keyboard_navigation_retargets_it() {
+    let root = temp_source_root("wavecrate-gui-folder-focus-modality");
+    for child in ["alpha", "beta"] {
+        fs::create_dir_all(root.join(child)).expect("create folder");
+        write_audio(root.join(child).join(format!("{child}.wav")));
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let alpha = path_id(&root.join("alpha"));
+
+    browser.activate_folder(alpha.clone());
+    let pointer_row = browser
+        .visible_folders()
+        .into_iter()
+        .find(|folder| folder.id == alpha)
+        .expect("pointer-selected folder");
+    assert!(pointer_row.selected);
+    assert!(pointer_row.focused);
+    assert!(pointer_row.focus_alpha > 0);
+
+    assert!(browser.navigate_selected_folder(1, false, false));
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.focused),
+        "keyboard navigation should restore one visible folder focus"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn clicking_selected_expandable_folder_focuses_it_even_with_an_active_sample() {
+    let root = temp_source_root("wavecrate-gui-folder-pointer-focus-with-sample");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    let kick = drums.join("kick.wav");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+    write_audio(&kick);
+    write_audio(kicks.join("nested-kick.wav"));
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let drums_id = path_id(&drums);
+
+    browser.activate_folder(drums_id.clone());
+    browser.select_file(path_id(&kick));
+    assert!(browser.selection.selected_file_active());
+
+    browser.activate_folder(drums_id.clone());
+    let pointer_row = browser
+        .visible_folders()
+        .into_iter()
+        .find(|folder| folder.id == drums_id)
+        .expect("clicked folder");
+
+    assert!(pointer_row.focused);
+    assert!(pointer_row.focus_alpha > 0);
+    assert!(browser.selection.selected_file_active());
+
+    let _ = fs::remove_dir_all(root);
+}
 #[test]
 fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
     let root = temp_source_root("wavecrate-gui-folder-keyboard");

@@ -151,6 +151,9 @@ impl FrameRangeTransform {
     }
 
     fn map_ratio(self, ratio: f32) -> Option<f32> {
+        if matches!(self, Self::Identity { .. }) {
+            return ratio.is_finite().then(|| ratio.clamp(0.0, 1.0));
+        }
         let old_total_frames = self.old_total_frames();
         let new_total_frames = self.new_total_frames();
         if old_total_frames == 0 || new_total_frames == 0 {
@@ -158,7 +161,7 @@ impl FrameRangeTransform {
         }
         let frame = ratio_frame(ratio, old_total_frames);
         let mapped = match self {
-            Self::Identity { .. } => frame,
+            Self::Identity { .. } => unreachable!("identity ratios return before frame mapping"),
             Self::Trim { removed, .. } => {
                 if frame < removed.start_frame {
                     frame
@@ -180,6 +183,9 @@ impl FrameRangeTransform {
     }
 
     fn map_range(self, range: SelectionRange) -> Option<SelectionRange> {
+        if matches!(self, Self::Identity { .. }) {
+            return Some(range);
+        }
         let old_total_frames = self.old_total_frames();
         let new_total_frames = self.new_total_frames();
         if old_total_frames == 0 || new_total_frames == 0 {
@@ -187,7 +193,7 @@ impl FrameRangeTransform {
         }
         let bounds = range.frame_bounds(old_total_frames);
         let (start_frame, end_frame) = match self {
-            Self::Identity { .. } => (bounds.start_frame, bounds.end_frame),
+            Self::Identity { .. } => unreachable!("identity ranges return before frame mapping"),
             Self::Trim { removed, .. } => map_trimmed_range(bounds, removed)?,
             Self::Crop { kept, .. } => map_cropped_range(bounds, kept)?,
         };

@@ -1,6 +1,8 @@
 #[cfg(test)]
 use std::cell::Cell;
 use std::time::Duration;
+#[cfg(test)]
+use std::time::Instant;
 
 use radiant::runtime::{RepaintScope, SurfaceRevisions};
 
@@ -62,6 +64,7 @@ struct FrameProjectionState {
     play_selection_flash_active: bool,
     copy_flash_frames: u8,
     protected_source_error_flash_frames: u8,
+    keyboard_focus_alpha: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +97,7 @@ struct TransientFrameProjectionState {
     play_selection_flash_active: bool,
     copy_flash_frames: u8,
     protected_source_error_flash_frames: u8,
+    keyboard_focus_alpha: u8,
     progress_tick_bits: u32,
 }
 
@@ -118,6 +122,23 @@ impl NativeAppState {
     #[cfg(test)]
     pub(in crate::native_app) fn capture_frame_surface_inputs(&self) -> FrameSurfaceRevisionInputs {
         FrameSurfaceRevisionInputs::from_state(self)
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn capture_frame_surface_inputs_at(
+        &self,
+        now: Instant,
+    ) -> FrameSurfaceRevisionInputs {
+        FrameSurfaceRevisionInputs::from_state_at(self, now)
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn frame_scope_since_at(
+        &self,
+        before: FrameSurfaceRevisionInputs,
+        now: Instant,
+    ) -> RepaintScope {
+        FrameSurfaceRevisionInputs::from_state_at(self, now).repaint_scope_since(before)
     }
 
     #[cfg(test)]
@@ -166,8 +187,16 @@ impl NativeAppState {
         let starmap_retained_scene_touched_frame = guard
             .starmap_retained_scene_active_before_message
             || self.starmap_retained_scene_active();
+        let keyboard_focus_alpha_changed =
+            guard.before.zip(after).is_some_and(|(before, after)| {
+                before.projection.keyboard_focus_alpha != after.projection.keyboard_focus_alpha
+            });
         let scope = if starmap_retained_scene_touched_frame {
-            RepaintScope::PaintOnly
+            if keyboard_focus_alpha_changed {
+                RepaintScope::Projection
+            } else {
+                RepaintScope::PaintOnly
+            }
         } else if guard.forced_surface || guard.before.is_some() != after.is_some() {
             RepaintScope::Surface
         } else {
@@ -304,6 +333,24 @@ impl FrameSurfaceRevisionTracker {
 
 impl FrameSurfaceRevisionInputs {
     fn from_state(state: &NativeAppState) -> Self {
+        Self::from_state_with_keyboard_focus_alpha(
+            state,
+            state.library.folder_browser.keyboard_focus_alpha(),
+        )
+    }
+
+    #[cfg(test)]
+    fn from_state_at(state: &NativeAppState, now: Instant) -> Self {
+        Self::from_state_with_keyboard_focus_alpha(
+            state,
+            state.library.folder_browser.keyboard_focus_alpha_at(now),
+        )
+    }
+
+    fn from_state_with_keyboard_focus_alpha(
+        state: &NativeAppState,
+        keyboard_focus_alpha: u8,
+    ) -> Self {
         Self {
             structure: FrameStructureState {
                 playing: state.playback_visual_activity_active(),
@@ -347,6 +394,7 @@ impl FrameSurfaceRevisionInputs {
                     .folder_browser
                     .protected_source_error_flash_frames()
                     .max(state.waveform.current.protected_source_error_flash_frames()),
+                keyboard_focus_alpha,
             },
         }
     }
@@ -414,6 +462,7 @@ impl TransientFrameRevisionInputs {
                     .folder_browser
                     .protected_source_error_flash_frames()
                     .max(state.waveform.current.protected_source_error_flash_frames()),
+                keyboard_focus_alpha: state.library.folder_browser.keyboard_focus_alpha(),
                 progress_tick_bits: state.background.progress_tick.to_bits(),
             },
         }

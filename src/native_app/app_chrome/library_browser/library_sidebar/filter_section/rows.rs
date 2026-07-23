@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets::TextInputMessage};
+use radiant::{gui::paint::BorderSides, prelude as ui, widgets::TextInputMessage};
 
 mod projection;
 
@@ -9,6 +9,8 @@ use self::projection::{
     TextFilterField, TextFilterRowProjection, filter_rows_projection,
 };
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
+use crate::native_app::app_chrome::palette::ListItemState;
 use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionViewModel;
 use crate::native_app::sample_library::folder_browser::commands::{
     FilterFamily, FolderBrowserMessage,
@@ -24,12 +26,14 @@ use crate::native_app::ui::ids as widget_ids;
 
 pub(super) const FILTER_ROW_VERTICAL_INSET: f32 =
     (FILTER_ROW_HEIGHT - FILTER_ROW_CONTROL_HEIGHT) * 0.5;
-pub(super) const FILTER_LABEL_WIDTH: f32 = 64.0;
-const FILTER_CONTROL_SPACING: f32 = 2.0;
-pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
-const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
-const RATING_FILTER_TOGGLE_WIDTH: f32 = 18.0;
-pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 12;
+pub(super) const FILTER_LABEL_VERTICAL_SHIFT: f32 = 1.0;
+pub(super) const FILTER_LABEL_WIDTH: f32 = 82.0;
+const FILTER_CONTROL_SPACING: f32 = 4.0;
+pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 1.0;
+pub(super) const FILTER_CONTROL_HORIZONTAL_PADDING: f32 = 8.0;
+const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 56.0;
+const RATING_FILTER_TOGGLE_WIDTH: f32 = 14.0;
+pub(super) const RATING_FILTER_SWATCH_SIZE: u8 = 10;
 const RATING_FILTER_TRASH_COLOR: ui::Rgba8 = ui::Rgba8 {
     r: 238,
     g: 77,
@@ -108,6 +112,7 @@ fn text_filter_row(projection: TextFilterRowProjection) -> ui::View<GuiMessage> 
             projection.help_tooltips_enabled,
         ),
         text_filter_row_key(projection.field),
+        projection.enabled,
     )
 }
 
@@ -120,7 +125,9 @@ fn filter_text_input(
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::text_input(value)
-        .placeholder(placeholder)
+        .placeholder(placeholder.to_ascii_uppercase())
+        .underline()
+        .subtle()
         .clear_button(GuiMessage::FolderBrowser(map_message(
             empty_filter_message(),
         )))
@@ -174,6 +181,7 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
         .fill_width()
         .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-type-row",
+        row.enabled,
     )
 }
 
@@ -181,7 +189,7 @@ fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage>
     let help_tooltips_enabled = row.help_tooltips_enabled;
     filter_labeled_control_row(
         filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled),
-        ui::dropdown_trigger(row.selected_label, row.dropdown_open)
+        ui::dropdown_trigger(row.selected_label.to_ascii_uppercase(), row.dropdown_open)
             .toggle_message(GuiMessage::ToggleCurationFilterDropdown)
             .build()
             .id(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
@@ -189,6 +197,7 @@ fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage>
             .fill_width()
             .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-curation-row",
+        row.enabled,
     )
 }
 
@@ -241,7 +250,7 @@ fn curation_filter_dropdown_option(
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let scope = option.scope;
-    ui::button(option.label)
+    ui::button(option.label.to_ascii_uppercase())
         .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetCurationScope(scope, true),
         ))
@@ -272,7 +281,7 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
     filter_labeled_control_row(
         filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled),
-        ui::dropdown_trigger(row.selected_label, row.dropdown_open)
+        ui::dropdown_trigger(row.selected_label.to_ascii_uppercase(), row.dropdown_open)
             .toggle_message(GuiMessage::ToggleHarvestFilterDropdown)
             .build()
             .id(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
@@ -280,6 +289,7 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
             .fill_width()
             .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-harvest-row",
+        row.enabled,
     )
 }
 
@@ -332,7 +342,7 @@ fn harvest_filter_dropdown_option(
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let filter = option.filter;
-    ui::button(option.label)
+    ui::button(option.label.to_ascii_uppercase())
         .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetHarvestFilter(filter, true),
         ))
@@ -364,20 +374,26 @@ fn playback_type_filter_toggle(
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let filter = toggle.filter;
-    ui::selectable(toggle.label, toggle.active)
-        .style(playback_type_filter_toggle_style())
-        .message(move |enabled| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::TogglePlaybackTypeFilter(
-                filter, enabled,
-            ))
+    let label = if filter == PlaybackTypeFilter::OneShot {
+        format!("{},", toggle.label.to_ascii_uppercase())
+    } else {
+        toggle.label.to_ascii_uppercase()
+    };
+    let visible = ui::text_line(label, FILTER_ROW_CONTROL_HEIGHT)
+        .text_color(if toggle.active {
+            ui::TextColorRole::Custom(crate::native_app::app_chrome::palette::ACCENT)
+        } else {
+            ui::TextColorRole::Primary
         })
+        .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT);
+    let input = ui::button("")
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::TogglePlaybackTypeFilter(filter, !toggle.active),
+        ))
         .id(automation_playback_type_filter_toggle_id(toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
-        .tooltip_if(help_tooltips_enabled, playback_type_filter_tooltip(filter))
-}
-
-fn playback_type_filter_toggle_style() -> ui::WidgetStyle {
-    ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
+        .tooltip_if(help_tooltips_enabled, playback_type_filter_tooltip(filter));
+    ui::input_underlay(visible, input.input_only())
 }
 
 /// Automation-facing id for a playback-type filter toggle.
@@ -400,6 +416,7 @@ fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
         .fill_width()
         .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-rating-row",
+        row.enabled,
     )
 }
 
@@ -456,8 +473,9 @@ fn filter_input_row(
     label: ui::View<GuiMessage>,
     control: ui::View<GuiMessage>,
     key: &'static str,
+    selected: bool,
 ) -> ui::View<GuiMessage> {
-    filter_labeled_control_row(label, control, key)
+    filter_labeled_control_row(label, control, key, selected)
 }
 
 fn filter_row_label(
@@ -466,16 +484,19 @@ fn filter_row_label(
     enabled: bool,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    ui::selectable(label, enabled)
-        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .message(move |enabled| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::SetFilterFamilyEnabled(
-                family, enabled,
-            ))
-        })
+    let visible = ui::text_line(label.to_ascii_uppercase(), FILTER_ROW_CONTROL_HEIGHT)
+        .text_color(ui::TextColorRole::Custom(
+            crate::native_app::app_chrome::palette::ACCENT,
+        ))
+        .size(FILTER_LABEL_WIDTH, FILTER_ROW_CONTROL_HEIGHT);
+    let input = ui::button("")
+        .message(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SetFilterFamilyEnabled(family, !enabled),
+        ))
         .id(automation_filter_family_label_toggle_id(label))
         .size(FILTER_LABEL_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
-        .tooltip_if(help_tooltips_enabled, filter_family_label_tooltip(family))
+        .tooltip_if(help_tooltips_enabled, filter_family_label_tooltip(family));
+    ui::input_underlay(visible, input.input_only())
 }
 
 fn filter_family_label_tooltip(family: FilterFamily) -> &'static str {
@@ -527,24 +548,66 @@ fn filter_labeled_control_row(
     label: ui::View<GuiMessage>,
     control: ui::View<GuiMessage>,
     key: &'static str,
+    selected: bool,
 ) -> ui::View<GuiMessage> {
-    ui::row([
+    let label_cell = ui::stack([
         centered_filter_label_cell(label),
-        centered_filter_control_cell(control),
+        ui::feedback_overlay()
+            .edge(
+                ui::ThemeTokens::default().grid_soft,
+                FILTER_LABEL_CONTROL_SPACING,
+                BorderSides {
+                    top: false,
+                    bottom: false,
+                    left: false,
+                    right: true,
+                },
+            )
+            .view()
+            .fill(),
     ])
-    .key(format!("filter-row-{key}"))
-    .fill_width()
-    .height(FILTER_ROW_HEIGHT)
-    .spacing(FILTER_LABEL_CONTROL_SPACING)
+    .width(FILTER_LABEL_WIDTH)
+    .height(FILTER_ROW_HEIGHT);
+    let content = ui::row([label_cell, centered_filter_control_cell(control)])
+        .fill_width()
+        .height(FILTER_ROW_HEIGHT)
+        .spacing(0.0);
+    let divider = ui::feedback_overlay()
+        .edge(
+            ui::ThemeTokens::default().grid_soft,
+            1.0,
+            BorderSides {
+                top: false,
+                bottom: true,
+                left: false,
+                right: false,
+            },
+        )
+        .view()
+        .fill();
+    let content = ui::stack([content, divider])
+        .fill_width()
+        .height(FILTER_ROW_HEIGHT);
+    sidebar_row_underlay(content, ListItemState::new(selected, false))
+        .input_key(format!("filter-row-state-{key}"))
+        .selected(selected)
+        .actions(ui::row_actions())
+        .key(format!("filter-row-{key}"))
+        .fill_width()
+        .height(FILTER_ROW_HEIGHT)
 }
 
 fn centered_filter_label_cell(label: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
     ui::column([
-        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
+        ui::spacer()
+            .fill_width()
+            .height((FILTER_ROW_VERTICAL_INSET - FILTER_LABEL_VERTICAL_SHIFT).max(0.0)),
         label
             .width(FILTER_LABEL_WIDTH)
             .height(FILTER_ROW_CONTROL_HEIGHT),
-        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
+        ui::spacer()
+            .fill_width()
+            .height(FILTER_ROW_VERTICAL_INSET + FILTER_LABEL_VERTICAL_SHIFT),
     ])
     .width(FILTER_LABEL_WIDTH)
     .height(FILTER_ROW_HEIGHT)
@@ -553,7 +616,10 @@ fn centered_filter_label_cell(label: ui::View<GuiMessage>) -> ui::View<GuiMessag
 fn centered_filter_control_cell(control: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
     ui::column([
         ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
-        control.fill_width().height(FILTER_ROW_CONTROL_HEIGHT),
+        control
+            .fill_width()
+            .height(FILTER_ROW_CONTROL_HEIGHT)
+            .padding_x(FILTER_CONTROL_HORIZONTAL_PADDING),
         ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
     ])
     .fill_width()
