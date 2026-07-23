@@ -461,6 +461,55 @@ fn status_bar_routes_source_processing_through_worker_progress_and_job_details()
 }
 
 #[test]
+fn source_processing_job_details_use_truthful_discovery_units() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+
+    for (stage, detail, expected) in [
+        (
+            "Comparing source readiness",
+            "17435 / 21697 readiness targets compared",
+            "Progress: 17435/21697 readiness targets compared",
+        ),
+        (
+            "Queueing unfinished work",
+            "14460 / 21697 readiness targets checked",
+            "Progress: 14460/21697 readiness targets checked",
+        ),
+    ] {
+        state.background.source_processing_progress = Some(
+            crate::native_app::test_support::state::SourceProcessingProgress {
+                source_id: source_id.clone(),
+                lifecycle_generation: 0,
+                active: true,
+                source_row_active: true,
+                completed: if stage.starts_with("Comparing") {
+                    17_435
+                } else {
+                    14_460
+                },
+                total: 21_697,
+                stage: String::from(stage),
+                detail: String::from(detail),
+            },
+        );
+
+        let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+        assert_eq!(model.job_details.expect("job details")[2], expected);
+    }
+}
+
+#[test]
 fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Ready");
