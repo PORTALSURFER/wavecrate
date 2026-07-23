@@ -145,9 +145,14 @@ impl ContentAuditStorage {
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             let _ = root;
-            Self::Local
+            classify_unknown_storage()
         }
     }
+}
+
+#[cfg(any(not(any(target_os = "windows", target_os = "macos")), test))]
+fn classify_unknown_storage() -> ContentAuditStorage {
+    ContentAuditStorage::ExternalOrNetwork
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -490,7 +495,7 @@ fn verify_content_batch_with_hooks(
         db.content_audit_report(now)?
     };
     if report.remaining_entries == 0 && report.total_entries > 0 {
-        let manifest_before = stats.manifest_after.clone();
+        let manifest_before = stats.manifest_before.clone();
         let _writer = writer.lock(ScanWritePhase::Manifest);
         let mut batch = db.write_batch()?;
         batch.complete_content_audit_rotation(now, stats.committed_delta.revision)?;
@@ -1150,6 +1155,11 @@ mod tests {
                 ContentAuditStorage::ExternalOrNetwork
             );
         }
+        assert_eq!(
+            classify_unknown_storage(),
+            ContentAuditStorage::ExternalOrNetwork,
+            "platforms without mount classification must fail conservatively"
+        );
     }
 
     #[test]
@@ -1175,6 +1185,39 @@ mod tests {
         assert_eq!(second_report.verified_entries, 6);
         assert_eq!(second_report.remaining_entries, 4);
         assert_eq!(second.hashes_computed, 3);
+    }
+
+    #[test]
+    fn final_rotation_completion_preserves_the_committed_content_delta() {
+        let (directory, database) = content_fixture(1, 32);
+        let relative = Path::new("sample-00000.wav");
+        let facts = read_facts(directory.path(), &directory.path().join(relative)).unwrap();
+        let mut batch = database.write_batch().expect("stale content batch");
+        batch
+            .upsert_file_with_hash(
+                relative,
+                facts.size,
+                facts.modified_ns,
+                "stale-content-hash",
+            )
+            .expect("seed stale content generation");
+        batch.commit().expect("commit stale content generation");
+
+        let stats =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 100)
+                .expect("rotation-completing content verification");
+
+        assert_eq!(stats.content_changed, 1);
+        assert_eq!(stats.committed_delta.changed.len(), 1);
+        assert_eq!(
+            stats.committed_delta.changed[0].relative_path,
+            Path::new("sample-00000.wav")
+        );
+        assert_eq!(
+            stats.committed_delta.revision,
+            database.get_revision().unwrap(),
+            "published delta must carry the final committed rotation revision"
+        );
     }
 
     #[test]
