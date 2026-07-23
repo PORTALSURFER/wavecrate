@@ -207,9 +207,6 @@ impl JobDetailsViewModel {
                 crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForScanCapacity { .. } => {
                     format!("Queued — another source is being reconciled — {queue_age}s")
                 }
-                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForDatabaseAccess => {
-                    format!("Waiting for database access — {queue_age}s")
-                }
                 crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::RetryScheduled => {
                     format!("Retry scheduled — attempt {}", progress.retry_count.saturating_add(1))
                 }
@@ -430,10 +427,6 @@ mod tests {
                 },
                 "another source is being reconciled",
             ),
-            (
-                FolderScanLifecycle::WaitingForDatabaseAccess,
-                "Waiting for database access",
-            ),
             (FolderScanLifecycle::Scanning, "Scanning"),
             (FolderScanLifecycle::ApplyingResults, "Applying results"),
             (FolderScanLifecycle::PersistingResults, "Saving results"),
@@ -463,7 +456,9 @@ mod tests {
 
     #[test]
     fn fake_clock_exposes_queue_and_last_progress_age_then_offers_recovery() {
-        let mut progress = progress(FolderScanLifecycle::WaitingForDatabaseAccess);
+        let mut progress = progress(FolderScanLifecycle::WaitingForScanCapacity {
+            current_owner: Some(String::from("other-source")),
+        });
         let now = progress.queued_at + SOURCE_SCAN_LONG_WAIT_THRESHOLD + Duration::from_secs(2);
         progress.last_progress_at = progress.queued_at;
 

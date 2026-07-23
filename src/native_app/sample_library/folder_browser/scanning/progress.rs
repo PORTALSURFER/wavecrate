@@ -20,8 +20,13 @@ use super::{
     metadata::{SourceMetadataMap, source_browser_snapshot},
     traversal::placeholder_folder,
 };
-use wavecrate::sample_sources::{BrowserMetadataSnapshot, Rating, SourceDatabase, scanner};
-use wavecrate_scan::{ScanStats, SourceTreeSnapshot};
+use wavecrate::sample_sources::{BrowserMetadataSnapshot, Rating, SourceDatabase};
+#[cfg(test)]
+use wavecrate_scan::sample_sources::scanner::UncoordinatedScanWriter;
+use wavecrate_scan::{
+    ScanStats, SourceTreeSnapshot,
+    sample_sources::scanner::{self, ScanWritePhase, ScanWriter},
+};
 
 struct CommittedSourceTreeSnapshot {
     revision: u64,
@@ -37,7 +42,13 @@ pub(in crate::native_app) fn scan_source_with_progress(
     progress: impl FnMut(FolderScanProgress),
     discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    scan_source_with_progress_cancellable(request, progress, discovered, &AtomicBool::new(false))
+    scan_source_with_progress_cancellable(
+        request,
+        progress,
+        discovered,
+        &AtomicBool::new(false),
+        &UncoordinatedScanWriter,
+    )
 }
 
 pub(in crate::native_app) fn scan_source_with_progress_cancellable(
@@ -45,11 +56,12 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
     cancel: &AtomicBool,
+    writer: &impl ScanWriter,
 ) -> FolderScanResult {
     let source_root_available =
         classify_path_without_following(&request.root) == Some(BrowserEntryKind::Directory);
     let (source_db_error, source_tree_snapshot) = if source_root_available {
-        sync_source_database(&request, &mut progress, cancel)
+        sync_source_database(&request, &mut progress, cancel, writer)
     } else {
         (None, None)
     };
@@ -115,7 +127,15 @@ fn sync_source_database(
     request: &FolderScanRequest,
     progress: &mut impl FnMut(FolderScanProgress),
     cancel: &AtomicBool,
+    writer: &impl ScanWriter,
 ) -> (Option<String>, Option<CommittedSourceTreeSnapshot>) {
+    let _writer = writer.lock(ScanWritePhase::Open);
+    if cancel.load(Ordering::Acquire) {
+        return (
+            Some(String::from("source scan canceled before database open")),
+            None,
+        );
+    }
     let db = match SourceDatabase::open_for_background_job_with_database_root(
         &request.root,
         &request.database_root,
@@ -123,6 +143,7 @@ fn sync_source_database(
         Ok(db) => db,
         Err(err) => return (Some(format!("open source index: {err}")), None),
     };
+    drop(_writer);
     let mut sync_progress = |completed: usize, path: &Path| {
         if completed != 1 && !completed.is_multiple_of(INDEX_PROGRESS_REPORT_INTERVAL) {
             return;
@@ -137,11 +158,12 @@ fn sync_source_database(
             format!("Indexing | {}", path.display()),
         ));
     };
-    let stats = match scanner::scan_with_progress(
+    let stats = match scanner::scan_with_progress_and_writer(
         &db,
         scanner::ScanMode::Quick,
         Some(cancel),
         &mut sync_progress,
+        writer,
     ) {
         Ok(stats) => stats,
         Err(err) => return (Some(format!("sync source index: {err}")), None),
@@ -154,7 +176,12 @@ fn sync_source_database(
                 revision: stats.committed_delta.revision,
                 layout,
             });
-    match scanner::complete_deferred_rename_candidates_with_cancel(&db, stats, Some(cancel)) {
+    match scanner::complete_deferred_rename_candidates_with_cancel_and_writer(
+        &db,
+        stats,
+        Some(cancel),
+        writer,
+    ) {
         Ok(ScanStats {
             committed_delta,
             source_tree_snapshot,

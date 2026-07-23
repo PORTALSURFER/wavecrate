@@ -9,6 +9,9 @@ pub(in crate::native_app::source_processing) enum DatabasePhase {
     Claim,
     Lease,
     Publish,
+    ScanOpen,
+    ScanManifest,
+    ScanDeferredHash,
     SerialCompatibility,
 }
 
@@ -28,13 +31,16 @@ struct DatabaseWriterGateInner {
     claim: PhaseCounters,
     lease: PhaseCounters,
     publish: PhaseCounters,
+    scan_open: PhaseCounters,
+    scan_manifest: PhaseCounters,
+    scan_deferred_hash: PhaseCounters,
     serial: PhaseCounters,
     active: AtomicUsize,
     peak_active: AtomicUsize,
 }
 
 #[derive(Clone, Default)]
-pub(in crate::native_app::source_processing) struct DatabaseWriterGate {
+pub(in crate::native_app) struct DatabaseWriterGate {
     inner: Arc<DatabaseWriterGateInner>,
 }
 
@@ -91,6 +97,9 @@ impl DatabaseWriterGate {
             claim: phase_snapshot(&self.inner.claim),
             lease: phase_snapshot(&self.inner.lease),
             publish: phase_snapshot(&self.inner.publish),
+            scan_open: phase_snapshot(&self.inner.scan_open),
+            scan_manifest: phase_snapshot(&self.inner.scan_manifest),
+            scan_deferred_hash: phase_snapshot(&self.inner.scan_deferred_hash),
             serial: phase_snapshot(&self.inner.serial),
             active: self.inner.active.load(Ordering::Acquire),
             peak_active: self.inner.peak_active.load(Ordering::Acquire),
@@ -103,7 +112,7 @@ impl DatabaseWriterGate {
     }
 }
 
-pub(in crate::native_app::source_processing) struct DatabaseWriterGuard {
+pub(in crate::native_app) struct DatabaseWriterGuard {
     inner: Arc<DatabaseWriterGateInner>,
     phase: DatabasePhase,
     acquired_at: Instant,
@@ -138,6 +147,9 @@ pub(super) struct DatabaseWriterSnapshot {
     pub(super) claim: DatabasePhaseSnapshot,
     pub(super) lease: DatabasePhaseSnapshot,
     pub(super) publish: DatabasePhaseSnapshot,
+    pub(super) scan_open: DatabasePhaseSnapshot,
+    pub(super) scan_manifest: DatabasePhaseSnapshot,
+    pub(super) scan_deferred_hash: DatabasePhaseSnapshot,
     pub(super) serial: DatabasePhaseSnapshot,
     pub(super) active: usize,
     pub(super) peak_active: usize,
@@ -148,7 +160,29 @@ fn counters(inner: &DatabaseWriterGateInner, phase: DatabasePhase) -> &PhaseCoun
         DatabasePhase::Claim => &inner.claim,
         DatabasePhase::Lease => &inner.lease,
         DatabasePhase::Publish => &inner.publish,
+        DatabasePhase::ScanOpen => &inner.scan_open,
+        DatabasePhase::ScanManifest => &inner.scan_manifest,
+        DatabasePhase::ScanDeferredHash => &inner.scan_deferred_hash,
         DatabasePhase::SerialCompatibility => &inner.serial,
+    }
+}
+
+impl wavecrate_scan::sample_sources::scanner::ScanWriter for DatabaseWriterGate {
+    type Guard = DatabaseWriterGuard;
+
+    fn lock(&self, phase: wavecrate_scan::sample_sources::scanner::ScanWritePhase) -> Self::Guard {
+        let phase = match phase {
+            wavecrate_scan::sample_sources::scanner::ScanWritePhase::Open => {
+                DatabasePhase::ScanOpen
+            }
+            wavecrate_scan::sample_sources::scanner::ScanWritePhase::Manifest => {
+                DatabasePhase::ScanManifest
+            }
+            wavecrate_scan::sample_sources::scanner::ScanWritePhase::DeferredHash => {
+                DatabasePhase::ScanDeferredHash
+            }
+        };
+        DatabaseWriterGate::lock(self, phase)
     }
 }
 

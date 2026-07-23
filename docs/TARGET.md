@@ -367,9 +367,11 @@ publication phases under the supervisor's lifecycle guard. Production preparatio
 in killable child processes that receive bounded owned inputs, perform no SQLite access,
 and return bounded prepared payloads; the surrounding pool worker acquires the single
 writer gate only for readiness claims, lease renewal, and fenced publication. The same
-gate covers foreground scan admission and legacy stages whose filesystem work is still
-transaction-coupled. Publication revalidates exact manifest, content-generation,
-lifecycle, and cancellation fences after preparation. The initial rollout admits at most
+gate covers foreground scan database open/migration and bounded manifest or deferred-hash
+publication, while scan traversal, file preparation, and content hashing run outside it.
+The one-at-a-time foreground scan lane and lifecycle permit remain held across the complete
+scan. Publication revalidates exact manifest, content-generation, lifecycle, and
+cancellation fences after preparation. The initial rollout admits at most
 one execution job per source and two jobs globally, allowing a secondary source to use
 spare capacity without changing the visible active-source owner. Requests and results are
 bounded, pool workers and child processes are joined on shutdown, and telemetry reports

@@ -10,6 +10,7 @@ use crate::sample_sources::SourceDatabase;
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
 use super::super::scan_walk::walk_phase;
+use super::super::scan_writer::{ScanWriter, UncoordinatedScanWriter};
 use super::{ScanContext, ScanError, ScanStats};
 
 /// Scan strategy used when walking a source root.
@@ -141,12 +142,42 @@ pub fn scan_with_progress(
     scan(db, mode, cancel, Some(on_progress), None)
 }
 
+/// Scan with progress while acquiring an owning runtime's writer guard only for bounded database
+/// mutations.
+pub fn scan_with_progress_and_writer(
+    db: &SourceDatabase,
+    mode: ScanMode,
+    cancel: Option<&AtomicBool>,
+    on_progress: &mut impl FnMut(usize, &Path),
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    scan_with_writer(db, mode, cancel, Some(on_progress), None, writer)
+}
+
 fn scan(
+    db: &SourceDatabase,
+    mode: ScanMode,
+    cancel: Option<&AtomicBool>,
+    on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    manifest_audit_started_at: Option<i64>,
+) -> Result<ScanStats, ScanError> {
+    scan_with_writer(
+        db,
+        mode,
+        cancel,
+        on_progress,
+        manifest_audit_started_at,
+        &UncoordinatedScanWriter,
+    )
+}
+
+fn scan_with_writer(
     db: &SourceDatabase,
     mode: ScanMode,
     cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     manifest_audit_started_at: Option<i64>,
+    writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
     let (manifest_revision, manifest_before) =
@@ -162,8 +193,8 @@ fn scan(
             on_progress(checked, &root);
         }
     }
-    let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context)
-        .and_then(|()| db_sync_phase(db, &mut context, cancel));
+    let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context, writer)
+        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer));
     finish_scan_result(manifest_before, context, result)
 }
 
@@ -243,8 +274,23 @@ pub fn complete_deferred_rename_candidates(
 /// Reconcile only proven rename destinations while honoring the owning runtime's cancellation.
 pub fn complete_deferred_rename_candidates_with_cancel(
     db: &SourceDatabase,
+    stats: ScanStats,
+    cancel: Option<&AtomicBool>,
+) -> Result<ScanStats, ScanError> {
+    complete_deferred_rename_candidates_with_cancel_and_writer(
+        db,
+        stats,
+        cancel,
+        &UncoordinatedScanWriter,
+    )
+}
+
+/// Reconcile proven rename destinations while coordinating only the final database publication.
+pub fn complete_deferred_rename_candidates_with_cancel_and_writer(
+    db: &SourceDatabase,
     mut stats: ScanStats,
     cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
     if db.list_pending_renames()?.is_empty() {
         return Ok(stats);
@@ -258,13 +304,14 @@ pub fn complete_deferred_rename_candidates_with_cancel(
         .iter()
         .cloned()
         .collect::<HashSet<_>>();
-    let deferred = super::super::scan_hash::deep_hash_scan(
+    let deferred = super::super::scan_hash::deep_hash_scan_with_writer(
         db,
         cancel,
         &rename_candidates,
         super::super::scan_hash::DeferredHashScope::RenameCandidates,
         None,
         None,
+        writer,
     )?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)

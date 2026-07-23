@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::mark_missing;
+use super::scan_writer::{ScanWritePhase, ScanWriter};
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT;
 use crate::sample_sources::db::SourceManifestEntry;
@@ -13,6 +14,7 @@ pub(super) fn db_sync_phase(
     db: &SourceDatabase,
     context: &mut ScanContext,
     cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
     let mut existing = std::mem::take(&mut context.existing)
         .into_values()
@@ -29,6 +31,10 @@ pub(super) fn db_sync_phase(
         if chunk.is_empty() {
             break;
         }
+        let _writer = writer.lock(ScanWritePhase::Manifest);
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
         let mut batch = db.write_batch()?;
         context.ensure_rename_candidate_generation(&mut batch)?;
         mark_missing(db, &mut batch, chunk, &mut context.stats, context.mode)?;
@@ -38,6 +44,10 @@ pub(super) fn db_sync_phase(
         context.commit_batch(batch)?;
     }
 
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    let _writer = writer.lock(ScanWritePhase::Manifest);
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }

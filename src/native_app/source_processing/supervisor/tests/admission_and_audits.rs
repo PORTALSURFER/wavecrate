@@ -86,56 +86,11 @@ fn foreground_scan_admission_waits_without_cancelling_background_work() {
             SourceScanAdmissionState::WaitingForCapacity {
                 current_owner: Some(first.id.to_string()),
             },
-            SourceScanAdmissionState::WaitingForDatabaseAccess,
             SourceScanAdmissionState::Admitted,
         ],
         "admission must publish each semantic wait transition once"
     );
     drop(foreground_permit);
-}
-
-#[test]
-fn foreground_scan_reports_database_wait_before_admission() {
-    let (_directory, source) = unhashed_source("database-waiter");
-    let shared = Arc::new(Shared::new(vec![source.clone()], None));
-    let database_guard = shared
-        .database_writer
-        .lock(DatabasePhase::SerialCompatibility);
-    let generation = shared.control().source_lifecycle_generations[source.id.as_str()];
-    let states = Arc::new(Mutex::new(Vec::new()));
-    let worker_states = Arc::clone(&states);
-    let worker_shared = Arc::clone(&shared);
-    let source_id = source.id.to_string();
-    let waiting = thread::spawn(move || {
-        SourceProcessingBudgetHandle {
-            shared: worker_shared,
-        }
-        .acquire_scan_for_generation_with_state(&source_id, generation, |state| {
-            worker_states.lock().unwrap().push(state);
-        })
-    });
-
-    wait_until(Duration::from_secs(2), || {
-        states
-            .lock()
-            .unwrap()
-            .contains(&SourceScanAdmissionState::WaitingForDatabaseAccess)
-    });
-    assert_eq!(
-        states.lock().unwrap().as_slice(),
-        [SourceScanAdmissionState::WaitingForDatabaseAccess]
-    );
-
-    drop(database_guard);
-    let permit = waiting
-        .join()
-        .expect("join database waiter")
-        .expect("scan admitted after database writer releases");
-    assert_eq!(
-        states.lock().unwrap().last(),
-        Some(&SourceScanAdmissionState::Admitted)
-    );
-    drop(permit);
 }
 
 #[test]

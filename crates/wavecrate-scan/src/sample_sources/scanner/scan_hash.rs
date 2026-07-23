@@ -7,6 +7,7 @@ use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
 use super::scan::{ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
+use super::scan_writer::{ScanWritePhase, ScanWriter, UncoordinatedScanWriter};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct HashBackfill {
@@ -146,6 +147,26 @@ pub(super) fn deep_hash_scan(
     max_hashes: Option<usize>,
     exact_path: Option<&std::path::Path>,
 ) -> Result<ScanStats, ScanError> {
+    deep_hash_scan_with_writer(
+        db,
+        cancel,
+        rename_candidates,
+        scope,
+        max_hashes,
+        exact_path,
+        &UncoordinatedScanWriter,
+    )
+}
+
+pub(super) fn deep_hash_scan_with_writer(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
+    max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
     deep_hash_scan_with_post_hash_hook(
         db,
         cancel,
@@ -153,6 +174,7 @@ pub(super) fn deep_hash_scan(
         scope,
         max_hashes,
         exact_path,
+        writer,
         |_| {},
     )
 }
@@ -164,6 +186,7 @@ fn deep_hash_scan_with_post_hash_hook(
     scope: DeferredHashScope,
     max_hashes: Option<usize>,
     exact_path: Option<&std::path::Path>,
+    writer: &impl ScanWriter,
     mut post_hash: impl FnMut(&std::path::Path),
 ) -> Result<ScanStats, ScanError> {
     let manifest_before = super::manifest::capture_manifest(db)?;
@@ -304,6 +327,10 @@ fn deep_hash_scan_with_post_hash_hook(
         return Err(ScanError::Canceled);
     }
 
+    let _writer = writer.lock(ScanWritePhase::DeferredHash);
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
     let mut batch = db.write_batch()?;
     for backfill in &hash_backfills {
         batch.upsert_file_with_hash(
@@ -341,6 +368,9 @@ fn deep_hash_scan_with_post_hash_hook(
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
 
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
     let committed_snapshot = batch.commit_with_manifest_snapshot()?;
     super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     Ok(stats)
@@ -594,6 +624,7 @@ mod tests {
             DeferredHashScope::AllUnhashed,
             Some(1),
             Some(relative),
+            &UncoordinatedScanWriter,
             |path| {
                 std::fs::write(path, [2_u8; 32]).expect("mutate during hashing");
                 let file = std::fs::OpenOptions::new()
