@@ -1,14 +1,9 @@
-use std::{
-    collections::BTreeSet,
-    sync::mpsc::{Receiver, RecvTimeoutError},
-    time::{Duration, Instant},
-};
+use std::collections::BTreeSet;
 
 use wavecrate_scan::CommittedSourceDelta;
 
 use super::super::{
-    SourceProcessingEvent, SourceProcessingHealthEvent, SourceProcessingHealthState,
-    SourceProcessingSupervisor, StateMachinePublicationObservation,
+    SourceHealthPublicationOutcome, SourceProcessingSupervisor, StateMachinePublicationObservation,
 };
 use super::{ScanCause, StateMachineHarness};
 
@@ -19,6 +14,7 @@ impl StateMachineHarness {
         &mut self,
         delta: &CommittedSourceDelta,
         cause: ScanCause,
+        reject_publication_once: bool,
     ) -> Result<(), String> {
         if delta.is_empty() || self.supervisor.is_none() {
             return Ok(());
@@ -30,6 +26,7 @@ impl StateMachineHarness {
                 delta,
                 reason,
                 DUPLICATE_ADMISSION_COUNT,
+                reject_publication_once,
             )
         }) else {
             self.pending_publication_retries
@@ -71,13 +68,20 @@ impl StateMachineHarness {
             delta.revision,
             cause,
         ));
+        if reject_publication_once {
+            self.expected_rejected_supervisor_publications.insert((
+                observation.lifecycle_generation,
+                delta.revision,
+                cause,
+            ));
+        }
         Ok(())
     }
 
     pub(super) fn admit_pending_publication_retries(&mut self) -> Result<(), String> {
         let pending = std::mem::take(&mut self.pending_publication_retries);
         for (delta, _original_cause) in pending {
-            self.admit_supervisor_delta(&delta, ScanCause::Retry)?;
+            self.admit_supervisor_delta(&delta, ScanCause::Retry, false)?;
         }
         Ok(())
     }
@@ -154,38 +158,14 @@ impl StateMachineHarness {
                 self.stale_supervisor_publications
             ));
         }
-        Ok(())
-    }
-
-    pub(super) fn wait_for_supervisor_offline(&self) -> Result<(), String> {
-        let health = wait_for_health(
-            self.supervisor_events.as_ref(),
-            self.source.id.as_str(),
-            |health| health.state == SourceProcessingHealthState::Offline,
-            "offline",
-        )?;
-        if health.retry_at.is_some() {
-            return Err(String::from(
-                "offline supervisor observation unexpectedly scheduled a retry",
+        if self.rejected_supervisor_publications != self.expected_rejected_supervisor_publications {
+            return Err(format!(
+                "actual supervisor publication rejections differ from injected boundary failures: expected={:?}, actual={:?}",
+                self.expected_rejected_supervisor_publications,
+                self.rejected_supervisor_publications
             ));
         }
         Ok(())
-    }
-
-    pub(super) fn wait_for_supervisor_online_terminal(&self) -> Result<(), String> {
-        wait_for_health(
-            self.supervisor_events.as_ref(),
-            self.source.id.as_str(),
-            |health| {
-                matches!(
-                    health.state,
-                    SourceProcessingHealthState::Ready
-                        | SourceProcessingHealthState::DegradedTerminal
-                )
-            },
-            "terminal online",
-        )
-        .map(|_| ())
     }
 
     fn accept_actual_publication(
@@ -199,6 +179,37 @@ impl StateMachineHarness {
             return Err(format!(
                 "actual readiness publication exposed invalid generations: source={} readiness={}",
                 observation.source_generation, observation.readiness_revision
+            ));
+        }
+        if observation.outcome == SourceHealthPublicationOutcome::Rejected {
+            for (revision, reason) in observation.inputs {
+                let cause = ScanCause::from_publication_reason(reason)
+                    .ok_or_else(|| format!("unknown rejected publication cause {reason}"))?;
+                let key = (observation.lifecycle_generation, revision, cause);
+                if !self
+                    .expected_rejected_supervisor_publications
+                    .contains(&key)
+                {
+                    return Err(format!(
+                        "supervisor rejected an uninjected publication {key:?}"
+                    ));
+                }
+                if !self.rejected_supervisor_publications.insert(key) {
+                    return Err(format!(
+                        "supervisor rejected a publication more than once: {key:?}"
+                    ));
+                }
+            }
+            return Ok(());
+        }
+        if !matches!(
+            observation.outcome,
+            SourceHealthPublicationOutcome::Published
+                | SourceHealthPublicationOutcome::AlreadyPublished
+        ) {
+            return Err(format!(
+                "state-machine observation was recorded before a definitive output: {:?}",
+                observation.outcome
             ));
         }
         if let Some((last_source, last_readiness)) = self
@@ -241,38 +252,6 @@ impl StateMachineHarness {
             }
         }
         Ok(())
-    }
-}
-
-fn wait_for_health(
-    events: Option<&Receiver<SourceProcessingEvent>>,
-    source_id: &str,
-    predicate: impl Fn(&SourceProcessingHealthEvent) -> bool,
-    expected: &str,
-) -> Result<SourceProcessingHealthEvent, String> {
-    let events =
-        events.ok_or_else(|| String::from("integrated state-machine event receiver is missing"))?;
-    let deadline = Instant::now() + Duration::from_secs(30);
-    loop {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        match events.recv_timeout(remaining) {
-            Ok(SourceProcessingEvent::Health(health))
-                if health.lifecycle.source_id == source_id && predicate(&health) =>
-            {
-                return Ok(health);
-            }
-            Ok(_) => {}
-            Err(RecvTimeoutError::Timeout) => {
-                return Err(format!(
-                    "supervisor did not publish {expected} health for {source_id}"
-                ));
-            }
-            Err(RecvTimeoutError::Disconnected) => {
-                return Err(String::from(
-                    "integrated state-machine event receiver disconnected",
-                ));
-            }
-        }
     }
 }
 

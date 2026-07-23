@@ -6,6 +6,7 @@ mod invariants;
 mod model;
 mod mutations;
 mod supervisor_observer;
+mod supervisor_transitions;
 
 use artifacts::{read_replay, write_failure_artifact};
 use harness::StateMachineHarness;
@@ -73,6 +74,18 @@ fn source_processing_seeded_state_machine_integrated_supervisor() {
     run_or_archive(
         seed,
         generate(seed, NORMAL_SEQUENCE_LENGTH),
+        ExecutionMode::IntegratedSupervisor,
+    );
+    run_or_archive(
+        0x1248_5055_0000_0001,
+        vec![
+            Event::InjectFailure {
+                boundary: FailureBoundary::Publication,
+            },
+            Event::Create { slot: 7 },
+            Event::WatcherBatch,
+            Event::Quiesce,
+        ],
         ExecutionMode::IntegratedSupervisor,
     );
 }

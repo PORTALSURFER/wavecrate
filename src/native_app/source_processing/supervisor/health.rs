@@ -141,7 +141,9 @@ mod tests {
 
     use wavecrate::sample_sources::{SampleSource, SourceId};
 
-    use super::super::{Shared, SourceProcessingEvent, SourceProcessingSupervisor};
+    use super::super::{
+        Shared, SourceHealthPublicationOutcome, SourceProcessingEvent, SourceProcessingSupervisor,
+    };
     use super::*;
 
     fn snapshot(
@@ -255,6 +257,14 @@ mod tests {
         )
         .into_event(SourceProcessingLifecycle::new("health-source", generation));
 
+        shared
+            .state_machine_reject_next_health_publication
+            .store(true, std::sync::atomic::Ordering::Release);
+        assert_eq!(
+            shared.publish_source_health_outcome(health.clone()),
+            SourceHealthPublicationOutcome::Rejected
+        );
+        assert!(receiver.try_recv().is_err());
         assert!(shared.publish_source_health(health.clone()));
         assert!(!shared.publish_source_health(health));
         assert!(matches!(

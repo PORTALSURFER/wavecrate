@@ -8,7 +8,6 @@ use wavecrate_scan::CommittedSourceDelta;
 
 use crate::sample_sources::SourceDatabase;
 
-use super::super::SourceProcessingSupervisor;
 use super::{
     Event, FailureBoundary, FailureSnapshot, ScanCause, StateMachineHarness, generated_path,
 };
@@ -16,42 +15,6 @@ use super::{
 const MAX_PENDING_WATCHER_PATHS: usize = 16;
 
 impl StateMachineHarness {
-    pub(super) fn assert_runtime_liveness(
-        &self,
-        supervisor: &SourceProcessingSupervisor,
-    ) -> Result<(), String> {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        loop {
-            let runtime = super::super::liveness_tests::runtime_observation(
-                supervisor,
-                self.source.id.as_str(),
-            );
-            if let Some(snapshot) = super::super::liveness_tests::readiness_snapshot(&self.source) {
-                if runtime.source_active
-                    && super::super::liveness_tests::silently_idle(&snapshot, &runtime)
-                {
-                    return Err(format!(
-                        "runtime became silently idle with actionable work: {runtime:?}"
-                    ));
-                }
-                if snapshot.is_converged()
-                    && runtime.queue_depth == 0
-                    && runtime.readiness_queue_depth == 0
-                    && runtime.in_flight == 0
-                    && !runtime.source_dirty
-                {
-                    return Ok(());
-                }
-            }
-            if std::time::Instant::now() >= deadline {
-                return Err(format!(
-                    "runtime did not converge at controlled quiescence: {runtime:?}"
-                ));
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-    }
-
     pub(super) fn accept_commit(
         &mut self,
         cause: ScanCause,
@@ -110,17 +73,14 @@ impl StateMachineHarness {
                 self.model.files
             ));
         }
-        let browser_projection = database
-            .list_files()
-            .map_err(|error| error.to_string())?
-            .into_iter()
-            .filter(|entry| !entry.missing)
-            .map(|entry| slash_path(&entry.relative_path))
-            .collect::<BTreeSet<_>>();
+        let browser_projection =
+            crate::app::controller::library::wavs::browser_search_worker::project_source_paths_for_state_machine(
+                &self.source,
+            )?;
         let expected_projection = self.model.files.keys().cloned().collect::<BTreeSet<_>>();
         if browser_projection != expected_projection {
             return Err(format!(
-                "browser projection differs from committed manifest: expected={expected_projection:?}, actual={browser_projection:?}"
+                "production browser projection differs from reference model: expected={expected_projection:?}, actual={browser_projection:?}"
             ));
         }
         Ok(())

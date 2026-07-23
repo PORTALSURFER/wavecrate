@@ -44,6 +44,8 @@ pub(super) struct StateMachineHarness {
     pub(super) expected_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
     pub(super) observed_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
     pub(super) stale_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
+    pub(super) expected_rejected_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
+    pub(super) rejected_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
     pub(super) last_actual_output_revisions: BTreeMap<u64, (i64, i64)>,
     pub(super) actual_queue_admissions: u64,
     pub(super) max_actual_pending_scopes: usize,
@@ -104,6 +106,8 @@ impl StateMachineHarness {
             expected_supervisor_publications: BTreeSet::new(),
             observed_supervisor_publications: BTreeSet::new(),
             stale_supervisor_publications: BTreeSet::new(),
+            expected_rejected_supervisor_publications: BTreeSet::new(),
+            rejected_supervisor_publications: BTreeSet::new(),
             last_actual_output_revisions: BTreeMap::new(),
             actual_queue_admissions: 0,
             max_actual_pending_scopes: 0,
@@ -148,39 +152,11 @@ impl StateMachineHarness {
         self.next_failure = None;
         self.model.queue(ScanCause::Retry);
         self.flush(ScanCause::Retry)?;
-        self.wait_for_integrated_settle()?;
+        self.wait_for_supervisor_convergence()?;
         self.create(6, false)?;
         self.flush(ScanCause::Foreground)?;
-        self.wait_for_integrated_settle()?;
+        self.wait_for_supervisor_convergence()?;
         self.assert_actual_publications()
-    }
-
-    fn wait_for_integrated_settle(&self) -> Result<(), String> {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        loop {
-            let supervisor = self
-                .supervisor
-                .as_ref()
-                .expect("integrated initialization keeps its supervisor");
-            let runtime = super::super::liveness_tests::runtime_observation(
-                supervisor,
-                self.source.id.as_str(),
-            );
-            if super::super::liveness_tests::readiness_snapshot(&self.source).is_some()
-                && runtime.queue_depth == 0
-                && runtime.readiness_queue_depth == 0
-                && runtime.in_flight == 0
-                && !runtime.source_dirty
-            {
-                return Ok(());
-            }
-            if std::time::Instant::now() >= deadline {
-                return Err(format!(
-                    "integrated state-machine baseline did not settle: {runtime:?}"
-                ));
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
     }
 
     fn apply(&mut self, event: &Event) -> Result<(), String> {
@@ -296,13 +272,13 @@ impl StateMachineHarness {
         let publication_lost = self.take_failure(FailureBoundary::Publication);
         self.accept_commit(effective_cause, &stats.committed_delta, publication_lost)?;
         self.admit_pending_publication_retries()?;
-        if publication_lost {
+        if publication_lost && self.supervisor.is_none() {
             if !stats.committed_delta.is_empty() {
                 self.pending_publication_retries
                     .push((stats.committed_delta.clone(), effective_cause));
             }
         } else {
-            self.admit_supervisor_delta(&stats.committed_delta, effective_cause)?;
+            self.admit_supervisor_delta(&stats.committed_delta, effective_cause, publication_lost)?;
         }
         self.model.watcher_paths.clear();
         if effective_cause == ScanCause::Watcher {
@@ -349,7 +325,9 @@ impl StateMachineHarness {
         if let Some(supervisor) = &self.supervisor {
             supervisor
                 .request_source_processing(self.source.id.as_str(), "state_machine_quiescence");
-            self.assert_runtime_liveness(supervisor)?;
+        }
+        if self.supervisor.is_some() {
+            self.wait_for_supervisor_convergence()?;
         }
         self.assert_actual_publications()?;
         Ok(())

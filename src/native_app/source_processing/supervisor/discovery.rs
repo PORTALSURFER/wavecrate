@@ -103,18 +103,28 @@ pub(super) fn discover_candidates(
                 if !stats.cheap_noop_sweep {
                     source_stats.insert(source.id.as_str().to_string(), stats);
                 }
-                if pending_readiness_deltas.contains_key(source.id.as_str()) {
-                    consumed_readiness_deltas.insert(source.id.as_str().to_string());
-                }
+                let pending_readiness_delta = pending_readiness_deltas.get(source.id.as_str());
+                let mut consume_readiness_delta = pending_readiness_delta.is_some();
                 if let Some(health) = health {
                     let health = health.into_event(super::SourceProcessingLifecycle::new(
                         source.id.as_str(),
                         in_flight_work.lifecycle_generation,
                     ));
+                    let publication_outcome = shared.publish_source_health_outcome(health.clone());
+                    consume_readiness_delta = matches!(
+                        publication_outcome,
+                        super::SourceHealthPublicationOutcome::Published
+                            | super::SourceHealthPublicationOutcome::AlreadyPublished
+                            | super::SourceHealthPublicationOutcome::NoSink
+                    );
                     #[cfg(test)]
-                    if let Some(pending) = pending_readiness_deltas
-                        .get(source.id.as_str())
+                    if let Some(pending) = pending_readiness_delta
                         .filter(|pending| !pending.state_machine_inputs.is_empty())
+                        .filter(|_| {
+                            publication_outcome != super::SourceHealthPublicationOutcome::NoSink
+                                && publication_outcome
+                                    != super::SourceHealthPublicationOutcome::Superseded
+                        })
                     {
                         shared
                             .state_machine_publications
@@ -126,9 +136,12 @@ pub(super) fn discover_candidates(
                                 source_generation: health.source_generation,
                                 readiness_revision: health.readiness_revision,
                                 inputs: pending.state_machine_inputs.clone(),
+                                outcome: publication_outcome,
                             });
                     }
-                    shared.publish_source_health(health);
+                }
+                if consume_readiness_delta {
+                    consumed_readiness_deltas.insert(source.id.as_str().to_string());
                 }
                 shared
                     .control()

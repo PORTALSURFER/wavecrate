@@ -50,6 +50,16 @@ pub(super) struct StateMachinePublicationObservation {
     pub(super) source_generation: i64,
     pub(super) readiness_revision: i64,
     pub(super) inputs: BTreeSet<(u64, &'static str)>,
+    pub(super) outcome: super::SourceHealthPublicationOutcome,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SourceHealthPublicationOutcome {
+    Published,
+    AlreadyPublished,
+    Rejected,
+    NoSink,
+    Superseded,
 }
 
 #[derive(Clone, Debug)]

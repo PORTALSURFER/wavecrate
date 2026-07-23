@@ -17,6 +17,7 @@ impl SourceProcessingSupervisor {
         delta: &CommittedSourceDelta,
         reason: &'static str,
         repetitions: usize,
+        reject_publication_once: bool,
     ) -> Option<StateMachineQueueObservation> {
         let mut control = self.shared.control();
         if !control.source_is_active(source_id) {
@@ -45,6 +46,11 @@ impl SourceProcessingSupervisor {
                 control.pending_readiness_deltas.contains_key(source_id),
             ),
         };
+        if reject_publication_once {
+            self.shared
+                .state_machine_reject_next_health_publication
+                .store(true, std::sync::atomic::Ordering::Release);
+        }
         drop(control);
         self.shared.wake.notify_one();
         Some(observation)
