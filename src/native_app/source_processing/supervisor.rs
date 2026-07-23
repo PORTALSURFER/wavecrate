@@ -83,6 +83,8 @@ mod shutdown;
 mod source_registry_model;
 mod startup;
 mod state;
+#[cfg(test)]
+mod state_machine_observation;
 mod telemetry;
 
 pub(in crate::native_app) use admission::SourceScanAdmissionState;
@@ -153,6 +155,10 @@ pub(in crate::native_app) struct SourceProcessingSupervisor {
 #[cfg(test)]
 #[path = "../../test_support/source_processing_liveness/mod.rs"]
 mod liveness_tests;
+
+#[cfg(test)]
+#[path = "../../test_support/source_processing_state_machine/mod.rs"]
+mod state_machine_tests;
 
 #[cfg(test)]
 mod tests;

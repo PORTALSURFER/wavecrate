@@ -15,10 +15,12 @@ pub(super) struct PendingSourceRetirement {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct PendingReadinessDelta {
     pub(super) scope_ids: BTreeSet<String>,
+    #[cfg(test)]
+    pub(super) state_machine_inputs: BTreeSet<(u64, &'static str)>,
 }
 
 impl PendingReadinessDelta {
-    pub(super) fn merge(&mut self, delta: &CommittedSourceDelta) {
+    pub(super) fn merge(&mut self, delta: &CommittedSourceDelta, reason: &'static str) {
         self.scope_ids.extend(
             delta
                 .created
@@ -29,11 +31,35 @@ impl PendingReadinessDelta {
         );
         self.scope_ids
             .extend(delta.moved.iter().map(|entry| entry.identity.clone()));
+        #[cfg(test)]
+        self.state_machine_inputs.insert((delta.revision, reason));
+        #[cfg(not(test))]
+        let _ = reason;
     }
 
     pub(super) fn is_empty(&self) -> bool {
         self.scope_ids.is_empty()
     }
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug)]
+pub(super) struct StateMachinePublicationObservation {
+    pub(super) source_id: String,
+    pub(super) lifecycle_generation: u64,
+    pub(super) source_generation: i64,
+    pub(super) readiness_revision: i64,
+    pub(super) inputs: BTreeSet<(u64, &'static str)>,
+    pub(super) outcome: super::SourceHealthPublicationOutcome,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SourceHealthPublicationOutcome {
+    Published,
+    AlreadyPublished,
+    Rejected,
+    NoSink,
+    Superseded,
 }
 
 #[derive(Clone, Debug)]

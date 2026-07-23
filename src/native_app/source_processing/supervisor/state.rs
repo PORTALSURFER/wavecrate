@@ -1,12 +1,14 @@
 #[cfg(test)]
 use super::AtomicUsize;
+#[cfg(test)]
+use super::StateMachinePublicationObservation;
 #[cfg(not(test))]
 use super::recovered_source_retirements;
 use super::{
     Arc, AtomicBool, AtomicU64, BTreeMap, BTreeSet, BudgetTracker, Condvar, ControlState,
     DatabaseWriterGate, Mutex, MutexGuard, Ordering, PriorityContext, ProcessingBudgets,
-    SampleSource, SourceAuditLifecycleCause, SourceProcessingEvent, SourceProcessingEventSink,
-    SourceProcessingHealthEvent, SupervisorTelemetry, sources_by_id,
+    SampleSource, SourceAuditLifecycleCause, SourceHealthPublicationOutcome, SourceProcessingEvent,
+    SourceProcessingEventSink, SourceProcessingHealthEvent, SupervisorTelemetry, sources_by_id,
 };
 
 #[derive(Clone)]
@@ -77,6 +79,10 @@ pub(super) struct Shared {
     pub(super) synthetic_test_execution: AtomicBool,
     pub(super) event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
     pub(super) published_source_health: Mutex<BTreeMap<String, SourceProcessingHealthEvent>>,
+    #[cfg(test)]
+    pub(super) state_machine_publications: Mutex<Vec<StateMachinePublicationObservation>>,
+    #[cfg(test)]
+    pub(super) state_machine_reject_next_health_publication: AtomicBool,
     #[cfg(test)]
     pub(super) retirement_cleanup_blocked: AtomicBool,
     #[cfg(test)]
@@ -153,6 +159,10 @@ impl Shared {
                 foreground_active: false,
                 shutdown: false,
                 priority: PriorityContext::default(),
+                #[cfg(test)]
+                reject_next_delta_delivery: false,
+                #[cfg(test)]
+                reject_next_source_replacement: false,
             }),
             wake: Condvar::new(),
             retirement_wake: Condvar::new(),
@@ -168,6 +178,10 @@ impl Shared {
             synthetic_test_execution: AtomicBool::new(false),
             event_sink,
             published_source_health: Mutex::new(BTreeMap::new()),
+            #[cfg(test)]
+            state_machine_publications: Mutex::new(Vec::new()),
+            #[cfg(test)]
+            state_machine_reject_next_health_publication: AtomicBool::new(false),
             #[cfg(test)]
             retirement_cleanup_blocked: AtomicBool::new(false),
             #[cfg(test)]
@@ -209,6 +223,13 @@ impl Shared {
     }
 
     pub(super) fn publish_source_health(&self, health: SourceProcessingHealthEvent) -> bool {
+        self.publish_source_health_outcome(health) == SourceHealthPublicationOutcome::Published
+    }
+
+    pub(super) fn publish_source_health_outcome(
+        &self,
+        health: SourceProcessingHealthEvent,
+    ) -> SourceHealthPublicationOutcome {
         let control = self.control();
         if !control.source_is_active(&health.lifecycle.source_id)
             || control
@@ -216,25 +237,38 @@ impl Shared {
                 .get(&health.lifecycle.source_id)
                 != Some(&health.lifecycle.generation)
         {
-            return false;
+            return SourceHealthPublicationOutcome::Superseded;
         }
         let mut published_health = self
             .published_source_health
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
         if published_health.get(&health.lifecycle.source_id) == Some(&health) {
-            return false;
+            return SourceHealthPublicationOutcome::AlreadyPublished;
         }
-        let published = self
-            .event_sink
-            .as_ref()
-            .is_some_and(|sink| sink.try_publish(SourceProcessingEvent::Health(health.clone())));
-        if published {
+        #[cfg(test)]
+        let reject_for_state_machine = self
+            .state_machine_reject_next_health_publication
+            .swap(false, Ordering::AcqRel);
+        #[cfg(not(test))]
+        let reject_for_state_machine = false;
+        let outcome = if reject_for_state_machine {
+            SourceHealthPublicationOutcome::Rejected
+        } else if let Some(sink) = &self.event_sink {
+            if sink.try_publish(SourceProcessingEvent::Health(health.clone())) {
+                SourceHealthPublicationOutcome::Published
+            } else {
+                SourceHealthPublicationOutcome::Rejected
+            }
+        } else {
+            SourceHealthPublicationOutcome::NoSink
+        };
+        if outcome == SourceHealthPublicationOutcome::Published {
             published_health.insert(health.lifecycle.source_id.clone(), health);
         }
         drop(published_health);
         drop(control);
-        published
+        outcome
     }
 
     pub(super) fn telemetry(&self) -> MutexGuard<'_, SupervisorTelemetry> {

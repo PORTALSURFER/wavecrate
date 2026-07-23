@@ -118,6 +118,14 @@ pub struct SourceWriteBatch<'conn> {
 }
 
 impl SourceDatabase {
+    /// Override this connection's SQLite busy timeout for deterministic contention tests.
+    #[cfg(feature = "test-support")]
+    pub fn set_busy_timeout_for_tests(&self, timeout: Duration) -> Result<(), SourceDbError> {
+        self.connection
+            .busy_timeout(timeout)
+            .map_err(SourceDbError::from)
+    }
+
     /// Open a writable source database for general source-owned mutations.
     ///
     /// This preserves the complete schema and cleanup behavior used by the
