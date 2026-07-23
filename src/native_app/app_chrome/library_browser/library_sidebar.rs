@@ -18,6 +18,9 @@ mod tag_entry_layout;
 mod test_support;
 
 use collections_section::collections_section;
+pub(in crate::native_app) use collections_section::{
+    collection_overflow_fade_alpha, paint_collection_overflow_fade,
+};
 use filter_section::filter_section;
 use folder_tree::folder_tree_section;
 use harvest_family::harvest_family_section;

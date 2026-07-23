@@ -1,5 +1,6 @@
 use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcuts};
 use crate::native_app::app_chrome::layout;
+use crate::native_app::app_chrome::library_browser::library_sidebar;
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
 use radiant::prelude as ui;
@@ -29,7 +30,9 @@ fn frame_clock() -> ui::FrameClock<NativeAppState, GuiMessage> {
 fn app_transient_overlay() -> ui::TransientOverlay<NativeAppState> {
     ui::TransientOverlay::new(APP_TRANSIENT_OVERLAY_KEY)
         .paint_only()
-        .when(|state: &mut NativeAppState| state.should_paint_app_transient_overlay())
+        .when(|state: &mut NativeAppState| {
+            state.should_paint_app_transient_overlay() || collection_overflow_fade_alpha(state) > 0
+        })
         .paint(paint_app_transient_overlay)
 }
 
@@ -41,7 +44,20 @@ fn paint_app_transient_overlay(
     state.paint_waveform_transient_overlay(context, primitives);
     state.paint_worker_progress_indicator(context, primitives);
     state.paint_source_processing_source_pulse(context, primitives);
+    library_sidebar::paint_collection_overflow_fade(
+        context,
+        collection_overflow_fade_alpha(state),
+        primitives,
+    );
     paint_starmap_active_audition_overlay(state, context, primitives);
+}
+
+fn collection_overflow_fade_alpha(state: &NativeAppState) -> u8 {
+    let folder_browser = &state.library.folder_browser;
+    library_sidebar::collection_overflow_fade_alpha(
+        folder_browser.collections_panel_height(),
+        folder_browser.max_collections_panel_height(),
+    )
 }
 
 fn paint_starmap_active_audition_overlay(
