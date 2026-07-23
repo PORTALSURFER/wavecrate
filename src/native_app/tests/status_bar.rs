@@ -292,8 +292,8 @@ fn source_processing_discovery_uses_compact_activity_feedback() {
             source_row_active: true,
             completed: 0,
             total: 0,
-            stage: String::from("Checking pending work"),
-            detail: String::from("Counting unfinished analysis, similarity, and indexing jobs"),
+            stage: String::from("Inspecting source manifest"),
+            detail: String::from("Reading eligible files"),
         },
     );
 
@@ -314,10 +314,8 @@ fn source_processing_discovery_uses_compact_activity_feedback() {
         [
             String::from("Type: Source processing"),
             String::from("Source: Projects"),
-            String::from("Progress: Counting pending jobs"),
-            String::from(
-                "Current: Checking pending work | Counting unfinished analysis, similarity, and indexing jobs"
-            ),
+            String::from("Progress: Active (total not available)"),
+            String::from("Current: Inspecting source manifest | Reading eligible files"),
         ]
     );
 }
@@ -460,6 +458,62 @@ fn status_bar_routes_source_processing_through_worker_progress_and_job_details()
             String::from("Current: Preparing similarity | 017/bounce/kick.wav"),
         ]
     );
+}
+
+#[test]
+fn source_processing_job_details_use_truthful_discovery_units() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+
+    for (stage, completed, total, detail, expected) in [
+        (
+            "Preparing readiness targets",
+            7_232,
+            7_232,
+            "7232 / 7232 files prepared",
+            "Progress: 7232/7232 files prepared",
+        ),
+        (
+            "Comparing source readiness",
+            17_435,
+            21_697,
+            "17435 / 21697 readiness targets compared",
+            "Progress: 17435/21697 readiness targets compared",
+        ),
+        (
+            "Queueing unfinished work",
+            14_460,
+            21_697,
+            "14460 / 21697 readiness targets checked",
+            "Progress: 14460/21697 readiness targets checked",
+        ),
+    ] {
+        state.background.source_processing_progress = Some(
+            crate::native_app::test_support::state::SourceProcessingProgress {
+                source_id: source_id.clone(),
+                lifecycle_generation: 0,
+                active: true,
+                source_row_active: true,
+                completed,
+                total,
+                stage: String::from(stage),
+                detail: String::from(detail),
+            },
+        );
+
+        let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+        assert_eq!(model.job_details.expect("job details")[2], expected);
+    }
 }
 
 #[test]

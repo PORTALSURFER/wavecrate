@@ -118,14 +118,19 @@ fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
         source_id: source.id.as_str(),
         lifecycle_generation,
         started_at: Instant::now(),
-        last_phase: None,
+        last_progress: None,
         last_event_publish_at: None,
         last_log_publish_at: None,
         event_published: false,
+        work_units: 0,
     };
 
-    publisher.advance("Reading manifest and readiness targets", 1);
-    publisher.advance("Comparing durable readiness", 2);
+    publisher.advance(DiscoveryProgressUpdate::indeterminate(
+        SourceDiscoveryPhase::InspectingManifest,
+    ));
+    publisher.advance(DiscoveryProgressUpdate::indeterminate(
+        SourceDiscoveryPhase::ComparingReadiness,
+    ));
     assert!(
         receiver.try_recv().is_err(),
         "a brief converged-source check must not flash active processing feedback"
@@ -133,7 +138,11 @@ fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
     assert!(!publisher.event_published);
 
     publisher.started_at = Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL;
-    publisher.advance("Queueing unfinished jobs", 3);
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::QueueingWork,
+        3,
+        5,
+    ));
     let SourceProcessingEvent::Progress(progress) = receiver
         .recv_timeout(Duration::from_secs(1))
         .expect("sustained discovery feedback")
@@ -143,10 +152,10 @@ fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
     assert_eq!(
         progress.activity,
         SourceProcessingActivity::Discovering {
-            phase: String::from("Queueing unfinished jobs"),
-            completed_steps: 3,
+            phase: SourceDiscoveryPhase::QueueingWork,
         }
     );
+    assert_eq!((progress.completed, progress.total), (3, 5));
     assert!(
         progress.source_row_active,
         "grace-surviving discovery must identify its active source row"
@@ -155,7 +164,7 @@ fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
 }
 
 #[test]
-fn discovery_snapshot_from_previous_readded_epoch_is_not_published() {
+fn discovery_progress_from_previous_readded_epoch_is_not_published() {
     let directory = tempfile::tempdir().expect("discovery source");
     let source = SampleSource::new_with_id(
         SourceId::from_string("readded-discovery-source"),
@@ -182,12 +191,17 @@ fn discovery_snapshot_from_previous_readded_epoch_is_not_published() {
         source_id: source.id.as_str(),
         lifecycle_generation: old_generation,
         started_at: Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL,
-        last_phase: None,
+        last_progress: None,
         last_event_publish_at: None,
         last_log_publish_at: None,
         event_published: false,
+        work_units: 0,
     };
-    publisher.advance("Comparing durable readiness", 1);
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::ComparingReadiness,
+        1,
+        5,
+    ));
     assert!(!publisher.event_published);
     assert!(receiver.try_recv().is_err());
 }

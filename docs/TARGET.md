@@ -350,6 +350,14 @@ Configured source lifecycles also carry a runtime epoch distinct from the durabl
 
 The source-processing supervisor publishes progress, readiness advancement, manifest-audit handoff, retry/block state, and completion through one typed backend-neutral event sink. Every source-scoped event carries its configured lifecycle epoch and is rejected before delivery when that epoch is no longer current. The supervisor owns ordering and bounded progress throttling; native-app adapters own `GuiMessage` construction and user-facing stage/detail wording. Telemetry and non-GUI observers consume the semantic event model without depending on native presentation types.
 
+Source-readiness reconciliation progress is phase-specific and must not expose cancellation
+checkpoints or cumulative database row visits as completed product work. Manifest inspection is
+indeterminate until the existing pass has a reliable file denominator; target preparation,
+readiness comparison, and unfinished-work queueing then report monotonic completed/total counts
+using files or readiness targets. Internal checkpoints remain frequent diagnostic and
+cancellation telemetry, while lifecycle fencing prevents retired-source progress from replacing
+the current source presentation.
+
 The native source-processing implementation has one public supervisor facade and one
 coordinator thread. Internally, the facade owns lifecycle and admission calls, while the
 coordinator delegates through focused discovery/reconciliation, work-execution,

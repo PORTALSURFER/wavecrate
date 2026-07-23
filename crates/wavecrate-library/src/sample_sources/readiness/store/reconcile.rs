@@ -12,7 +12,7 @@ use super::super::{
     },
     snapshot::{
         ReadinessActivity, ReadinessClassification, ReadinessDeficit, ReadinessEntry,
-        ReadinessSnapshot, ReadinessStageCounts,
+        ReadinessProgress, ReadinessSnapshot, ReadinessStageCounts,
     },
 };
 use super::error::ReadinessError;
@@ -24,7 +24,7 @@ pub fn reconcile_readiness(
     source_id: &str,
     now: i64,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
-    reconcile_readiness_inner(connection, source_id, now, None, &mut || {})
+    reconcile_readiness_inner(connection, source_id, now, None, &mut |_| {})
 }
 
 pub(super) fn reconcile_readiness_inner(
@@ -32,7 +32,7 @@ pub(super) fn reconcile_readiness_inner(
     source_id: &str,
     now: i64,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
     let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {}, cancel, progress)?;
@@ -46,7 +46,7 @@ pub(super) fn reconcile_readiness_scopes_inner(
     scope_ids: &std::collections::BTreeSet<String>,
     now: i64,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
     let snapshot = reconcile_readiness_snapshot_for_scopes(
@@ -71,7 +71,7 @@ pub(crate) fn reconcile_readiness_with_hook(
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
     let snapshot =
-        reconcile_readiness_snapshot(&tx, source_id, now, after_source_state, None, &mut || {})?;
+        reconcile_readiness_snapshot(&tx, source_id, now, after_source_state, None, &mut |_| {})?;
     tx.commit()?;
     Ok(snapshot)
 }
@@ -82,7 +82,7 @@ fn reconcile_readiness_snapshot(
     now: i64,
     after_source_state: impl FnOnce(),
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     reconcile_readiness_snapshot_for_scopes(
         connection,
@@ -103,7 +103,7 @@ fn reconcile_readiness_snapshot_for_scopes(
     now: i64,
     after_source_state: impl FnOnce(),
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     cancellation_checkpoint(cancel)?;
     if !readiness_schema_available(connection)? {
@@ -199,7 +199,7 @@ fn load_targets(
     source_id: &str,
     scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<Vec<ReadinessTarget>, ReadinessError> {
     let filter = scoped_filter(scope_ids, "scope_kind", "scope_id");
     let sql = format!(
@@ -217,7 +217,7 @@ fn load_targets(
     let mut targets = Vec::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
-        progress();
+        progress(ReadinessProgress::Inspecting);
         targets.push(ReadinessTarget {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -238,7 +238,7 @@ fn load_artifacts(
     source_id: &str,
     scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<BTreeMap<ReadinessKey, StoredArtifact>, ReadinessError> {
     let filter = scoped_filter(scope_ids, "scope_kind", "scope_id");
     let sql = format!(
@@ -255,7 +255,7 @@ fn load_artifacts(
     let mut artifacts = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
-        progress();
+        progress(ReadinessProgress::Inspecting);
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -279,7 +279,7 @@ fn load_work(
     source_id: &str,
     scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<BTreeMap<ReadinessKey, StoredWork>, ReadinessError> {
     let filter = scoped_filter(scope_ids, "readiness_scope_kind", "readiness_scope_id");
     let sql = format!(
@@ -299,7 +299,7 @@ fn load_work(
     let mut work = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
-        progress();
+        progress(ReadinessProgress::Inspecting);
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -372,14 +372,18 @@ fn build_snapshot(
     work: BTreeMap<ReadinessKey, StoredWork>,
     now: i64,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
-    let mut entries = Vec::with_capacity(targets.len());
+    let total = targets.len();
+    let mut entries = Vec::with_capacity(total);
     let mut deficits = Vec::new();
     let mut stage_counts = BTreeMap::new();
-    for target in targets {
+    for (index, target) in targets.into_iter().enumerate() {
         cancellation_checkpoint(cancel)?;
-        progress();
+        progress(ReadinessProgress::ComparingTargets {
+            completed: index.saturating_add(1),
+            total,
+        });
         let key = target.key();
         let classification = classify_target(
             &target,

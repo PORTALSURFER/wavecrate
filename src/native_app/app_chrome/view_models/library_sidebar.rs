@@ -613,8 +613,8 @@ mod tests {
             source_row_active: true,
             completed: 0,
             total: 0,
-            stage: String::from("Checking pending work"),
-            detail: String::from("Queueing unfinished jobs | 256 reconciliation steps completed"),
+            stage: String::from("Queueing unfinished work"),
+            detail: String::from("128 / 256 readiness targets checked"),
         });
         let sustained_discovery = LibrarySidebarViewModel::from_app_state(&state);
         assert!(

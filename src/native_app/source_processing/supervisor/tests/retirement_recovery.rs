@@ -109,7 +109,7 @@ fn startup_recovery_enqueues_retained_sources_missing_from_configuration() {
 }
 
 #[test]
-fn converged_periodic_safety_probes_do_not_rematerialize_targets() {
+fn discovery_progress_converged_safety_probe_is_a_silent_noop() {
     let (_directory, source) = unhashed_source("revision-gated-safety-probe");
     let database_root = source.database_root().expect("database root");
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -137,7 +137,7 @@ fn converged_periodic_safety_probes_do_not_rematerialize_targets() {
             None,
             true,
             &cancel,
-            &mut |_, _| panic!("cheap safety probe must not materialize target work"),
+            &mut |_| panic!("cheap safety probe must not materialize target work"),
         )
         .expect("run revision-gated safety probe") else {
             panic!("safety probe unexpectedly cancelled");
@@ -205,7 +205,7 @@ fn safety_probe_recovers_manifest_commit_without_delta_publication() {
             None,
             true,
             &AtomicBool::new(false),
-            &mut |_, _| {},
+            &mut |_| {},
         )
         .expect("recover readiness publication")
     else {
@@ -223,7 +223,7 @@ fn safety_probe_recovers_manifest_commit_without_delta_publication() {
 }
 
 #[test]
-fn committed_one_file_delta_updates_only_that_identity_targets() {
+fn discovery_progress_committed_delta_uses_changed_target_counts() {
     let (_directory, source) = unhashed_source("one-file-readiness-delta");
     let database_root = source.database_root().expect("database root");
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -267,6 +267,7 @@ fn committed_one_file_delta_updates_only_that_identity_targets() {
         scope_ids: [identity.clone()].into_iter().collect(),
     };
 
+    let mut progress_updates = Vec::new();
     let Cancellable::Completed((_candidates, stats)) =
         discover_source_candidates_with_connection_and_progress(
             &source,
@@ -277,13 +278,27 @@ fn committed_one_file_delta_updates_only_that_identity_targets() {
             Some(&delta),
             false,
             &AtomicBool::new(false),
-            &mut |_, _| {},
+            &mut |update| progress_updates.push(update),
         )
         .expect("reconcile committed delta")
     else {
         panic!("delta reconciliation unexpectedly cancelled");
     };
     assert!(stats.delta_reconciled);
+    assert!(
+        progress_updates.iter().any(|update| {
+            update.phase == SourceDiscoveryPhase::ComparingChangedReadiness
+                && update.completed == 4
+                && update.total == 4
+        }),
+        "the changed file's three targets plus the source target must provide the denominator"
+    );
+    assert!(
+        !progress_updates
+            .iter()
+            .any(|update| update.phase == SourceDiscoveryPhase::InspectingManifest),
+        "a committed delta must not claim a complete manifest inspection"
+    );
     assert_eq!(
         connection
             .query_row(

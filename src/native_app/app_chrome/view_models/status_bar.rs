@@ -329,31 +329,40 @@ impl JobDetailsViewModel {
             .folder_browser
             .source_label(progress.source_id.as_str())
             .unwrap_or(progress.source_id.as_str());
+        let progress_label = if progress.total == 0 {
+            String::from("Active (total not available)")
+        } else {
+            let counts = format!(
+                "{}/{}",
+                progress.completed.min(progress.total),
+                progress.total
+            );
+            match source_processing_progress_unit(progress.stage.as_str()) {
+                Some(unit) => format!("{counts} {unit}"),
+                None => counts,
+            }
+        };
         Self {
-            rows: if progress.total == 0 {
-                let progress_label = if progress.stage == "Checking pending work" {
-                    "Progress: Counting pending jobs"
-                } else {
-                    "Progress: Active (total not available)"
-                };
-                [
-                    String::from("Type: Source processing"),
-                    format!("Source: {source}"),
-                    String::from(progress_label),
-                    format!("Current: {current}"),
-                ]
-            } else {
-                job_rows(
-                    "Source processing",
-                    source,
-                    progress.completed,
-                    progress.total,
-                    current.as_str(),
-                    "processed",
-                )
-            },
+            rows: [
+                String::from("Type: Source processing"),
+                format!("Source: {source}"),
+                format!("Progress: {progress_label}"),
+                format!("Current: {current}"),
+            ],
             source_scan_recovery: false,
         }
+    }
+}
+
+fn source_processing_progress_unit(stage: &str) -> Option<&'static str> {
+    match stage {
+        "Inspecting source manifest" => Some("files inspected"),
+        "Preparing readiness targets" => Some("files prepared"),
+        "Comparing source readiness" | "Comparing changed readiness" => {
+            Some("readiness targets compared")
+        }
+        "Queueing unfinished work" => Some("readiness targets checked"),
+        _ => None,
     }
 }
 
