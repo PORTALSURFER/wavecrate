@@ -1104,6 +1104,164 @@ fn targeted_watcher_hint_does_not_patch_browser_before_commit() {
 }
 
 #[test]
+fn watcher_paths_arriving_during_full_scan_coalesce_for_one_followup_sync() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 126)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+
+    for paths in [
+        vec![PathBuf::from("sample.wav")],
+        vec![
+            PathBuf::from("sample.wav"),
+            PathBuf::from("nested/extra.wav"),
+        ],
+    ] {
+        assert!(matches!(
+            workflow.plan_filesystem_change_for_generation(
+                &mut browser,
+                source_id.clone(),
+                &paths,
+                false,
+                true,
+                Some(7),
+            ),
+            SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
+        ));
+    }
+    assert!(workflow.next_pending_targeted_sync().is_none());
+
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Applied { .. }
+    ));
+    let pending = workflow
+        .next_pending_targeted_sync()
+        .expect("one targeted followup");
+    assert_eq!(pending.source_id, source_id);
+    assert_eq!(pending.lifecycle_generation, Some(7));
+    assert_eq!(
+        pending.paths,
+        vec![
+            PathBuf::from("nested/extra.wav"),
+            PathBuf::from("sample.wav")
+        ]
+    );
+    assert!(workflow.next_pending_targeted_sync().is_none());
+}
+
+#[test]
+fn pending_full_scan_subsumes_watcher_paths_before_execution() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 127)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, result);
+    workflow.queue_required_refresh_with_context(
+        source_id.clone(),
+        SourceRefreshCause::WatcherOverflow,
+        Some(9),
+    );
+
+    assert!(matches!(
+        workflow.plan_filesystem_change_for_generation(
+            &mut browser,
+            source_id.clone(),
+            &[PathBuf::from("sample.wav")],
+            false,
+            true,
+            Some(9),
+        ),
+        SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
+    ));
+    assert!(workflow.next_pending_targeted_sync().is_none());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
+}
+
+#[test]
+fn full_fallback_waits_for_active_targeted_sync_and_supersedes_queued_paths() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 128)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, result);
+    assert!(workflow.mark_targeted_sync_started(&source_id, 11));
+    assert!(matches!(
+        workflow.plan_filesystem_change_for_generation(
+            &mut browser,
+            source_id.clone(),
+            &[PathBuf::from("later.wav")],
+            false,
+            true,
+            Some(11),
+        ),
+        SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
+    ));
+
+    assert!(matches!(
+        workflow.begin_filesystem_refresh_with_context(
+            &mut browser,
+            source_id.clone(),
+            129,
+            SourceRefreshCause::FilesystemSyncIncomplete,
+            Some(11),
+        ),
+        SourceRefreshRequest::Deferred { .. }
+    ));
+    workflow.mark_targeted_sync_finished(&source_id, 11);
+
+    assert!(workflow.next_pending_targeted_sync().is_none());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
+}
+
+#[test]
+fn source_retirement_purges_targeted_sync_causal_state() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 130)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, result);
+    assert!(workflow.mark_targeted_sync_started(&source_id, 13));
+    assert!(matches!(
+        workflow.plan_filesystem_change_for_generation(
+            &mut browser,
+            source_id.clone(),
+            &[PathBuf::from("late.wav")],
+            false,
+            true,
+            Some(13),
+        ),
+        SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
+    ));
+
+    workflow.retire_source(&source_id);
+    workflow.mark_targeted_sync_finished(&source_id, 13);
+
+    assert!(workflow.next_pending_targeted_sync().is_none());
+    assert!(workflow.mark_targeted_sync_started(&source_id, 14));
+}
+
+#[test]
 fn switching_away_parks_live_discoveries_from_an_active_scan() {
     let first = temp_dir_with_wav();
     let second = temp_dir_with_wav();

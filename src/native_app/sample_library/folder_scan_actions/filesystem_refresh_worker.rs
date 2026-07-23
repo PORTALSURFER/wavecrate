@@ -20,6 +20,29 @@ const MAX_SYNC_ATTEMPTS: usize = 3;
 const SYNC_RETRY_DELAYS: [Duration; MAX_SYNC_ATTEMPTS - 1] =
     [Duration::from_millis(50), Duration::from_millis(200)];
 
+pub(in crate::native_app) fn recover_source_filesystem_sync(
+    source_id: String,
+    lifecycle_generation: u64,
+    changed_count: usize,
+    work: impl FnOnce() -> SourceFilesystemSyncResult,
+) -> SourceFilesystemSyncResult {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)) {
+        Ok(mut result) => {
+            result.lifecycle_generation = lifecycle_generation;
+            result
+        }
+        Err(_) => SourceFilesystemSyncResult {
+            source_id,
+            lifecycle_generation,
+            changed_count,
+            cancelled: false,
+            result: Err(String::from(
+                "Source filesystem sync worker stopped unexpectedly",
+            )),
+        },
+    }
+}
+
 pub(in crate::native_app) fn sync_source_database_paths(
     source_id: String,
     root: PathBuf,
@@ -263,7 +286,25 @@ mod tests {
 
     use wavecrate::sample_sources::{Rating, SourceDatabase, scanner};
 
-    use super::sync_source_database_paths;
+    use super::{recover_source_filesystem_sync, sync_source_database_paths};
+
+    #[test]
+    fn filesystem_sync_panic_returns_a_terminal_result() {
+        let result = recover_source_filesystem_sync(String::from("source"), 17, 2, || {
+            panic!("simulated targeted sync panic")
+        });
+
+        assert_eq!(result.source_id, "source");
+        assert_eq!(result.lifecycle_generation, 17);
+        assert_eq!(result.changed_count, 2);
+        assert!(!result.cancelled);
+        assert!(
+            result
+                .result
+                .expect_err("panic must become an error")
+                .contains("stopped unexpectedly")
+        );
+    }
 
     #[test]
     fn filesystem_sync_returns_deferred_rename_results_for_refresh() {

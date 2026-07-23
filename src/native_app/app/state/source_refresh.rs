@@ -1,10 +1,17 @@
-use std::time::Instant;
+use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
 pub(super) struct QueuedSourceRefresh {
     pub(super) source_id: String,
     pub(super) selection_requested: bool,
     pub(super) scan_required: bool,
     pub(super) cause: SourceRefreshCause,
+    pub(super) lifecycle_generation: Option<u64>,
+    pub(super) enqueued_at: Instant,
+}
+
+pub(super) struct QueuedTargetedSourceSync {
+    pub(super) source_id: String,
+    pub(super) paths: BTreeSet<PathBuf>,
     pub(super) lifecycle_generation: Option<u64>,
     pub(super) enqueued_at: Instant,
 }
@@ -67,6 +74,13 @@ impl SourceRefreshCause {
 pub(in crate::native_app) struct PendingSourceRefresh {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) cause: SourceRefreshCause,
+    pub(in crate::native_app) lifecycle_generation: Option<u64>,
+    pub(in crate::native_app) enqueued_at: Instant,
+}
+
+pub(in crate::native_app) struct PendingTargetedSourceSync {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) paths: Vec<PathBuf>,
     pub(in crate::native_app) lifecycle_generation: Option<u64>,
     pub(in crate::native_app) enqueued_at: Instant,
 }

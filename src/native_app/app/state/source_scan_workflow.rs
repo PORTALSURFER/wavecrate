@@ -1,10 +1,13 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::PathBuf,
     time::Instant,
 };
 
-use super::source_refresh::{PendingSourceRefresh, QueuedSourceRefresh, SourceRefreshCause};
+use super::source_refresh::{
+    PendingSourceRefresh, PendingTargetedSourceSync, QueuedSourceRefresh, QueuedTargetedSourceSync,
+    SourceRefreshCause,
+};
 
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
@@ -13,6 +16,7 @@ use crate::native_app::sample_library::folder_browser::{
         FolderScanResult,
     },
 };
+use wavecrate::sample_sources::scanner::CommittedSourceDelta;
 
 #[cfg(test)]
 #[path = "source_scan_workflow/tests.rs"]
@@ -22,6 +26,8 @@ mod tests;
 pub(in crate::native_app) struct SourceScanWorkflow {
     progress: Option<FolderScanProgress>,
     pending_refreshes: VecDeque<QueuedSourceRefresh>,
+    pending_targeted_syncs: BTreeMap<String, QueuedTargetedSourceSync>,
+    active_targeted_syncs: BTreeMap<String, u64>,
     retry_counts: BTreeMap<String, u32>,
 }
 
@@ -69,6 +75,7 @@ pub(in crate::native_app) enum SourceScanFinish {
         folder_count: usize,
         source_db_error: Option<String>,
         metadata_hydration_error: Option<String>,
+        committed_delta: Option<CommittedSourceDelta>,
         source_root_available: bool,
     },
     Stale {
@@ -85,6 +92,8 @@ impl SourceScanWorkflow {
         Self {
             progress: None,
             pending_refreshes: VecDeque::new(),
+            pending_targeted_syncs: BTreeMap::new(),
+            active_targeted_syncs: BTreeMap::new(),
             retry_counts: BTreeMap::new(),
         }
     }
@@ -187,6 +196,13 @@ impl SourceScanWorkflow {
             self.clear_pending_selection(&id);
             return SourceSelectionRequest::Settled;
         }
+        if self.active_targeted_syncs.contains_key(&id) {
+            self.queue_selected_required_refresh_with_cause(
+                id,
+                SourceRefreshCause::DeferredSelection,
+            );
+            return SourceSelectionRequest::Deferred;
+        }
         browser
             .begin_select_source(id, task_id)
             .map(SourceSelectionRequest::Queued)
@@ -199,6 +215,14 @@ impl SourceScanWorkflow {
         id: String,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        if self.active_targeted_syncs.contains_key(&id) {
+            self.queue_required_refresh_with_context(
+                id,
+                SourceRefreshCause::DeferredSelection,
+                None,
+            );
+            return None;
+        }
         browser.begin_source_scan(id, task_id)
     }
 
@@ -207,10 +231,20 @@ impl SourceScanWorkflow {
         browser: &mut FolderBrowserState,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        let source_id = browser.selected_source_id().to_string();
+        if self.active_targeted_syncs.contains_key(&source_id) {
+            self.queue_required_refresh_with_context(
+                source_id,
+                SourceRefreshCause::DeferredSelection,
+                None,
+            );
+            return None;
+        }
         browser.begin_selected_source_scan(task_id)
     }
 
     pub(in crate::native_app) fn start_scan(&mut self, request: &FolderScanRequest) {
+        self.remove_pending_targeted_sync(&request.source_id);
         let mut progress = FolderScanProgress::transition(
             request.task_id,
             request.source_id.clone(),
@@ -313,19 +347,44 @@ impl SourceScanWorkflow {
             browser.apply_observed_source_availability(&source_id, source_root_available)
         else {
             self.remove_pending_refresh(&source_id);
+            self.remove_targeted_sync(&source_id);
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         };
         if source_missing {
             self.remove_pending_refresh(&source_id);
+            self.remove_targeted_sync(&source_id);
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         }
         if !overflowed && !paths.is_empty() {
+            let full_scan_active_for_source = self
+                .progress
+                .as_ref()
+                .is_some_and(|progress| progress.source_id == source_id);
+            let full_scan_pending_for_source = self
+                .pending_refreshes
+                .iter()
+                .any(|pending| pending.source_id == source_id);
+            if full_scan_pending_for_source && !full_scan_active_for_source {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    path_count = paths.len(),
+                    outcome = "subsumed_by_pending_full_scan",
+                    "Source discovery causal plan merged watcher paths"
+                );
+                return SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id };
+            }
+            if full_scan_active_for_source || self.active_targeted_syncs.contains_key(&source_id) {
+                self.queue_targeted_sync(source_id.clone(), paths, lifecycle_generation);
+                return SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id };
+            }
             return SourceFilesystemChangePlan::SyncPaths {
                 source_id,
                 changed_count: paths.len(),
             };
         }
         if self.active() {
+            self.remove_pending_targeted_sync(&source_id);
             self.queue_required_refresh_with_context(
                 source_id.clone(),
                 SourceRefreshCause::WatcherOverflow,
@@ -334,6 +393,61 @@ impl SourceScanWorkflow {
             return SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id };
         }
         SourceFilesystemChangePlan::QueueRefresh { source_id }
+    }
+
+    pub(in crate::native_app) fn mark_targeted_sync_started(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+    ) -> bool {
+        if self.active_targeted_syncs.contains_key(source_id) {
+            return false;
+        }
+        self.active_targeted_syncs
+            .insert(source_id.to_string(), lifecycle_generation);
+        true
+    }
+
+    pub(in crate::native_app) fn mark_targeted_sync_finished(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+    ) {
+        if self.active_targeted_syncs.get(source_id) == Some(&lifecycle_generation) {
+            self.active_targeted_syncs.remove(source_id);
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn targeted_sync_active_for_tests(&self, source_id: &str) -> bool {
+        self.active_targeted_syncs.contains_key(source_id)
+    }
+
+    pub(in crate::native_app) fn next_pending_targeted_sync(
+        &mut self,
+    ) -> Option<PendingTargetedSourceSync> {
+        let source_id = self
+            .pending_targeted_syncs
+            .keys()
+            .find(|source_id| {
+                !self.active_targeted_syncs.contains_key(*source_id)
+                    && !self
+                        .progress
+                        .as_ref()
+                        .is_some_and(|progress| &progress.source_id == *source_id)
+                    && !self
+                        .pending_refreshes
+                        .iter()
+                        .any(|pending| &pending.source_id == *source_id)
+            })
+            .cloned()?;
+        let pending = self.pending_targeted_syncs.remove(&source_id)?;
+        Some(PendingTargetedSourceSync {
+            source_id: pending.source_id,
+            paths: pending.paths.into_iter().collect(),
+            lifecycle_generation: pending.lifecycle_generation,
+            enqueued_at: pending.enqueued_at,
+        })
     }
 
     #[cfg(test)]
@@ -361,13 +475,18 @@ impl SourceScanWorkflow {
         if self.active() {
             return None;
         }
-        let pending_selection = self
-            .pending_refreshes
-            .iter()
-            .rposition(|pending| pending.selection_requested);
+        let pending_selection = self.pending_refreshes.iter().rposition(|pending| {
+            pending.selection_requested
+                && !self.active_targeted_syncs.contains_key(&pending.source_id)
+        });
         pending_selection
             .and_then(|index| self.pending_refreshes.remove(index))
-            .or_else(|| self.pending_refreshes.pop_back())
+            .or_else(|| {
+                let runnable = self.pending_refreshes.iter().rposition(|pending| {
+                    !self.active_targeted_syncs.contains_key(&pending.source_id)
+                })?;
+                self.pending_refreshes.remove(runnable)
+            })
             .map(|pending| PendingSourceRefresh {
                 source_id: pending.source_id,
                 cause: pending.cause,
@@ -389,6 +508,7 @@ impl SourceScanWorkflow {
     /// permanently active while the removed source no longer exists in the browser model.
     pub(in crate::native_app) fn retire_source(&mut self, source_id: &str) -> bool {
         self.remove_pending_refresh(source_id);
+        self.remove_targeted_sync(source_id);
         self.retry_counts.remove(source_id);
         let active = self
             .progress
@@ -457,6 +577,15 @@ impl SourceScanWorkflow {
                 source_id,
                 accepted_revision,
             };
+        }
+        if self.active_targeted_syncs.contains_key(&source_id) {
+            self.remove_pending_targeted_sync(&source_id);
+            self.queue_required_refresh_with_context(
+                source_id.clone(),
+                cause,
+                lifecycle_generation,
+            );
+            return SourceRefreshRequest::Deferred { source_id };
         }
         if let Some(request) = browser.begin_source_scan(source_id.clone(), task_id) {
             return SourceRefreshRequest::Queued(request);
@@ -527,6 +656,7 @@ impl SourceScanWorkflow {
         cause: SourceRefreshCause,
         lifecycle_generation: Option<u64>,
     ) {
+        self.remove_pending_targeted_sync(&source_id);
         let previous = self
             .pending_refreshes
             .iter()
@@ -570,6 +700,46 @@ impl SourceScanWorkflow {
             .retain(|pending| pending.source_id != source_id);
     }
 
+    fn queue_targeted_sync(
+        &mut self,
+        source_id: String,
+        paths: &[PathBuf],
+        lifecycle_generation: Option<u64>,
+    ) {
+        let pending = self
+            .pending_targeted_syncs
+            .entry(source_id.clone())
+            .or_insert_with(|| QueuedTargetedSourceSync {
+                source_id: source_id.clone(),
+                paths: BTreeSet::new(),
+                lifecycle_generation,
+                enqueued_at: Instant::now(),
+            });
+        if pending.lifecycle_generation != lifecycle_generation {
+            pending.paths.clear();
+            pending.lifecycle_generation = lifecycle_generation;
+            pending.enqueued_at = Instant::now();
+        }
+        pending.paths.extend(paths.iter().cloned());
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            source_id,
+            path_count = pending.paths.len(),
+            lifecycle_generation = ?pending.lifecycle_generation,
+            outcome = "coalesced_targeted_paths",
+            "Source discovery causal plan merged watcher paths"
+        );
+    }
+
+    fn remove_pending_targeted_sync(&mut self, source_id: &str) {
+        self.pending_targeted_syncs.remove(source_id);
+    }
+
+    fn remove_targeted_sync(&mut self, source_id: &str) {
+        self.remove_pending_targeted_sync(source_id);
+        self.active_targeted_syncs.remove(source_id);
+    }
+
     #[cfg(test)]
     pub(in crate::native_app) fn finish_scan(
         &mut self,
@@ -593,6 +763,7 @@ impl SourceScanWorkflow {
         let folder_count = result.folder_count;
         let source_db_error = result.source_db_error.clone();
         let metadata_hydration_error = result.metadata_hydration.error().map(str::to_owned);
+        let committed_delta = result.committed_delta.clone();
         let source_root_available = result.source_root_available;
         let queue_age_ms = self
             .progress
@@ -686,6 +857,7 @@ impl SourceScanWorkflow {
                 folder_count,
                 source_db_error,
                 metadata_hydration_error,
+                committed_delta,
                 source_root_available,
             }
         } else {

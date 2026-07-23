@@ -70,6 +70,38 @@ fn non_mutating_source_requests_preserve_in_flight_generation() {
 }
 
 #[test]
+fn unchanged_foreground_scan_release_does_not_request_generic_discovery() {
+    let (_directory, source) = unhashed_source("unchanged-foreground-release");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    {
+        let mut control = supervisor.shared.control();
+        control.dirty_sources.clear();
+        control
+            .awaiting_foreground_refresh_sources
+            .remove(source.id.as_str());
+    }
+
+    supervisor
+        .finish_foreground_source_refresh(source.id.as_str(), "unchanged_foreground_scan");
+
+    let control = supervisor.shared.control();
+    assert!(
+        !control.dirty_sources.contains(source.id.as_str()),
+        "an unchanged foreground scan must remain a bounded no-op"
+    );
+    assert!(
+        !control
+            .pending_readiness_deltas
+            .contains_key(source.id.as_str())
+    );
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
 fn explicit_reanalysis_cancels_current_work_without_implicit_priority() {
     let (_directory, source) = unhashed_source("explicit-reanalysis-request");
     let mut supervisor = SourceProcessingSupervisor::dormant();

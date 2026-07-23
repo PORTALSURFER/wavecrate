@@ -6,6 +6,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum ReadinessIntent {
+    Preserve,
     RequestConvergence,
     InvalidateAndRequestConvergence,
     Reanalyze,
@@ -77,6 +78,7 @@ impl NativeAppState {
             SourcePriorityIntent::PromoteIfSelected => {}
         }
         match intents.readiness {
+            ReadinessIntent::Preserve => {}
             ReadinessIntent::RequestConvergence => self
                 .background
                 .source_processing
@@ -157,7 +159,7 @@ mod tests {
         feedback: SourceFeedbackIntent::Preserve,
     };
     const SCAN_COMPLETION: SourcePrepIntents = SourcePrepIntents {
-        readiness: ReadinessIntent::RequestConvergence,
+        readiness: ReadinessIntent::Preserve,
         priority: SourcePriorityIntent::PromoteIfSelected,
         metadata_refresh: MetadataRefreshIntent::Force,
         refresh_waveform_cache_projection_if_selected: true,
