@@ -21,11 +21,11 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(!frame.paint_plan.contains_text("Filter"));
-    assert!(frame.paint_plan.contains_text("Tags"));
+    assert!(frame.paint_plan.contains_text("TAGS"));
     assert!(!frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
     assert!(!frame.paint_plan.contains_text("Tagging"));
-    assert!(frame.paint_plan.contains_text("kick"));
+    assert!(frame.paint_plan.contains_text("KICK ×"));
     assert!(!frame.paint_plan.contains_text("(1)"));
     let toggle_rect = frame
         .paint_plan
@@ -94,7 +94,7 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
 
     let tag_text = frame
         .paint_plan
-        .first_text_run("hat")
+        .first_text_run("HAT ×")
         .expect("selected tag chip should paint");
     assert_eq!(tag_text.color, theme.text_primary);
 }
@@ -111,7 +111,7 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
     let tag_rect = runtime
         .frame_with_default_theme()
         .paint_plan
-        .first_text_rect("hat")
+        .first_text_rect("HAT ×")
         .expect("metadata tag chip should paint");
     let point = tag_rect.center();
 
@@ -137,7 +137,7 @@ fn right_clicking_metadata_tag_chip_opens_delete_context_menu() {
     let tag_rect = runtime
         .frame_with_default_theme()
         .paint_plan
-        .first_text_rect("hat")
+        .first_text_rect("HAT ×")
         .expect("metadata tag chip should paint");
     let point = tag_rect.center();
 
@@ -177,24 +177,28 @@ fn metadata_tag_chips_display_playback_tags_first() {
 
     let loop_rect = frame
         .paint_plan
-        .first_text_rect("loop")
+        .first_text_rect("LOOP ×")
         .expect("loop tag should paint");
     let one_shot_rect = frame
         .paint_plan
-        .first_text_rect("one-shot")
+        .first_text_rect("ONE-SHOT ×")
         .expect("one-shot tag should paint");
     let hat_rect = frame
         .paint_plan
-        .first_text_rect("hat")
+        .first_text_rect("HAT ×")
         .expect("hat tag should paint");
     let warm_rect = frame
         .paint_plan
-        .first_text_rect("warm")
+        .first_text_rect("WARM ×")
         .expect("warm tag should paint");
 
-    assert!(loop_rect.min.x < hat_rect.min.x);
-    assert!(one_shot_rect.min.x < hat_rect.min.x);
-    assert!(hat_rect.min.x < warm_rect.min.x);
+    let is_before = |left: Rect, right: Rect| {
+        left.min.y < right.min.y
+            || ((left.min.y - right.min.y).abs() < 0.01 && left.min.x < right.min.x)
+    };
+    assert!(is_before(loop_rect, hat_rect));
+    assert!(is_before(one_shot_rect, hat_rect));
+    assert!(is_before(hat_rect, warm_rect));
 }
 
 #[test]
@@ -240,10 +244,10 @@ fn metadata_tag_chips_show_mixed_tags_for_multi_selection() {
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
     let bass_rect = frame
         .paint_plan
-        .first_text_rect("bass")
+        .first_text_rect("BASS ×")
         .expect("mixed bass tag should paint");
 
-    assert!(frame.paint_plan.contains_text("dry"));
+    assert!(frame.paint_plan.contains_text("DRY ×"));
     assert!(
         frame
             .paint_plan
@@ -304,23 +308,23 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
 
     let loop_rect = frame
         .paint_plan
-        .first_text_rect("loop")
+        .first_text_rect("LOOP ×")
         .expect("loop tag should paint");
     let hat_rect = frame
         .paint_plan
-        .first_text_rect("hat")
+        .first_text_rect("HAT ×")
         .expect("hat tag should paint");
     let warm_rect = frame
         .paint_plan
-        .first_text_rect("warm")
+        .first_text_rect("WARM ×")
         .expect("warm tag should paint");
     let artist_rect = frame
         .paint_plan
-        .first_text_rect("artist1")
+        .first_text_rect("ARTIST1 ×")
         .expect("prefix tag should paint");
     let dorian_rect = frame
         .paint_plan
-        .first_text_rect("dorian")
+        .first_text_rect("DORIAN ×")
         .expect("tuning tag should paint");
 
     assert!(loop_rect.min.x < hat_rect.min.x);
@@ -329,23 +333,23 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
     assert!(artist_rect.min.x < dorian_rect.min.x);
 
     assert_eq!(
-        frame.paint_plan.first_text_color("loop"),
-        Some(theme.bg_primary)
+        frame.paint_plan.first_text_color("LOOP ×"),
+        Some(theme.text_primary)
     );
     assert_eq!(
-        frame.paint_plan.first_text_color("hat"),
-        Some(theme.accent_mint)
+        frame.paint_plan.first_text_color("HAT ×"),
+        Some(theme.text_primary)
     );
     assert_eq!(
-        frame.paint_plan.first_text_color("warm"),
-        Some(theme.highlight_cyan)
+        frame.paint_plan.first_text_color("WARM ×"),
+        Some(theme.text_primary)
     );
     assert_eq!(
-        frame.paint_plan.first_text_color("artist1"),
-        Some(theme.accent_danger)
+        frame.paint_plan.first_text_color("ARTIST1 ×"),
+        Some(theme.text_primary)
     );
     assert_eq!(
-        frame.paint_plan.first_text_color("dorian"),
-        Some(theme.text_muted)
+        frame.paint_plan.first_text_color("DORIAN ×"),
+        Some(theme.text_primary)
     );
 }

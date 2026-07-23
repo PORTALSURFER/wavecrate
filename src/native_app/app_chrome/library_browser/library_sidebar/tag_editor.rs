@@ -17,7 +17,7 @@ mod rows;
 use projection::{TagEditorFieldProjection, TagEditorProjection};
 use rows::tag_entry_row;
 
-const METADATA_PANEL_PADDING: f32 = 10.0;
+use super::METADATA_PANEL_PADDING;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 const METADATA_TAG_LIBRARY_TOGGLE_WIDTH: f32 = 22.0;
 

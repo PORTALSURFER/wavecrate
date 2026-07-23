@@ -13,6 +13,8 @@ mod status;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+pub(in crate::native_app) use identity::retained_folder_row_input_id as folder_row_widget_id;
 use rows::{folder_row, folder_tree_guide_style};
 use status::selected_folder_status;
 

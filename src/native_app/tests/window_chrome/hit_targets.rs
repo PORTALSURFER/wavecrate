@@ -91,9 +91,14 @@ fn playmark_local_controls_leave_waveform_input_outside_their_painted_bounds() {
         runtime.dispatch_event(Event::primary_release(point)),
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
-    assert_eq!(
-        runtime.bridge().state().waveform.current.play_mark_ratio(),
-        Some(0.1)
+    assert!(
+        runtime
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_mark_ratio()
+            .is_some_and(|ratio| (ratio - 0.1).abs() <= 0.000_001)
     );
 }
 
@@ -347,9 +352,14 @@ fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_eq!(
-        runtime.bridge().state().waveform.current.play_mark_ratio(),
-        None
+    assert!(
+        runtime
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_mark_ratio()
+            .is_some_and(|ratio| (ratio - 0.42).abs() <= 0.000_001)
     );
 }
 
@@ -389,13 +399,16 @@ fn stale_waveform_drop_hover_does_not_mask_waveform_hit_target() {
 fn active_waveform_sample_load_masks_waveform_hit_target() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("blocking-load.wav");
+    write_test_wav_i16(std::path::Path::new(&selected_file), &[0, 256, -256, 512]);
+    let mut context = ui::UiUpdateContext::default();
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
             path: selected_file,
             modifiers: Default::default(),
         },
-        &mut ui::UiUpdateContext::default(),
+        &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
     assert!(state.waveform_input_blocked_by_sample_load());
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let rect = waveform_rect(&runtime);

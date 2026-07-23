@@ -25,9 +25,12 @@ use source_section::source_selector;
 use tag_editor::tag_editor_section;
 
 pub(in crate::native_app) const LIBRARY_SIDEBAR_PADDING: f32 = 0.0;
+pub(in crate::native_app) const METADATA_PANEL_PADDING: f32 = 10.0;
 const LIBRARY_SIDEBAR_SECTION_SPACING: f32 = 0.0;
 const LIBRARY_SIDEBAR_SECTION_DIVIDER_HEIGHT: f32 = 1.0;
 
+#[cfg(test)]
+pub(in crate::native_app) use folder_tree::folder_row_widget_id;
 pub(in crate::native_app) use source_section::source_row_widget_id;
 pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;

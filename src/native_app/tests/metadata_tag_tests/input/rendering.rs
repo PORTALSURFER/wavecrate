@@ -32,7 +32,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
     )
     .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
-    assert!(frame.paint_plan.contains_text("kick"));
+    assert!(frame.paint_plan.contains_text("KICK ×"));
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");
     assert_eq!(tag_input.state.value, "ki");
     assert_eq!(tag_input.state.selection_anchor, 2);
@@ -43,7 +43,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
     assert!(!frame.paint_plan.contains_text("kicker"));
     assert!(!frame.paint_plan.contains_text("Character"));
     assert!(!frame.paint_plan.contains_text("Tab kick"));
-    assert!(frame.paint_plan.contains_text("warm"));
+    assert!(frame.paint_plan.contains_text("WARM ×"));
     assert!(
         frame
             .paint_plan

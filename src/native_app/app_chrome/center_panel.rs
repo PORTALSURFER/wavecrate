@@ -11,7 +11,6 @@ use crate::native_app::app_chrome::view_models::{
 };
 use crate::native_app::app_chrome::waveform_context_menu;
 
-const METADATA_PANEL_PADDING: f32 = 6.0;
 const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
 const LIBRARY_SIDEBAR_RESIZE_HIT_WIDTH: f32 = 5.0;
 const LIBRARY_SIDEBAR_RESIZE_RAIL_WIDTH: f32 = 1.0;
@@ -96,7 +95,8 @@ fn metadata_completion_overlay(state: &NativeAppState) -> Option<ui::View<GuiMes
     }
     let tag_field_content_width =
         library_sidebar::tag_field_content_width(state.ui.chrome.folder_panel.size());
-    let inset_x = library_sidebar::LIBRARY_SIDEBAR_PADDING + METADATA_PANEL_PADDING;
+    let inset_x =
+        library_sidebar::LIBRARY_SIDEBAR_PADDING + library_sidebar::METADATA_PANEL_PADDING;
     let metadata_panel_height = state.library.folder_browser.metadata_panel_height();
     let inset_y = BOTTOM_STATUS_BAR_HEIGHT
         + library_sidebar::LIBRARY_SIDEBAR_PADDING

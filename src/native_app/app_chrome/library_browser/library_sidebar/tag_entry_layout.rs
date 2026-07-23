@@ -8,7 +8,7 @@ use radiant::{gui::flow as flow_ui, prelude as ui};
 pub(super) const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
 pub(super) const TAG_FIELD_ITEM_GAP: f32 = 3.0;
 pub(super) const TAG_FIELD_LINE_GAP: f32 = 3.0;
-const TAG_FIELD_HORIZONTAL_CHROME: f32 = 26.0;
+const TAG_FIELD_HORIZONTAL_CHROME: f32 = 34.0;
 const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
 const TAG_FIELD_MIN_CONTENT_WIDTH: f32 = 120.0;
 const MAX_TAG_FIELD_ROWS: usize = 6;

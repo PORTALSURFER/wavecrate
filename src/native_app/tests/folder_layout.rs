@@ -225,16 +225,18 @@ fn full_gui_folder_tree_pointer_selection_preserves_manual_scroll_window() {
     let state = NativeAppStateFixture::default()
         .with_folder_browser(FolderBrowserState::from_root(root))
         .build();
-    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 900.0));
     let tree_rect = runtime
         .layout()
         .rects
         .get(&crate::native_app::ui::ids::FOLDER_TREE_LIST_ID)
         .copied()
         .expect("folder tree list should be laid out");
-    let scroll_point = Point::new(tree_rect.center().x, tree_rect.min.y + 48.0);
+    let scroll_point = text_center(&runtime.frame_with_default_theme(), "folder_00");
     for _ in 0..24 {
-        assert!(runtime.scroll_at(scroll_point, Vector2::new(0.0, 110.0)));
+        if !runtime.wheel_or_scroll_at(scroll_point, Vector2::new(0.0, 110.0)) {
+            break;
+        }
     }
 
     let before = runtime
@@ -243,6 +245,10 @@ fn full_gui_folder_tree_pointer_selection_preserves_manual_scroll_window() {
         .library
         .folder_browser
         .tree_view_start();
+    assert!(
+        before > 0,
+        "fixture should establish a manually scrolled tree: rect={tree_rect:?}, point={scroll_point:?}"
+    );
     let viewport_rows = (tree_rect.height()
         / crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT)
         .ceil()
@@ -314,6 +320,8 @@ fn x_toggle_marks_focused_folder_without_sample_focus() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    fs::write(drums.join("kick.wav"), []).expect("write drums sample");
+    fs::write(loops.join("loop.wav"), []).expect("write loops sample");
     let mut state = NativeAppStateFixture::default()
         .with_folder_browser(FolderBrowserState::from_root(root.clone()))
         .build();

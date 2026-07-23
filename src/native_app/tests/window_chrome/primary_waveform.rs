@@ -56,9 +56,14 @@ fn full_app_scene_primary_waveform_click_starts_playback_with_play_mark() {
         "click-to-play should request a repaint immediately after release"
     );
 
-    assert_eq!(
-        runtime.bridge().state().waveform.current.play_mark_ratio(),
-        Some(0.42)
+    assert!(
+        runtime
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .play_mark_ratio()
+            .is_some_and(|ratio| (ratio - 0.42).abs() <= 0.000_001)
     );
     assert_eq!(
         runtime.bridge().state().waveform.current.play_selection(),
@@ -158,15 +163,15 @@ fn native_pointer_shell_primary_waveform_click_starts_playback_with_play_mark() 
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
 
-    assert_eq!(
+    assert!(
         harness
             .runtime()
             .bridge()
             .state()
             .waveform
             .current
-            .play_mark_ratio(),
-        Some(0.42)
+            .play_mark_ratio()
+            .is_some_and(|ratio| (ratio - 0.42).abs() <= 0.000_001)
     );
     assert_eq!(
         harness
