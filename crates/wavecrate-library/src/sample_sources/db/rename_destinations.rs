@@ -176,6 +176,31 @@ impl SourceWriteBatch<'_> {
         Ok(())
     }
 
+    /// Resolve transient destinations whose authoritative manifest hash is now available.
+    pub fn resolve_hashed_pending_rename_destinations(&mut self) -> Result<(), SourceDbError> {
+        self.tx
+            .execute(
+                "UPDATE pending_wav_rename_destinations AS destination
+                 SET retained_hash = (
+                     SELECT present.content_hash
+                     FROM wav_files AS present
+                     WHERE present.path = destination.path
+                       AND present.missing = 0
+                 )
+                 WHERE destination.retained_hash IS NULL
+                   AND EXISTS (
+                       SELECT 1
+                       FROM wav_files AS present
+                       WHERE present.path = destination.path
+                         AND present.missing = 0
+                         AND present.content_hash IS NOT NULL
+                   )",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
     /// Remove a retained destination and report whether it belonged to unresolved recovery.
     pub fn clear_retained_pending_rename_destination(
         &mut self,

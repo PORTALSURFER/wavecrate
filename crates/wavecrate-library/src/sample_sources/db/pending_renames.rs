@@ -311,12 +311,19 @@ impl<'conn> SourceWriteBatch<'conn> {
             self.tx
                 .execute(
                     "DELETE FROM pending_wav_renames AS pending
-                     WHERE pending.content_hash IS NULL
-                        OR NOT EXISTS (
-                            SELECT 1
-                            FROM pending_wav_rename_destinations AS destination
-                            WHERE destination.retained_hash = pending.content_hash
-                        )",
+                     WHERE (
+                         pending.content_hash IS NULL
+                         OR NOT EXISTS (
+                             SELECT 1
+                             FROM pending_wav_rename_destinations AS destination
+                             WHERE destination.retained_hash = pending.content_hash
+                         )
+                     )
+                       AND NOT EXISTS (
+                           SELECT 1
+                           FROM pending_wav_rename_destinations AS active
+                           WHERE active.retained_hash IS NULL
+                       )",
                     [],
                 )
                 .map_err(map_sql_error)?
@@ -693,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_destination_defers_generation_pruning() {
+    fn unresolved_destination_defers_quick_and_hard_pruning() {
         let directory = tempdir().unwrap();
         std::fs::write(directory.path().join("old.wav"), b"same").unwrap();
         let database =
@@ -729,6 +736,21 @@ mod tests {
                 .unwrap()
                 .candidate_count,
             1
+        );
+
+        let mut batch = database.write_batch().unwrap();
+        let report = batch
+            .complete_pending_rename_authoritative_scan(true)
+            .unwrap();
+        assert_eq!(report.candidates_pruned, 0);
+        batch.commit_auxiliary_state().unwrap();
+        assert_eq!(
+            database
+                .pending_rename_diagnostics()
+                .unwrap()
+                .candidate_count,
+            1,
+            "hard completion must retain metadata while a destination hash is unresolved"
         );
     }
 

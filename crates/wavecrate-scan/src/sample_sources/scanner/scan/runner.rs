@@ -370,10 +370,13 @@ pub(crate) fn reconcile_scan_renames(
         .iter()
         .cloned()
         .collect::<HashSet<_>>();
-    let persisted_candidates = db
-        .list_retained_rename_destinations()?
-        .into_iter()
-        .collect::<HashSet<_>>();
+    let persisted_candidates = if context.mode == ScanMode::Hard {
+        db.list_pending_rename_destinations()?
+    } else {
+        db.list_retained_rename_destinations()?
+    }
+    .into_iter()
+    .collect::<HashSet<_>>();
     let mut candidates = current_candidates.clone();
     candidates.extend(persisted_candidates.iter().cloned());
     let carried_candidates_need_revalidation = persisted_candidates
@@ -444,10 +447,11 @@ fn finalize_pending_rename_completion(
     let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
     let mut batch = db.write_batch()?;
     if mode == ScanMode::Hard {
+        batch.resolve_hashed_pending_rename_destinations()?;
         batch.prune_invalid_retained_rename_destinations()?;
     }
     let report = batch.complete_pending_rename_authoritative_scan(mode == ScanMode::Hard)?;
-    if mode == ScanMode::Hard {
+    if mode == ScanMode::Hard && report.diagnostics.candidate_count == 0 {
         batch.clear_unretained_pending_rename_destinations()?;
     }
     batch.commit_auxiliary_state()?;
