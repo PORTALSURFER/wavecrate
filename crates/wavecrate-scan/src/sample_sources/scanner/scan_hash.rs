@@ -94,9 +94,10 @@ impl ContentAuditBudget {
             (false, false) => (Duration::from_secs(5), 512 * 1024 * 1024, 4_096),
             (false, true) => (Duration::from_secs(10), 1024 * 1024 * 1024, 8_192),
         };
+        let minimum_entries = if total_entries > 1 { 2 } else { 1 };
         let max_entries = desired_entries
             .saturating_mul(if accelerated { 4 } else { 1 })
-            .clamp(1, hard_entry_cap);
+            .clamp(minimum_entries, hard_entry_cap);
         Self {
             max_elapsed,
             max_bytes,
@@ -195,6 +196,16 @@ fn verify_content_batch_with_hooks(
         db.begin_or_resume_content_audit(now, manifest_revision)?
     };
     let states = db.content_audit_entry_states()?;
+    let forward_is_due = entries.iter().any(|entry| {
+        states.get(&entry.relative_path).is_none_or(|state| {
+            !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
+        })
+    });
+    let retry_limit = budget.retry_entries.min(
+        budget
+            .max_entries
+            .saturating_sub(usize::from(forward_is_due)),
+    );
     let mut retry = entries
         .iter()
         .filter(|entry| {
@@ -202,7 +213,7 @@ fn verify_content_batch_with_hooks(
                 !state.verifies(entry, checkpoint.rotation_id) && state.retry_is_due(now)
             })
         })
-        .take(budget.retry_entries.min(budget.max_entries))
+        .take(retry_limit)
         .cloned()
         .collect::<Vec<_>>();
     let retry_paths = retry
@@ -1015,6 +1026,17 @@ mod tests {
         assert_eq!(busy_external.max_entries, 967);
         assert_eq!(busy_external.max_elapsed, Duration::from_secs(1));
         assert_eq!(busy_external.max_bytes, 64 * 1024 * 1024);
+        assert_eq!(
+            ContentAuditBudget::adaptive(
+                30,
+                ContentAuditActivity::default(),
+                ContentAuditStorage::Local,
+                false,
+            )
+            .max_entries,
+            2,
+            "multi-entry adaptive slices must reserve retry and forward capacity"
+        );
 
         let seven_day = ContentAuditBudget::adaptive_for_target(
             10_000,
@@ -1199,6 +1221,47 @@ mod tests {
         let state = database.content_audit_entry_states().unwrap();
         assert_eq!(state[Path::new("sample-00000.wav")].skip_reason, None);
         assert_eq!(state[Path::new("sample-00000.wav")].attempts, 2);
+    }
+
+    #[test]
+    fn due_retry_cannot_consume_the_only_forward_progress_slot() {
+        let (directory, database) = content_fixture(2, 32);
+        let changing = directory.path().join("sample-00000.wav");
+        verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            ContentAuditBudget::entry_limited(1),
+            100,
+            &UncoordinatedScanWriter,
+            |path| {
+                assert_eq!(path, changing);
+                std::fs::write(path, [7_u8; 64]).expect("mutate during hash");
+            },
+        )
+        .expect("record unstable entry");
+
+        let forward =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 1_000)
+                .expect("reserve the only slot for forward progress");
+
+        assert_eq!(forward.hashes_computed, 1);
+        let states = database.content_audit_entry_states().unwrap();
+        assert_eq!(
+            states[Path::new("sample-00000.wav")].attempts,
+            1,
+            "the due retry must remain queued while forward work owns the only slot"
+        );
+        assert!(
+            states[Path::new("sample-00001.wav")].verifies(
+                &database
+                    .list_manifest_entries()
+                    .unwrap()
+                    .into_iter()
+                    .find(|entry| entry.relative_path == Path::new("sample-00001.wav"))
+                    .unwrap(),
+                1,
+            )
+        );
     }
 
     #[test]
