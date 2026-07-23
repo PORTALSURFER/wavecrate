@@ -136,17 +136,35 @@ impl ContentAuditStorage {
         }
         #[cfg(target_os = "macos")]
         {
-            if root.starts_with("/Volumes") {
-                Self::ExternalOrNetwork
-            } else {
-                Self::Local
-            }
+            classify_macos_storage(root)
         }
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             let _ = root;
             classify_unknown_storage()
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn classify_macos_storage(root: &std::path::Path) -> ContentAuditStorage {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(source) = std::fs::metadata(root) else {
+        return ContentAuditStorage::ExternalOrNetwork;
+    };
+    let Ok(local_anchor) = std::fs::metadata("/Users") else {
+        return ContentAuditStorage::ExternalOrNetwork;
+    };
+    classify_macos_device(source.dev(), local_anchor.dev())
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn classify_macos_device(source_device: u64, local_device: u64) -> ContentAuditStorage {
+    if source_device == local_device {
+        ContentAuditStorage::Local
+    } else {
+        ContentAuditStorage::ExternalOrNetwork
     }
 }
 
@@ -1159,6 +1177,20 @@ mod tests {
             classify_unknown_storage(),
             ContentAuditStorage::ExternalOrNetwork,
             "platforms without mount classification must fail conservatively"
+        );
+    }
+
+    #[test]
+    fn macos_only_grants_local_budget_to_the_normal_local_mount() {
+        assert_eq!(
+            classify_macos_device(7, 7),
+            ContentAuditStorage::Local,
+            "the normal local device receives the local budget"
+        );
+        assert_eq!(
+            classify_macos_device(8, 7),
+            ContentAuditStorage::ExternalOrNetwork,
+            "a distinct mounted filesystem receives the conservative budget"
         );
     }
 
