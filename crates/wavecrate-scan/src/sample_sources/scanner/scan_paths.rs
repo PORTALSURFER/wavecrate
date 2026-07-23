@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -146,7 +146,12 @@ fn normalized_targets(paths: &[PathBuf]) -> BTreeSet<PathBuf> {
     paths
         .iter()
         .filter(|path| !path.as_os_str().is_empty())
-        .filter(|path| path.is_relative())
+        .filter(|path| {
+            path.is_relative()
+                && path
+                    .components()
+                    .all(|component| matches!(component, Component::CurDir | Component::Normal(_)))
+        })
         .cloned()
         .collect()
 }
@@ -168,12 +173,54 @@ fn collect_current_files(
     cancel: Option<&AtomicBool>,
     current_files: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
-    if absolute_path.is_dir() {
+    if has_symlinked_target_ancestor(root, absolute_path)? {
+        return Ok(());
+    }
+    let metadata = match fs::symlink_metadata(absolute_path) {
+        Ok(metadata) => metadata,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => {
+            return Err(ScanError::Io {
+                path: absolute_path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    let file_type = metadata.file_type();
+    if file_type.is_symlink() {
+        return Ok(());
+    }
+    if file_type.is_dir() {
         collect_current_files_in_dir(absolute_path, root, cancel, current_files)?;
-    } else if absolute_path.is_file() && is_supported_audio(absolute_path) {
+    } else if file_type.is_file() && is_supported_audio(absolute_path) {
         current_files.insert(strip_relative(root, absolute_path)?);
     }
     Ok(())
+}
+
+fn has_symlinked_target_ancestor(root: &Path, absolute_path: &Path) -> Result<bool, ScanError> {
+    let relative_path = absolute_path
+        .strip_prefix(root)
+        .map_err(|_| ScanError::InvalidRoot(absolute_path.to_path_buf()))?;
+    let mut candidate = root.to_path_buf();
+    for component in relative_path.components() {
+        let Component::Normal(part) = component else {
+            continue;
+        };
+        candidate.push(part);
+        match fs::symlink_metadata(&candidate) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(true),
+            Ok(_) => {}
+            Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(source) => {
+                return Err(ScanError::Io {
+                    path: candidate,
+                    source,
+                });
+            }
+        }
+    }
+    Ok(false)
 }
 
 fn collect_current_files_in_dir(

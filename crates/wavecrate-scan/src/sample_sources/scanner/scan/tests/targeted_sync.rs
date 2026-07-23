@@ -229,3 +229,63 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
     assert_eq!(resumed.total_files, 70);
     assert_eq!(db.count_files().unwrap(), 70);
 }
+
+#[cfg(unix)]
+#[test]
+fn targeted_sync_skips_directory_symlink_targets() {
+    use std::os::unix::fs as unix_fs;
+
+    let source = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    std::fs::create_dir_all(source.path().join("nested")).unwrap();
+    std::fs::write(source.path().join("nested/keep.wav"), b"keep").unwrap();
+    std::fs::write(outside.path().join("outside.wav"), b"outside").unwrap();
+    unix_fs::symlink(outside.path(), source.path().join("outside-link")).unwrap();
+    unix_fs::symlink(source.path(), source.path().join("ancestor-loop")).unwrap();
+
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+    scan_once(&db).unwrap();
+    let stats = sync_paths(
+        &db,
+        &[
+            PathBuf::from("outside-link"),
+            PathBuf::from("outside-link/outside.wav"),
+            PathBuf::from("ancestor-loop"),
+            PathBuf::from("ancestor-loop/nested/keep.wav"),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(stats.total_files, 0);
+    let rows = db.list_files().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, Path::new("nested/keep.wav"));
+}
+
+#[cfg(unix)]
+#[test]
+fn targeted_sync_retires_a_file_replaced_by_a_symlink() {
+    use std::os::unix::fs as unix_fs;
+
+    let source = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let tracked = source.path().join("tracked.wav");
+    std::fs::write(&tracked, b"tracked").unwrap();
+    std::fs::write(outside.path().join("outside.wav"), b"outside").unwrap();
+
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::remove_file(&tracked).unwrap();
+    unix_fs::symlink(outside.path().join("outside.wav"), &tracked).unwrap();
+
+    let stats = sync_paths(&db, &[PathBuf::from("tracked.wav")]).unwrap();
+
+    assert_eq!(stats.total_files, 0);
+    assert_eq!(stats.missing, 1);
+    assert!(
+        db.entry_for_path(Path::new("tracked.wav"))
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(stats.committed_delta.deleted.len(), 1);
+}
