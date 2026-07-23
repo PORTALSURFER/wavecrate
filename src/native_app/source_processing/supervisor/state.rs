@@ -5,8 +5,8 @@ use super::recovered_source_retirements;
 use super::{
     Arc, AtomicBool, AtomicU64, BTreeMap, BTreeSet, BudgetTracker, Condvar, ControlState,
     DatabaseWriterGate, Mutex, MutexGuard, Ordering, PriorityContext, ProcessingBudgets,
-    SampleSource, SourceProcessingEvent, SourceProcessingEventSink, SupervisorTelemetry,
-    sources_by_id,
+    SampleSource, SourceProcessingEvent, SourceProcessingEventSink, SourceProcessingHealthEvent,
+    SupervisorTelemetry, sources_by_id,
 };
 
 #[derive(Clone)]
@@ -76,6 +76,7 @@ pub(super) struct Shared {
     pub(super) in_flight_work: Mutex<BTreeMap<(String, u64), usize>>,
     pub(super) synthetic_test_execution: AtomicBool,
     pub(super) event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
+    pub(super) published_source_health: Mutex<BTreeMap<String, SourceProcessingHealthEvent>>,
     #[cfg(test)]
     pub(super) retirement_cleanup_blocked: AtomicBool,
     #[cfg(test)]
@@ -160,6 +161,7 @@ impl Shared {
             in_flight_work: Mutex::new(BTreeMap::new()),
             synthetic_test_execution: AtomicBool::new(false),
             event_sink,
+            published_source_health: Mutex::new(BTreeMap::new()),
             #[cfg(test)]
             retirement_cleanup_blocked: AtomicBool::new(false),
             #[cfg(test)]
@@ -197,6 +199,35 @@ impl Shared {
             .as_ref()
             .is_some_and(|sink| sink.try_publish(event));
         drop(lifecycle_guard);
+        published
+    }
+
+    pub(super) fn publish_source_health(&self, health: SourceProcessingHealthEvent) -> bool {
+        let control = self.control();
+        if !control.source_is_active(&health.lifecycle.source_id)
+            || control
+                .source_lifecycle_generations
+                .get(&health.lifecycle.source_id)
+                != Some(&health.lifecycle.generation)
+        {
+            return false;
+        }
+        let mut published_health = self
+            .published_source_health
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if published_health.get(&health.lifecycle.source_id) == Some(&health) {
+            return false;
+        }
+        let published = self
+            .event_sink
+            .as_ref()
+            .is_some_and(|sink| sink.try_publish(SourceProcessingEvent::Health(health.clone())));
+        if published {
+            published_health.insert(health.lifecycle.source_id.clone(), health);
+        }
+        drop(published_health);
+        drop(control);
         published
     }
 

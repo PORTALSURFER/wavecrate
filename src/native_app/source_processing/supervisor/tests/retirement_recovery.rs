@@ -129,7 +129,8 @@ fn discovery_progress_converged_safety_probe_is_a_silent_noop() {
     let cancel = AtomicBool::new(false);
 
     for interval in 0..10 {
-        let Cancellable::Completed((candidates, stats)) = discover_source_candidates_with_progress(
+        let Cancellable::Completed((candidates, stats, _health)) =
+            discover_source_candidates_with_progress(
             &source,
             101 + interval,
             false,
@@ -195,7 +196,7 @@ fn safety_probe_recovers_manifest_commit_without_delta_publication() {
         )
         .expect("advance manifest generation");
 
-    let Cancellable::Completed((_candidates, stats)) =
+    let Cancellable::Completed((_candidates, stats, _health)) =
         discover_source_candidates_with_connection_and_progress(
             &source,
             &mut connection,
@@ -268,7 +269,7 @@ fn discovery_progress_committed_delta_uses_changed_target_counts() {
     };
 
     let mut progress_updates = Vec::new();
-    let Cancellable::Completed((_candidates, stats)) =
+    let Cancellable::Completed((_candidates, stats, _health)) =
         discover_source_candidates_with_connection_and_progress(
             &source,
             &mut connection,

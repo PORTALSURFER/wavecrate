@@ -16,7 +16,7 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
     PreviewAuditionResult, PreviewAuditionWarmResult, SampleLoadPathValidation, SampleLoadResult,
-    SamplePlaybackReady, SourceProcessingProgress, StarmapViewportChange,
+    SamplePlaybackReady, SourceProcessingHealth, SourceProcessingProgress, StarmapViewportChange,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
@@ -188,6 +188,7 @@ pub(in crate::native_app) enum GuiMessage {
         source_id: String,
         lifecycle_generation: u64,
     },
+    SourceProcessingHealth(SourceProcessingHealth),
     SourceProcessingProgress(SourceProcessingProgress),
     Settings(SettingsMessage),
     Metadata(MetadataMessage),

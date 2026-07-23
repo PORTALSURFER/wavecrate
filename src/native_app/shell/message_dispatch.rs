@@ -82,6 +82,7 @@ impl NativeAppState {
             | GuiMessage::StarmapLayoutLoaded(_)
             | GuiMessage::SimilarityScoresResolved(_)
             | GuiMessage::SimilarityReadinessAdvanced { .. }
+            | GuiMessage::SourceProcessingHealth(_)
             | GuiMessage::SourceProcessingProgress(_)
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)

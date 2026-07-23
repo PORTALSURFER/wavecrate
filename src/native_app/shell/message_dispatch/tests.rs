@@ -65,8 +65,22 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
     assert!(state.ui.chrome.job_details_open);
 
     state.apply_message(
+        GuiMessage::SourceProcessingHealth(crate::native_app::app::SourceProcessingHealth {
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
+            status: crate::native_app::app::SourceProcessingHealthStatus::DegradedTerminal,
+            source_generation: 4,
+            readiness_revision: 5,
+            stage_counts: std::collections::BTreeMap::new(),
+            retry_at: None,
+            failure_codes: vec![String::from("decoder_unsupported")],
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    state.apply_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id,
+            source_id: source_id.clone(),
             lifecycle_generation: 0,
             active: false,
             source_row_active: false,
@@ -79,7 +93,30 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
     );
 
     assert!(state.background.source_processing_progress.is_none());
+    assert_eq!(
+        state.background.source_processing_health[&source_id].status,
+        crate::native_app::app::SourceProcessingHealthStatus::DegradedTerminal
+    );
     assert!(!state.ui.chrome.job_details_open);
+
+    state.apply_message(
+        GuiMessage::SourceProcessingHealth(crate::native_app::app::SourceProcessingHealth {
+            source_id: source_id.clone(),
+            lifecycle_generation: 1,
+            status: crate::native_app::app::SourceProcessingHealthStatus::Ready,
+            source_generation: 6,
+            readiness_revision: 7,
+            stage_counts: std::collections::BTreeMap::new(),
+            retry_at: None,
+            failure_codes: Vec::new(),
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert_eq!(
+        state.background.source_processing_health[&source_id].status,
+        crate::native_app::app::SourceProcessingHealthStatus::DegradedTerminal,
+        "stale lifecycle health must not replace the retained current state"
+    );
 }
 
 #[test]

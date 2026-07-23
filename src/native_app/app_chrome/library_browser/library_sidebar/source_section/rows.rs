@@ -153,6 +153,8 @@ fn source_reorder_marker(after: bool) -> ui::View<GuiMessage> {
 fn source_row_label(source: &SourceRowViewModel) -> String {
     if source.scanning {
         format!("{} (scanning)", source.label)
+    } else if let Some(health) = source.health_label.as_deref() {
+        format!("{} ({health})", source.label)
     } else {
         source.label.clone()
     }
@@ -173,7 +175,12 @@ fn source_row_content(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
 
 fn source_label(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let label = ui::text_line(source_row_label(source), SOURCE_ROW_HEIGHT).fill_width();
-    if source.missing {
+    let label = if let Some(detail) = source.health_detail.as_deref() {
+        label.tooltip(detail)
+    } else {
+        label
+    };
+    if source.missing || source.health_warning {
         label.text_color(ui::TextColorRole::Custom(SOURCE_MISSING_COLOR))
     } else if source.selected || source.focused {
         label.text_color(ui::TextColorRole::Custom(ACCENT))

@@ -142,6 +142,26 @@ impl NativeAppState {
         }
         self.background.source_lifecycle_generations =
             self.background.source_processing.lifecycle_generations();
+        self.background
+            .source_processing_health
+            .retain(|source_id, health| {
+                self.background.source_lifecycle_generations.get(source_id)
+                    == Some(&health.lifecycle_generation)
+            });
+        if self
+            .background
+            .source_processing_progress
+            .as_ref()
+            .is_some_and(|progress| {
+                self.background
+                    .source_lifecycle_generations
+                    .get(&progress.source_id)
+                    != Some(&progress.lifecycle_generation)
+            })
+        {
+            self.background.source_processing_progress = None;
+            self.ui.chrome.job_details_open = false;
+        }
         if sources.is_empty() {
             self.library.source_watcher = None;
             return;

@@ -2,8 +2,8 @@ use super::{
     AtomicBool, Cancellable, DiscoveryProgressUpdate, MANIFEST_AUDIT_INTERVAL_SECONDS,
     META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION, PendingReadinessDelta, ProcessingLane,
     ReadinessClassification, ReadinessProgress, ReadinessStore, RuntimeCandidate, RuntimeTask,
-    SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats, WorkCandidate,
-    active_recording_deferrals, cancelled, earliest_deadline,
+    SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats,
+    SourceHealthSummary, WorkCandidate, active_recording_deferrals, cancelled, earliest_deadline,
     legacy_unsupported_decode_failure_text, publish_current_readiness_delta_with_cancel,
     publish_current_readiness_targets_with_cancel_and_checkpoint, readiness_contract_version,
     retire_legacy_playback_readiness, similarity_prerequisite_blocker_stats,
@@ -73,6 +73,12 @@ pub(super) fn discover_source_candidates_with_connection(
         cancel,
         &mut |_| {},
     )
+    .map(|result| match result {
+        Cancellable::Completed((candidates, stats, _)) => {
+            Cancellable::Completed((candidates, stats))
+        }
+        Cancellable::Cancelled => Cancellable::Cancelled,
+    })
 }
 
 pub(super) fn discover_source_candidates_with_connection_and_progress(
@@ -85,7 +91,14 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
     safety_probe_only: bool,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(DiscoveryProgressUpdate),
-) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
+) -> Result<
+    Cancellable<(
+        Vec<RuntimeCandidate>,
+        SourceDiscoveryStats,
+        Option<SourceHealthSummary>,
+    )>,
+    String,
+> {
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
@@ -98,7 +111,13 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             source_id,
             "Source processing is disabled for a read-only source database"
         );
-        return Ok(Cancellable::Completed((candidates, stats)));
+        return Ok(Cancellable::Completed((
+            candidates,
+            stats,
+            Some(SourceHealthSummary::reconciliation_failed(
+                "read_only_source",
+            )),
+        )));
     }
     if !source_processing_schema_available(connection)? {
         tracing::debug!(
@@ -106,7 +125,13 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             source_id,
             "Source processing is unavailable until the read-only source database is migrated"
         );
-        return Ok(Cancellable::Completed((candidates, stats)));
+        return Ok(Cancellable::Completed((
+            candidates,
+            stats,
+            Some(SourceHealthSummary::reconciliation_failed(
+                "readiness_schema_unavailable",
+            )),
+        )));
     }
     let last_manifest_audit_at = connection
         .query_row(
@@ -128,7 +153,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             source_id,
             "Periodic readiness safety probe found no durable delta"
         );
-        return Ok(Cancellable::Completed((candidates, stats)));
+        return Ok(Cancellable::Completed((candidates, stats, None)));
     }
     if force_reanalysis {
         let changed = ReadinessStore::new(connection)
@@ -200,6 +225,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
     let readiness_source_exists = ReadinessStore::new(connection)
         .source_exists(source_id)
         .map_err(|error| error.to_string())?;
+    let mut health = None;
     if readiness_source_exists {
         let reclassified = ReadinessStore::new(connection)
             .reclassify_known_unsupported_failures(legacy_unsupported_decode_failure_text)
@@ -357,7 +383,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
                         entry.classification,
                         ReadinessClassification::Current
                             | ReadinessClassification::PermanentFailure { .. }
-                            | ReadinessClassification::Unsupported
+                            | ReadinessClassification::Unsupported { .. }
                     )
                 })
                 .count();
@@ -390,11 +416,15 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
                 "Deferred files that are still being actively written"
             );
         }
+        health = Some(super::source_health_summary(&snapshot, &stats));
     }
 
+    let health = Some(health.unwrap_or_else(|| {
+        SourceHealthSummary::reconciliation_failed("readiness_source_unavailable")
+    }));
     if cancelled(cancel) {
         Ok(Cancellable::Cancelled)
     } else {
-        Ok(Cancellable::Completed((candidates, stats)))
+        Ok(Cancellable::Completed((candidates, stats, health)))
     }
 }
