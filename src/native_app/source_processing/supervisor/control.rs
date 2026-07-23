@@ -28,6 +28,10 @@ pub(super) struct ControlState {
     pub(super) foreground_active: bool,
     pub(super) shutdown: bool,
     pub(super) priority: PriorityContext,
+    #[cfg(test)]
+    pub(super) reject_next_delta_delivery: bool,
+    #[cfg(test)]
+    pub(super) reject_next_source_replacement: bool,
 }
 
 impl ControlState {

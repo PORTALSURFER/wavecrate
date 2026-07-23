@@ -345,6 +345,10 @@ pub(super) fn queue_source_delta(
     delta: &CommittedSourceDelta,
     reason: &'static str,
 ) -> bool {
+    #[cfg(test)]
+    if std::mem::take(&mut control.reject_next_delta_delivery) {
+        return false;
+    }
     if !control.source_is_active(source_id) {
         return false;
     }

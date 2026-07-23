@@ -6,8 +6,11 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver},
     },
+    time::Duration,
 };
 
+use rusqlite::Connection;
+use wavecrate_scan::sample_sources::SourceDbError;
 use wavecrate_scan::{
     CommittedSourceDelta, ScanError, ScanMode, complete_deferred_hashes, scan_with_progress,
     sync_paths,
@@ -216,16 +219,9 @@ impl StateMachineHarness {
             return Ok(());
         }
         let effective_cause = self.authoritative_cause(cause);
-        if self.take_failure(FailureBoundary::Transaction) {
-            self.model.retry_count = self.model.retry_count.saturating_add(1);
-            self.model.queue(ScanCause::Retry);
-            return Ok(());
-        }
-        if cause == ScanCause::Watcher && self.take_failure(FailureBoundary::WatcherDelivery) {
-            self.model.retry_count = self.model.retry_count.saturating_add(1);
-            self.model.queue(ScanCause::Retry);
-            return Ok(());
-        }
+        let reject_transaction = self.take_failure(FailureBoundary::Transaction);
+        let reject_watcher_delivery =
+            cause == ScanCause::Watcher && self.take_failure(FailureBoundary::WatcherDelivery);
         let scan_permit = self.supervisor.as_ref().and_then(|supervisor| {
             supervisor
                 .budget_handle()
@@ -236,13 +232,32 @@ impl StateMachineHarness {
             .as_ref()
             .map(|writer| writer.lock(DatabasePhase::SerialCompatibility));
         let database = self.database()?;
+        let transaction_lock = if reject_transaction {
+            database
+                .set_busy_timeout_for_tests(Duration::ZERO)
+                .map_err(|error| format!("configure transaction contention: {error}"))?;
+            let path = self
+                .source
+                .db_path()
+                .map_err(|error| format!("resolve transaction database: {error}"))?;
+            let lock = Connection::open(path)
+                .map_err(|error| format!("open transaction lock: {error}"))?;
+            lock.busy_timeout(Duration::ZERO)
+                .map_err(|error| format!("configure transaction lock: {error}"))?;
+            lock.execute_batch("BEGIN IMMEDIATE")
+                .map_err(|error| format!("acquire transaction lock: {error}"))?;
+            Some(lock)
+        } else {
+            None
+        };
         let pending_paths = self
             .model
             .watcher_paths
             .iter()
             .map(PathBuf::from)
             .collect::<Vec<_>>();
-        let stats = if self.take_failure(FailureBoundary::Hashing) {
+        let reject_hashing = self.take_failure(FailureBoundary::Hashing);
+        let scan_result = if reject_hashing {
             let cancel = AtomicBool::new(false);
             let mut progressed = false;
             let result =
@@ -254,18 +269,37 @@ impl StateMachineHarness {
                 });
             self.model.queue(ScanCause::Retry);
             self.model.retry_count = self.model.retry_count.saturating_add(1);
-            match result {
-                Ok(stats) => stats,
-                Err(ScanError::Incomplete { committed, .. }) => *committed,
-                Err(ScanError::Canceled) => return Ok(()),
-                Err(error) => return Err(format!("hash-boundary scan failed: {error}")),
-            }
+            result
         } else if effective_cause == ScanCause::Watcher && !pending_paths.is_empty() {
             sync_paths(&database, &pending_paths)
-                .map_err(|error| format!("targeted watcher reconciliation failed: {error}"))?
         } else {
             scan_with_progress(&database, ScanMode::Quick, None, &mut |_, _| {})
-                .map_err(|error| format!("full reconciliation failed: {error}"))?
+        };
+        if reject_transaction {
+            transaction_lock
+                .as_ref()
+                .expect("transaction injection must own its lock")
+                .execute_batch("ROLLBACK")
+                .map_err(|error| format!("release transaction lock: {error}"))?;
+            return match scan_result {
+                Err(ScanError::Db(SourceDbError::Busy)) => {
+                    self.model.retry_count = self.model.retry_count.saturating_add(1);
+                    self.model.queue(ScanCause::Retry);
+                    Ok(())
+                }
+                Err(error) => Err(format!(
+                    "transaction boundary returned unexpected failure: {error}"
+                )),
+                Ok(_) => Err(String::from(
+                    "transaction boundary accepted an injected busy failure",
+                )),
+            };
+        }
+        let stats = match scan_result {
+            Ok(stats) => stats,
+            Err(ScanError::Incomplete { committed, .. }) if reject_hashing => *committed,
+            Err(ScanError::Canceled) if reject_hashing => return Ok(()),
+            Err(error) => return Err(format!("source reconciliation failed: {error}")),
         };
         let stats = complete_deferred_hashes(&database, stats)
             .map_err(|error| format!("complete deferred hashes: {error}"))?;
@@ -278,7 +312,16 @@ impl StateMachineHarness {
                     .push((stats.committed_delta.clone(), effective_cause));
             }
         } else {
-            self.admit_supervisor_delta(&stats.committed_delta, effective_cause, publication_lost)?;
+            self.admit_supervisor_delta(
+                &stats.committed_delta,
+                effective_cause,
+                reject_watcher_delivery,
+                publication_lost,
+            )?;
+            if reject_watcher_delivery {
+                self.model.retry_count = self.model.retry_count.saturating_add(1);
+                self.model.queue(ScanCause::Retry);
+            }
         }
         self.model.watcher_paths.clear();
         if effective_cause == ScanCause::Watcher {

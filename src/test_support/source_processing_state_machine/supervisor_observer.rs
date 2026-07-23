@@ -14,6 +14,7 @@ impl StateMachineHarness {
         &mut self,
         delta: &CommittedSourceDelta,
         cause: ScanCause,
+        reject_delivery_once: bool,
         reject_publication_once: bool,
     ) -> Result<(), String> {
         if delta.is_empty() || self.supervisor.is_none() {
@@ -26,6 +27,7 @@ impl StateMachineHarness {
                 delta,
                 reason,
                 DUPLICATE_ADMISSION_COUNT,
+                reject_delivery_once,
                 reject_publication_once,
             )
         }) else {
@@ -34,6 +36,20 @@ impl StateMachineHarness {
             return Ok(());
         };
         let delta_scope_ids = delta_scope_ids(delta);
+        if observation.delivery_rejected != reject_delivery_once {
+            return Err(format!(
+                "watcher delivery boundary mismatch: expected rejection={reject_delivery_once}, actual={}",
+                observation.delivery_rejected
+            ));
+        }
+        if reject_delivery_once
+            && observation.scope_ids_after_rejection != observation.before_scope_ids
+        {
+            return Err(format!(
+                "rejected watcher delivery mutated pending work: before={:?}, after={:?}",
+                observation.before_scope_ids, observation.scope_ids_after_rejection
+            ));
+        }
         let mut expected_scopes = observation.before_scope_ids.clone();
         expected_scopes.extend(delta_scope_ids);
         if observation.pending_scope_ids != expected_scopes {
@@ -81,7 +97,7 @@ impl StateMachineHarness {
     pub(super) fn admit_pending_publication_retries(&mut self) -> Result<(), String> {
         let pending = std::mem::take(&mut self.pending_publication_retries);
         for (delta, _original_cause) in pending {
-            self.admit_supervisor_delta(&delta, ScanCause::Retry, false)?;
+            self.admit_supervisor_delta(&delta, ScanCause::Retry, false, false)?;
         }
         Ok(())
     }

@@ -159,6 +159,10 @@ impl Shared {
                 foreground_active: false,
                 shutdown: false,
                 priority: PriorityContext::default(),
+                #[cfg(test)]
+                reject_next_delta_delivery: false,
+                #[cfg(test)]
+                reject_next_source_replacement: false,
             }),
             wake: Condvar::new(),
             retirement_wake: Condvar::new(),

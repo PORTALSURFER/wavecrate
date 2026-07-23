@@ -144,9 +144,28 @@ impl StateMachineHarness {
     }
 
     pub(super) fn remove_readd(&mut self) -> Result<(), String> {
-        if self.take_failure(FailureBoundary::Lifecycle) {
-            self.model.queue(ScanCause::Retry);
-            return Ok(());
+        let reject_lifecycle = self.take_failure(FailureBoundary::Lifecycle);
+        if reject_lifecycle && let Some(supervisor) = &self.supervisor {
+            let generation_before = supervisor
+                .lifecycle_generations()
+                .get(self.source.id.as_str())
+                .copied();
+            supervisor.reject_next_source_replacement_for_state_machine();
+            if supervisor.replace_sources(Vec::new()).is_ok() {
+                return Err(String::from(
+                    "lifecycle boundary accepted an injected replacement failure",
+                ));
+            }
+            let generation_after = supervisor
+                .lifecycle_generations()
+                .get(self.source.id.as_str())
+                .copied();
+            if generation_after != generation_before {
+                return Err(String::from(
+                    "rejected lifecycle replacement advanced the active generation",
+                ));
+            }
+            self.model.retry_count = self.model.retry_count.saturating_add(1);
         }
         self.model.source_configured = false;
         let lifecycle_generation = self.supervisor.as_ref().and_then(|supervisor| {

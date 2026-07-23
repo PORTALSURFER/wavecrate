@@ -88,6 +88,41 @@ fn source_processing_seeded_state_machine_integrated_supervisor() {
         ],
         ExecutionMode::IntegratedSupervisor,
     );
+    run_or_archive(
+        0x1248_5055_0000_0002,
+        vec![
+            Event::InjectFailure {
+                boundary: FailureBoundary::Transaction,
+            },
+            Event::Create { slot: 8 },
+            Event::WatcherBatch,
+            Event::Quiesce,
+        ],
+        ExecutionMode::IntegratedSupervisor,
+    );
+    run_or_archive(
+        0x1248_5055_0000_0003,
+        vec![
+            Event::InjectFailure {
+                boundary: FailureBoundary::WatcherDelivery,
+            },
+            Event::Create { slot: 9 },
+            Event::WatcherBatch,
+            Event::Quiesce,
+        ],
+        ExecutionMode::IntegratedSupervisor,
+    );
+    run_or_archive(
+        0x1248_5055_0000_0004,
+        vec![
+            Event::InjectFailure {
+                boundary: FailureBoundary::Lifecycle,
+            },
+            Event::SourceRemoveReadd,
+            Event::Quiesce,
+        ],
+        ExecutionMode::IntegratedSupervisor,
+    );
 }
 
 #[test]

@@ -16,6 +16,12 @@ impl SourceProcessingSupervisor {
             .unwrap_or_else(|poison| poison.into_inner());
         let sources = sources_by_id(sources);
         let mut control = self.shared.control();
+        #[cfg(test)]
+        if std::mem::take(&mut control.reject_next_source_replacement) {
+            return Err(String::from(
+                "state-machine lifecycle replacement rejected at serialized boundary",
+            ));
+        }
         if source_maps_match(&control.sources, &sources) {
             if !control.quarantined_sources.is_empty() {
                 control.quarantined_sources.clear();
