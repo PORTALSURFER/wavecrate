@@ -11,7 +11,7 @@ impl FolderBrowserState {
         if file_ids.contains(&id) {
             self.cancel_rename();
             self.clear_source_keyboard_focus();
-            self.hide_keyboard_focus();
+            self.show_pointer_focus();
             self.selection.select_single_file(id, &file_ids);
         }
     }
@@ -28,7 +28,7 @@ impl FolderBrowserState {
         }
         self.cancel_rename();
         self.clear_source_keyboard_focus();
-        self.hide_keyboard_focus();
+        self.show_pointer_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
@@ -45,7 +45,7 @@ impl FolderBrowserState {
         }
         self.cancel_rename();
         self.clear_source_keyboard_focus();
-        self.hide_keyboard_focus();
+        self.show_pointer_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }

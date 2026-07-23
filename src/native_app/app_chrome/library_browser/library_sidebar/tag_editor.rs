@@ -7,6 +7,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
     SIDEBAR_PANEL_HEADER_CONTENT_SPACING, SIDEBAR_PANEL_HEADER_HEIGHT,
 };
 
+use super::edge_aligned_resize_panel;
 use super::tag_entry_layout::TAG_FIELD_LINE_GAP;
 
 mod identity;
@@ -16,7 +17,7 @@ mod rows;
 use projection::{TagEditorFieldProjection, TagEditorProjection};
 use rows::tag_entry_row;
 
-const METADATA_PANEL_PADDING: f32 = 6.0;
+const METADATA_PANEL_PADDING: f32 = 10.0;
 const METADATA_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
 const METADATA_TAG_LIBRARY_TOGGLE_WIDTH: f32 = 22.0;
 
@@ -69,20 +70,16 @@ fn tag_entry_field(field: TagEditorFieldProjection) -> ui::View<GuiMessage> {
 }
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
-    let panel = ui::panel_section_from_header_parts(
-        radiant::application::PanelSectionHeaderParts::resize_header(
-            "metadata-resize-header",
-            SIDEBAR_PANEL_HEADER_HEIGHT,
-            content,
-            |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
-        )
-        .header_id(identity::metadata_resize_header_id())
-        .height(height)
-        .padding(METADATA_PANEL_PADDING)
-        .without_chrome()
-        .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
-    )
-    .fill_width();
+    let panel = edge_aligned_resize_panel(
+        "metadata-resize-header",
+        identity::metadata_resize_header_id(),
+        SIDEBAR_PANEL_HEADER_HEIGHT,
+        content,
+        height,
+        METADATA_PANEL_PADDING,
+        METADATA_PANEL_HEADER_CONTENT_SPACING,
+        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeMetadataPanel(message)),
+    );
     #[cfg(test)]
     {
         panel.id(identity::metadata_sidebar_panel_id())
@@ -90,5 +87,29 @@ fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::Vie
     #[cfg(not(test))]
     {
         panel
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::prelude::IntoView;
+
+    #[test]
+    fn metadata_resize_header_aligns_with_panel_top_edge() {
+        let layout = metadata_sidebar_panel(ui::empty(), 120.0)
+            .view_layout_at_size(ui::Vector2::new(240.0, 120.0));
+        let panel = layout
+            .rects
+            .get(&identity::metadata_sidebar_panel_id())
+            .expect("metadata panel layout rect");
+        let header = layout
+            .rects
+            .get(&identity::metadata_resize_header_id())
+            .expect("metadata resize header layout rect");
+
+        assert_eq!(header.min.x, panel.min.x);
+        assert_eq!(header.max.x, panel.max.x);
+        assert_eq!(header.min.y, panel.min.y);
     }
 }

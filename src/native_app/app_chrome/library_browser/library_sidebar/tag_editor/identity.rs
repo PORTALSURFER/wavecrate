@@ -29,6 +29,10 @@ pub(super) fn accepted_tag_key(tag: &str) -> String {
     format!("metadata-tag-accepted-{tag}")
 }
 
+pub(super) fn accepted_tag_remove_key(tag: &str) -> String {
+    format!("metadata-tag-remove-{tag}")
+}
+
 pub(super) fn pending_category_tag_key(tag: &str) -> String {
     format!("metadata-tag-pending-category-{tag}")
 }
@@ -48,6 +52,10 @@ mod tests {
         assert_eq!(
             accepted_tag_key("deep-kick"),
             "metadata-tag-accepted-deep-kick"
+        );
+        assert_eq!(
+            accepted_tag_remove_key("deep-kick"),
+            "metadata-tag-remove-deep-kick"
         );
         assert_eq!(
             pending_category_tag_key("deep-kick ->"),

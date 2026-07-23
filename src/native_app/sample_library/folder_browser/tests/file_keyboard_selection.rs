@@ -120,9 +120,10 @@ fn toggle_focused_sample_selection_marks_visible_row_as_explicit_selection() {
 
     assert_eq!(browser.selected_file_paths(), vec![hat.clone()]);
     assert!(
-        !focused_before.focused,
-        "pointer selection should retain navigation ownership without painting keyboard focus"
+        focused_before.focused,
+        "pointer selection should paint transient focus while retaining navigation ownership"
     );
+    assert!(focused_before.focus_alpha > 0);
     assert!(
         focused_before.selected,
         "pointer selection should keep persistent selected-row chrome after release"

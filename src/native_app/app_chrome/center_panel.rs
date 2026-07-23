@@ -13,15 +13,43 @@ use crate::native_app::app_chrome::waveform_context_menu;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const BOTTOM_STATUS_BAR_HEIGHT: f32 = 30.0;
+const LIBRARY_SIDEBAR_RESIZE_HIT_WIDTH: f32 = 5.0;
+const LIBRARY_SIDEBAR_RESIZE_RAIL_WIDTH: f32 = 1.0;
 
 pub(in crate::native_app) fn library_sidebar_region(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
-    ui::resizable(library_sidebar_view(state))
-        .handle_width(1.0)
-        .handle_inset(0.0)
-        .full_height_rail()
-        .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
+    ui::row([
+        library_sidebar_view(state),
+        ui::spacer().width(LIBRARY_SIDEBAR_RESIZE_RAIL_WIDTH),
+    ])
+    .spacing(0.0)
+    .fill_height()
+}
+
+pub(in crate::native_app) fn library_sidebar_resize_overlay(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
+    let resize_handle = ui::drag_handle()
+        .hover_chrome_only()
+        .trailing_rail(LIBRARY_SIDEBAR_RESIZE_RAIL_WIDTH)
+        .mapped(GuiMessage::ResizeFolder)
+        .key("library-sidebar-resize-handle")
+        .id(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
+        .width(LIBRARY_SIDEBAR_RESIZE_HIT_WIDTH)
+        .fill_height();
+    let leading_width = (state.ui.chrome.folder_panel.size() + LIBRARY_SIDEBAR_RESIZE_RAIL_WIDTH
+        - LIBRARY_SIDEBAR_RESIZE_HIT_WIDTH)
+        .max(0.0);
+
+    ui::row([
+        ui::spacer().width(leading_width),
+        resize_handle,
+        ui::spacer().fill_width(),
+    ])
+    .spacing(0.0)
+    .fill()
 }
 
 fn library_sidebar_view(state: &NativeAppState) -> ui::View<GuiMessage> {

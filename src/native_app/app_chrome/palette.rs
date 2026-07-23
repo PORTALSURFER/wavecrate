@@ -50,17 +50,9 @@ pub(in crate::native_app) fn selected_row_palette(style: WidgetStyle) -> DenseRo
 }
 
 pub(in crate::native_app) fn selected_row_marker() -> DenseRowMarkerStyle {
-    selected_row_marker_for_focus(false)
-}
-
-fn selected_row_marker_for_focus(focused: bool) -> DenseRowMarkerStyle {
     DenseRowMarkerStyle::new(
         radiant::gui::list::DenseRowMarkerParts::leading(SELECTED_ROW_MARKER_WIDTH)
-            .edge_inset(if focused {
-                FOCUSED_ROW_MARKER_WIDTH
-            } else {
-                0.0
-            })
+            .edge_inset(0.0)
             .vertical_inset(0.0),
         ACCENT,
     )
@@ -100,7 +92,7 @@ impl<Message: 'static> WavecrateListRowStyle<Message>
 {
     fn wavecrate_list_row_style(self, style: WidgetStyle, state: ListItemState) -> Self {
         self.dense_chrome_palette(selected_row_palette(style))
-            .leading_marker_if(state.selected, selected_row_marker_for_focus(state.focused))
+            .leading_marker_if(state.selected, selected_row_marker())
             .leading_overlay_marker_if(
                 state.focused && state.focus_alpha > 0,
                 focused_row_marker_with_alpha(state.focus_alpha),
@@ -117,8 +109,9 @@ pub(in crate::native_app) trait WavecrateTreeRowStyle {
 impl WavecrateTreeRowStyle for radiant::application::TreeRowBuilder {
     fn wavecrate_tree_row_style(self, style: WidgetStyle, state: ListItemState) -> Self {
         self.palette(selected_row_palette(style))
-            .selected_marker(selected_row_marker_for_focus(state.focused))
+            .selected_marker(selected_row_marker())
             .focus_marker(focused_row_marker_with_alpha(state.focus_alpha))
+            .pressed_focus_marker(focused_row_marker())
             .hover_trailing_marker(hovered_row_trailing_marker())
     }
 }

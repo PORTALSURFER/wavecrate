@@ -1,7 +1,7 @@
 use crate::native_app::{
     app_chrome::{
         view_models::waveform_panel::WaveformPanelViewModel,
-        waveform_panel::{WAVEFORM_PANEL_HEIGHT, waveform_panel},
+        waveform_panel::{WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT, waveform_panel},
     },
     test_support::state::NativeAppStateFixture,
     ui::ids::{
@@ -14,6 +14,12 @@ use radiant::{
     prelude::{self as ui, IntoView},
     runtime::PaintPrimitive,
 };
+
+#[test]
+fn waveform_panel_uses_the_taller_editorial_viewport() {
+    assert_eq!(WAVEFORM_VIEW_HEIGHT, 196.0);
+    assert_eq!(WAVEFORM_PANEL_HEIGHT, 226.0);
+}
 
 fn loaded_sample_drag_handle_tooltip(
     state: &crate::native_app::app::NativeAppState,

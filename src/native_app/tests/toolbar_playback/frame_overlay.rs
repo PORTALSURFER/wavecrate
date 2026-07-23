@@ -1,5 +1,74 @@
 use super::*;
 use radiant::runtime::{PaintPrimitive, RepaintScope};
+use std::time::{Duration, Instant};
+
+#[test]
+fn folder_focus_fade_invalidates_the_cached_row_projection() {
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.capture_frame_surface_inputs_at(started_at);
+
+    assert_eq!(
+        state.frame_scope_since_at(before, started_at + Duration::from_millis(125)),
+        RepaintScope::Projection,
+        "time-derived folder focus opacity must reproject cached rows while it fades"
+    );
+    assert_eq!(
+        state.frame_scope_since_at(before, started_at + Duration::from_millis(300)),
+        RepaintScope::Projection,
+        "the final transparent focus frame must clear the cached focus marker"
+    );
+}
+
+#[test]
+fn folder_focus_fade_reprojects_during_retained_playback_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+
+    state
+        .library
+        .folder_browser
+        .advance_keyboard_focus_fade(started_at + Duration::from_millis(125));
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::Projection,
+        "retained playback must still reproject rows while focus opacity changes"
+    );
+}
+
+#[test]
+fn folder_focus_fade_reprojects_during_retained_starmap_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    state.library.folder_browser.show_pointer_focus();
+    let started_at = Instant::now();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+
+    state
+        .library
+        .folder_browser
+        .advance_keyboard_focus_fade(started_at + Duration::from_millis(125));
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::Projection,
+        "retained starmap frames must reproject rows while focus opacity changes"
+    );
+}
 
 #[test]
 fn playback_frame_uses_paint_only_when_only_playhead_changes() {
@@ -693,10 +762,6 @@ fn source_processing_source_pulse_uses_animation_time_not_frame_count() {
                 &mut primitives,
             );
         primitives
-            .iter()
-            .filter_map(|primitive| primitive.fill_rect())
-            .map(|fill| (fill.rect, fill.color))
-            .collect::<Vec<_>>()
     };
 
     let initial = processing_rail(&mut runtime, Duration::ZERO);
@@ -708,19 +773,55 @@ fn source_processing_source_pulse_uses_animation_time_not_frame_count() {
         after_frame_count_change, initial,
         "playback frame cadence must not change the pulse phase"
     );
-    assert_eq!(
-        initial.len(),
-        2,
-        "processing paints one track and one segment"
-    );
+    assert_eq!(initial.len(), 2, "processing paints a track and gradient");
     assert_eq!(
         initial[0], later[0],
         "the quiet processing track stays fixed beneath the activity segment"
     );
-    assert!(
-        later[1].0.min.x > initial[1].0.min.x,
-        "the activity segment must travel left-to-right from monotonic animation time"
+    let gradient = |primitive: &PaintPrimitive| match primitive {
+        PaintPrimitive::FillPath(fill) => match fill.brush {
+            radiant::runtime::PaintBrush::LinearGradient(gradient) => gradient,
+            other => panic!("expected gradient source-processing rail, got {other:?}"),
+        },
+        other => panic!("expected source-processing gradient path, got {other:?}"),
+    };
+    let initial_gradient = gradient(&initial[1]);
+    assert_eq!(initial_gradient.start_color.a, 0);
+    assert!(initial_gradient.end_color.a > initial_gradient.start_color.a);
+    assert_eq!(
+        later.len(),
+        3,
+        "the segment splits across both track edges while wrapping"
     );
+    assert_ne!(
+        gradient(&later[2]).end.x,
+        initial_gradient.end.x,
+        "the bright head must continue moving from monotonic animation time"
+    );
+}
+
+#[test]
+fn source_processing_gradient_wraps_without_respawning() {
+    let track = radiant::prelude::Rect::from_min_max(
+        radiant::prelude::Point::new(10.0, 20.0),
+        radiant::prelude::Point::new(110.0, 22.0),
+    );
+    let before_wrap =
+        crate::native_app::app_chrome::status_bar::source_processing_gradient_slices_for_tests(
+            track, 0.98,
+        );
+    let after_wrap =
+        crate::native_app::app_chrome::status_bar::source_processing_gradient_slices_for_tests(
+            track, 0.02,
+        );
+
+    assert_eq!(before_wrap.len(), 1);
+    assert_eq!(after_wrap.len(), 2);
+    assert_eq!(before_wrap[0].1.start_color.a, 0);
+    assert_eq!(after_wrap[0].1.start_color.a, 0);
+    assert_eq!(before_wrap[0].1.end_color, after_wrap[0].1.end_color);
+    assert_eq!(after_wrap[0].0.max.x, track.max.x);
+    assert_eq!(after_wrap[1].0.min.x, track.min.x);
 }
 
 #[test]

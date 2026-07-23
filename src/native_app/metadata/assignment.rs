@@ -286,7 +286,11 @@ impl NativeAppState {
         self.remove_metadata_tag(tag, context);
     }
 
-    fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UiUpdateContext<GuiMessage>) {
+    pub(in crate::native_app) fn remove_metadata_tag(
+        &mut self,
+        tag: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let targets = match self.selected_metadata_tag_targets("removing") {
             Ok(targets) => targets,
             Err(status) => {

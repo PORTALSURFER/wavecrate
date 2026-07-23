@@ -38,7 +38,9 @@ pub(super) fn selected_folder_status(
 }
 
 fn selected_folder_status_label(label: String, source_missing: bool) -> ui::View<GuiMessage> {
-    let label = ui::text(label).height(20.0).fill_width();
+    let label = ui::text(label.to_ascii_uppercase())
+        .height(20.0)
+        .fill_width();
     if source_missing {
         label.text_color(ui::TextColorRole::Custom(SOURCE_MISSING_STATUS_COLOR))
     } else {

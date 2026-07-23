@@ -48,6 +48,7 @@ impl FolderBrowserState {
         self.source.keyboard_focus_active
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn source_keyboard_focus_visible(&self) -> bool {
         self.source.keyboard_focus_active && self.keyboard_focus_visible()
     }
@@ -58,7 +59,7 @@ impl FolderBrowserState {
             .sources
             .iter()
             .any(|source| source.id == self.source.selected_source);
-        self.hide_keyboard_focus();
+        self.show_pointer_focus();
     }
 
     pub(in crate::native_app) fn focus_selected_source_for_keyboard(&mut self) {

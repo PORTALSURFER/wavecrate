@@ -8,7 +8,7 @@ impl FolderBrowserState {
         collection: SampleCollection,
     ) {
         self.clear_source_keyboard_focus();
-        self.hide_keyboard_focus();
+        self.show_pointer_focus();
         if self.selection.selected_collection != Some(collection) {
             self.collection_panel.rename_edit = None;
             self.selection.enter_collection(collection);

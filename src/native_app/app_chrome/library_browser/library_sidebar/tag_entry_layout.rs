@@ -138,7 +138,7 @@ fn tag_field_rows_with_pending_category(
         tag_entry_flow_items(tags),
         [flow_ui::FlowItem::new(
             TagEntryRowItem::PendingCategory(label.clone()),
-            tag_pill_width(&label),
+            accepted_tag_pill_width(&label),
         )],
         flow_ui::FlowTrailingItemParts::new(
             TagEntryRowItem::Input,
@@ -156,7 +156,10 @@ fn tag_field_rows_with_pending_category(
 fn tag_entry_flow_items(tags: &[String]) -> Vec<flow_ui::FlowItem<TagEntryRowItem>> {
     tags.iter()
         .map(|tag| {
-            flow_ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag))
+            flow_ui::FlowItem::new(
+                TagEntryRowItem::Accepted(tag.clone()),
+                accepted_tag_pill_width(tag),
+            )
         })
         .collect()
 }
@@ -195,7 +198,7 @@ pub(super) fn metadata_tag_category_id_for_display<'a>(
 
 fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     match item {
-        TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
+        TagEntryRowItem::Accepted(tag) => accepted_tag_pill_width(tag),
         TagEntryRowItem::PendingCategory(tag) => tag_pill_width(tag),
         TagEntryRowItem::Input(width) => *width,
         TagEntryRowItem::LibraryToggle(width) => *width,
@@ -254,6 +257,10 @@ fn tag_input_width_policy() -> ui::TextInputWidthPolicy {
 
 pub(super) fn tag_pill_width(tag: &str) -> f32 {
     metadata_tag_pill_width(tag)
+}
+
+pub(super) fn accepted_tag_pill_width(tag: &str) -> f32 {
+    metadata_tag_pill_width(&format!("{tag} ×"))
 }
 
 #[cfg(test)]

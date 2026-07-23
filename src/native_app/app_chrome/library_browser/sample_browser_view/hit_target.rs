@@ -67,6 +67,9 @@ const CACHED_MARKER: ui::Rgba8 = ui::Rgba8 {
     b: 226,
     a: 210,
 };
+const SAMPLE_LIST_SCROLLBAR_WIDTH: f32 = 3.0;
+const CACHED_MARKER_SCROLLBAR_GAP: f32 = 2.0;
+const CACHED_MARKER_EDGE_INSET: f32 = SAMPLE_LIST_SCROLLBAR_WIDTH + CACHED_MARKER_SCROLLBAR_GAP;
 
 pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
@@ -122,7 +125,8 @@ fn sample_file_hit_target_builder(
                 && !model.copy_flash
                 && !model.cut_pending,
             ui::DenseRowMarkerStyle::new(
-                radiant::gui::list::DenseRowMarkerParts::trailing(2.0),
+                radiant::gui::list::DenseRowMarkerParts::trailing(2.0)
+                    .edge_inset(CACHED_MARKER_EDGE_INSET),
                 CACHED_MARKER,
             ),
         );

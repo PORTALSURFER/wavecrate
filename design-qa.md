@@ -1,153 +1,99 @@
-**Comparison Target**
+# Design QA
 
-- Source visual truth: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-27d776a0-01d0-4df6-b99a-27c0485a777d.png`
-- Rendered implementation: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/source-highlight-implementation.png`
-- Full-view comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/wavecrate-final-layout-comparison.png`
-- Focused chrome comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/wavecrate-final-chrome-focused-comparison.png`
-- Focused source-highlight comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/source-highlight-comparison.png`
-- Unified list-state reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-3a37cbc2-9834-4812-befc-8b0fd9fd42e1.png`
-- Unified list-state runtime: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/unified-list-states-toolbar-runtime.png`
-- Folder-disclosure request context: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-e69f8a5a-2b6e-4f6b-b7e6-eeea90b7285d.png`
-- Expanded folder implementation: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/folder-disclosure-expanded-clean.png`
-- Focused folder-disclosure comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/folder-disclosure-comparison.png`
-- Source/folder divider target: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-fd5f768e-5bd2-43ec-ad33-835836e3b748.png`
-- Incorrect sample pointer-down reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-2d7969b0-97bb-4c6a-b0c0-f93305f8f48d.png`
-- Duplicate folder/sample boundary reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-01c3bdde-f71e-402e-9d34-a15ca7f469d8.png`
-- Collection/filter divider reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-15a5a99e-0714-4a1f-b776-fcf68dcd1988.png`
-- Volume-track refinement reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-0de7d10d-39fd-40e7-a5a5-f2167f87b264.png`
-- Full-height sidebar-rail references: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-ef19226e-a322-4762-80c9-418740ab6564.png` and `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-9f0006ee-6cb1-4a27-ad3c-9d7a3e24784a.png`
-- Worker-progress replacement reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-17256c1c-8bc8-499e-9a7b-ee78b5ac5c1d.png`
-- Selected-row refinement reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-fdbf3f00-da50-48fd-91d1-c9b67493e147.png`
-- Selected-row refinement runtime: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 10.46.51 PM.jpeg`
-- Composable selection/focus/processing reference: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-8d862700-cefd-4f81-bcdb-93914c52d9a8.png`
-- Active source-processing runtime: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 10.57.09 PM.jpeg`
-- Keyboard-focus runtime: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 10.59.12 PM.jpeg`
-- Fixed-size worker pulse, bright frame: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 10.41.07 PM.jpeg`
-- Fixed-size worker pulse, subdued frame: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 10.41.15 PM.jpeg`
-- Latest rebuilt native runtime: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 9.51.37 PM.jpeg`
-- Source pixels: 1586 x 992.
-- Implementation pixels and native viewport: 1286 x 768.
-- Density normalization: the source was proportionally downsampled to 1286 px wide for comparison; the implementation remained at native capture size. Native display density was not exposed, so no density-dependent typography claims were made.
-- State: dark desktop library view with source/sidebar, loaded waveform, sample list, integrated toolbar, and bottom status line. Source content has 57 samples while the sandbox implementation has 2; layout and chrome were compared, not dataset density.
+References:
 
-**Findings**
+- `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-f59f454e-8898-4fce-8a33-223574aa7403.png`
+- `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-210254e8-832e-458f-80c4-e870cf803e05.png`
+- `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-3c825545-bafd-4e19-b55d-67016b81940a.png`
+- `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-70968339-f662-40f5-9288-3ff3cad28f53.png`
 
-- No actionable P0, P1, or P2 mismatch remains for the requested layout and color pass.
-- The implementation uses one continuous workspace background, flush section geometry, single-pixel lighter dividers, an integrated macOS toolbar, right-aligned volume/settings controls, and one bottom status line.
-- The sample list no longer paints the redundant nested container frame. Selection and focus remain independently visible and composable.
-- Collection and filter section boundaries use the brighter neutral emphasis token while remaining exactly one pixel tall and outline-free.
-- The longer, thicker volume track has a passive one-pixel outline that remains visible at both zero and full volume without adding a second focus border.
-- The sidebar resize boundary owns one uninterrupted one-pixel rail from the top of Sources through the lower metadata region to the status bar; inner lists do not paint competing edges.
-- Active worker feedback is one compact bottom-right circle. Consecutive runtime captures show identical geometry with only fill intensity changing; there is no progress track, size scaling, or halo.
-- Sources, folders, samples, and collections share one interaction-state system: neutral hover fill with a pale trailing rail; a pale leading focus block; quiet warm selected fill with one slim coral leading rail; and the combined selected-plus-focus treatment.
-- Focus is a separate leading layer rather than a full-row outline. When selection and focus coincide, the coral selection rail shifts beside the pale block so both states remain legible.
-- Active source processing composes as a quiet bottom track plus a brighter segment traveling left-to-right. It no longer replaces the row's selection fill, label color, or focus state.
-- Semantic sample states such as similarity anchor, keep, cache, process, cut, missing, and error compose over the shared interaction state instead of replacing its focus contract.
-- Folder branches with visible child folders render functional right/down disclosure arrows. The source root is permanently expanded and therefore has no disclosure control; leaf folders keep an empty disclosure slot.
-- Folder labels retain a deliberate inset after the leading selection rail, keeping the coral marker visually separate from the text.
-- Play and Stop form a tight playback cluster with a larger gap before the utility controls.
-- The sample anchor gutter uses a bare icon hit target, so the resize divider is the only vertical rule between the folder tree and sample list.
-- Sidebar sections use an explicit one-pixel fill rather than a styled empty widget, preventing border paint from thickening the source/folder boundary.
+Runtime target: signed release build at `target/app-bundles/codexeditorialterminalcolors/Wavecrate codex-editorial-terminal-colors.app`
 
-**Required Fidelity Surfaces**
+Latest implementation capture: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-23 at 12.51.44 AM.jpeg`
 
-- Fonts and typography: the existing embedded Wavecrate mono UI font, compact sizes, weights, truncation, and hierarchy remain consistent with the reference direction.
-- Spacing and layout rhythm: outer shell gutters, workspace column gap, sample-workspace padding, browser footer height, and stacked panel-border gaps are removed. Adjacent structural sections use a single 1 px rule.
-- Colors and visual tokens: clear, primary, secondary, tertiary, base, and raised workspace surfaces share `rgb(27, 30, 30)`. Dividers use the lighter neutral border scale; overlays and active controls retain distinct elevation.
-- Image quality and asset fidelity: the native waveform renderer and existing icon assets remain intact; no reference asset was replaced or approximated.
-- Copy and content: the removed browser-local `Listed ...` summary is preserved in the global bottom status line with singular/plural and subfolder scope handling.
+Viewport: 1288 x 768 logical pixels at native capture density. The source is a 1980 x 1320 full-screen capture; the comparison uses the left-sidebar region at its native density without resampling.
 
-**Interaction Evidence**
+## Comparison
 
-- Dragging the volume slider changed the slider without moving the native window.
-- Empty and full volume projections retain the same one-pixel track outline; focused volume keeps that passive outline without adding focus chrome.
-- Native traffic-light controls remained present after integrating the titlebar.
-- Focused sample-row chrome remained visible after removing the list container frame, while explicit sample selection remained visible when keyboard focus moved elsewhere.
-- Pointer source selection retains the source as the keyboard-navigation domain without leaving a persistent focus outline after mouse release; the first arrow-key navigation restores the source focus visual.
-- Pointer sample selection now retains persistent selected-row chrome after release while suppressing the transient focus outline; keyboard navigation restores focus independently, and explicit multi-selection membership remains a separate behavioral state.
-- Sample pointer-down now layers the shared pale focus outline over the quiet selected fill; the former opaque coral pressed bar is suppressed, and release returns immediately to selected-plus-hover chrome.
-- Only the active navigation domain paints keyboard focus, so folder, source, sample, and collection rows do not simultaneously present focus outlines.
-- Selected source focus remained legible in the rebuilt native app; processing, error, acceptance, and other semantic states retain their separate palettes and markers.
-- Played-range history remains bounded to the auditioned span, and same-sample refresh preserves its exact fractional endpoints without an unnecessary frame round trip.
-- Double-clicking unrouted integrated-titlebar space toggles native zoom while interactive controls remain excluded; both restored and maximized transitions repaint the complete app scene.
-- The active worker indicator remained the same diameter across bright and subdued live frames while its fill visibly changed intensity.
+- Filter labels are flat uppercase text with no local fill or border, use the shared orange-red active color, and are optically lifted by one logical pixel.
+- Playback-type filters use the same flat treatment and preserve their full hit targets without painting button chrome.
+- Accepted tags use outlined uppercase chips with a trailing multiplication mark as the remove affordance.
+- All outlined tag text uses the default primary white; ONE-SHOT and LOOP retain distinct theme tones through their border colors.
+- The source-processing rail uses a transparent-to-accent linear gradient and circular split geometry so the segment wraps continuously at both edges.
+- Row heights, control hit targets, one-pixel dividers, tag removal, and filter dispatch behavior remain unchanged.
+- Collection, filter, and tag resize headers now start at each section's top edge and span the full sidebar width. Their content remains inset by the existing 10 logical pixels, so the handle alignment does not shift the rows or controls.
 
-**Comparison History**
+## Evidence
 
-- Initial P1: shell and sidebar inserted visible gutters. Fixed by zeroing shell/workspace spacing, removing section padding, and reducing the sidebar boundary to a 1 px divider. Post-fix evidence: final full-view comparison.
-- Initial P1: native title strip consumed a separate row. Fixed with an integrated macOS titlebar and relocated toolbar/settings controls. Post-fix evidence: final focused chrome comparison.
-- Initial P2: browser-local listing footer duplicated status information. Fixed by removing the footer and projecting its live summary into the bottom status line. Post-fix evidence: final full-view comparison.
-- Initial P1: titlebar dragging competed with the volume slider. Fixed by routing native movement only from unrouted titlebar background presses. Post-fix evidence: live volume drag check.
-- Initial P2: stacked container chrome produced a nested sample-list frame and inconsistent panel backgrounds. Fixed by removing structural container chrome, flattening background tokens, and adding explicit 1 px section dividers. Post-fix evidence: final full-view and focused comparisons.
-- Initial P2: list items used independent and inconsistent hover, focus, and selection treatments. Fixed with shared list-state composition used by sources, folders, samples, and collections, while preserving semantic sample-state overlays. Post-fix evidence: unified list-state reference and runtime capture.
-- Initial P2: pointer selection left source focus chrome visible indefinitely and multiple navigation domains could appear focused. Fixed by separating source navigation ownership from focus visibility and making all list projections respect one active focus domain.
-- Initial P2: the sample anchor control painted a boxed gutter beside the pane divider, producing a double vertical boundary. Fixed by retaining its full hit target and icon while removing its independent control chrome; a layout regression test pins the panes to one divider pixel.
-- Initial P2: the source-root disclosure collided with the folder guide and implied a collapsible state that the product does not support. Fixed by making the root permanently expanded, suppressing its disclosure control, and starting the guide below it.
-- Initial P2: the styled source/folder separator painted thicker than its one-pixel layout slot. Fixed with a passive one-pixel border-color fill and a paint-plan regression test that rejects outlines.
-- Initial P2: sample pointer-down replaced the selected row with an opaque coral bar. Fixed by removing the generic pressed fill from the shared list palette and adding a transient pressed-focus outline in Radiant; the paint regression covers press and release.
-- Initial P2: the folder tree and sample list each painted an adjacent structural stroke, producing two parallel vertical rules. Fixed by making container chrome explicitly removable in Radiant and opting the sample list scroll viewport out of its redundant frame; the regression now rejects any sample-list-owned structural stroke at that boundary. Post-fix evidence: latest rebuilt native runtime.
-- Initial P2: collection and filter separators were too dark to read as section boundaries. Fixed by retaining the single-pixel passive divider geometry while switching it to the neutral emphasis border token. Post-fix evidence: latest rebuilt native runtime.
-- Initial P2: the compact volume track was too short and its empty region blended into the titlebar. Fixed by extending it to 112 px, increasing the track to 8 px, and adding a one-pixel neutral-emphasis outline with explicit empty/full regression coverage. Post-fix evidence: latest rebuilt native runtime.
-- Initial P2: the sidebar boundary was owned by the folder-tree viewport, leaving no rail beside Sources or the lower sidebar. Fixed by moving the passive rail to the full-height resize handle and removing the tree viewport's redundant container chrome. Post-fix evidence: latest rebuilt native runtime.
-- Initial P1: native titlebar zoom could resize the presentation surface without refreshing composited app layers, leaving most of the window black. Fixed by forcing a complete scene refresh at the programmatic zoom boundary. Post-fix evidence: rebuilt maximized runtime and live restore/maximize cycle.
-- Initial P2: the worker indicator first used a non-replayable transient polygon and then scaled its radius while pulsing. Fixed by using a compositor-replayable filled path with invariant circle geometry and varying alpha only. Post-fix evidence: bright and subdued worker-pulse captures.
-- Initial P2: the shared selected-row surface was visibly brighter than the editorial reference, its coral rails were too heavy, and nested folder labels crowded the leading rail. Fixed by reducing the shared warm fill opacity, narrowing the selection rail to 2 px, and increasing the folder-label inset. Post-fix evidence: selected-row refinement runtime.
-- Initial P2: source processing used a warm full-row pulse and leading marker, overriding the interaction hierarchy. Fixed by moving processing to a paint-only bottom track with a time-driven traveling segment, reducing selection to one leading coral rail, and replacing the full focus outline with a composable pale leading block. Post-fix evidence: active source-processing and keyboard-focus runtime captures.
+- The user visually confirmed the flat-filter iteration as improved before the final text-color refinement.
+- Renderer assertions verify filter labels and playback-type hit targets paint neither fills nor strokes.
+- Layout assertions verify the one-pixel optical label shift and uniform row geometry.
+- Badge renderer assertions verify outlined tag text uses `theme.text_primary` while the border retains its semantic emphasis color.
+- Processing-rail assertions verify both the gradient brush and the split wrap at the animation boundary.
+- A fresh Computer Use capture was attempted, but its stabilization timed out while the processing rail was animating; deterministic renderer and geometry coverage was used for the final refinement.
+- The latest signed-build capture confirms the sidebar's section rhythm and retained content inset. Focused geometry assertions verify all three resize-header rectangles share their panel's exact `min.y`, `min.x`, and `max.x`; the hover-only rail could not be held active for the capture because the native Computer Use pointer action did not acquire the window.
 
-**Open Questions**
+## Required fidelity surfaces
 
-- None for this pass. The reference and sandbox contain different library content, so row density and sidebar population were intentionally excluded from fidelity scoring.
+- Fonts and typography: unchanged by the resize-handle adjustment.
+- Spacing and layout rhythm: the 10 px offset above each handle is removed; content keeps its established 10 px inset and panel heights remain unchanged.
+- Colors and visual tokens: unchanged; resize chrome continues using the shared accent drag-handle style.
+- Image and asset fidelity: no image or icon assets changed.
+- Copy and content: unchanged.
 
-**Implementation Checklist**
+## Comparison history
 
-- [x] Flush shell and workspace regions.
-- [x] Integrated native titlebar with toolbar and right-side volume/settings controls.
-- [x] One global bottom status line.
-- [x] One workspace background color.
-- [x] Single-pixel section dividers.
-- [x] Redundant sample-list container frame removed.
-- [x] Volume drag isolated from window movement.
-- [x] Longer outlined volume track with distinct empty and full states.
-- [x] Continuous one-pixel sidebar rail from Sources to the status bar.
-- [x] Unified hover, focus, selected, and selected-plus-focus list states.
-- [x] Semantic sample states compose with the global interaction system.
-- [x] Pointer focus clears visually on release and keyboard navigation restores it.
-- [x] Single active keyboard-focus domain across sources, folders, samples, and collections.
-- [x] Opaque pale focus edge paints over the selected leading rail.
-- [x] One-pixel folder-tree/sample-list boundary with borderless sample anchor gutter.
-- [x] Child-aware folder disclosure arrows with permanently expanded root.
-- [x] Grouped Play/Stop controls separated from toolbar utilities.
-- [x] Double-click titlebar zoom with complete scene repaint.
-- [x] Fixed-size worker pulse using fill intensity only, without a track or halo.
-- [x] Source processing uses a moving bottom activity segment and composes with selection and focus.
+- P2: resize rails were inset 10 px below and from both sides of the section boundary. Fixed by applying padding only to panel content and leaving the shared resize header edge-aligned.
+- Post-fix evidence: signed-build capture plus exact layout assertions for collection, filter, and tag panels. No remaining P0/P1/P2 geometry mismatch was found.
 
-**Follow-up Polish**
+## Validation
 
-- None required for the requested scope.
+- `cargo check -q`
+- `cargo test -q --lib native_app::app_chrome::library_browser::library_sidebar::filter_section` (27 passed)
+- `cargo test -q --lib source_processing_source_pulse` (1 passed)
+- `cargo test -q --lib source_processing_gradient_wraps_without_respawning` (1 passed)
+- `cargo test -q -p radiant --lib badge` (19 passed)
+- `git diff --check`
+- `git -C vendor/radiant diff --check`
+- `bash scripts/build.sh --release`
+- `cargo test -p wavecrate --lib native_app::app_chrome::library_browser::library_sidebar` (103 passed; one unrelated pre-existing folder-status color assertion failed)
+- Focused resize-header tests for collections, filters, and metadata tags (3 passed)
 
-**Latest Name Header QA (2026-07-22)**
+## Outer sidebar resize rail
 
-- Source visual truth: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-1fba19a4-81ee-4e3c-a2ea-ff686d3d0e9b.png` (2048 x 123 px), with the requested correction that the Name column consume the visible leading blank gutter.
-- Implementation screenshot: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 11.10.57 PM.jpeg` (1288 x 768 px native app viewport).
-- Focused comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/sample-name-header-leading-edge-comparison.jpg`; the reference crop was proportionally normalized to the 1103 px implementation-workspace width and paired with the implementation crop in one artifact.
-- State: dark desktop library view, loaded waveform, populated sample table, no pointer hover or keyboard focus.
-- Full-view evidence: the rebuilt runtime preserves the waveform, toolbar, sidebar, table controls, rows, and status-line composition.
-- Focused evidence: the styled details header now begins at the workspace divider rather than after the 22 px anchor gutter. The Name cell owns that fixed gutter width, keeping Rating and all later headers aligned with their row columns.
-- Required fidelity surfaces: typography, colors, imagery/icons, and copy are unchanged; spacing is corrected only at the table's leading header edge.
-- Comparison history: initial P2 leading gap came from a separate 22 px header spacer. It was removed, its width was folded into the Name header cell, and the column-drop marker origin was compensated. Post-fix focused and live-runtime evidence show a flush leading header with stable downstream column geometry.
-- Findings: no actionable P0, P1, or P2 mismatch remains for this correction.
-
-**Toolbar Toggle Button QA (2026-07-22)**
-
-- Source visual truth: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-383fe29d-df19-499d-99e0-8d186d2c65ca.png` (336 x 82 px), with the requested correction that normalized audition and Help use the same framed toggle-button contract as the adjacent Settings control.
-- Implementation screenshots: resting `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 11.16.53 PM.jpeg` and active `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-22 at 11.20.31 PM.jpeg` (1289 x 768 and 1288 x 768 native captures).
-- Focused comparison: `/Users/portalsurfer/.codex/visualizations/2026/07/22/019f8ae1-b96a-7002-94ca-f1c340d59c93/toolbar-toggle-buttons-comparison.png`; the source, resting implementation, and active implementation were normalized to one 336 px-wide comparison artifact.
-- State: dark integrated toolbar with audio available; resting controls and both toggles active were exercised.
-- Full-view evidence: the rebuilt toolbar retains its right alignment, volume track, sample-rate badge, Settings button, window controls, and waveform workspace.
-- Focused evidence: both controls now reserve the standard 28 x 24 icon-button frame. Resting controls use the shared neutral chrome; active normalized audition and Help icons switch to the shared coral accent while retaining their framed hit areas.
-- Required fidelity surfaces: existing icon assets, typography, copy, and color tokens are preserved. Only toggle sizing and chrome changed; spacing remains the established toolbar rhythm.
-- Interaction evidence: native pointer activation visibly changed both controls from neutral to active coral, while focused routing tests confirmed that normalized audition emits its boolean state transition and Help toggles tooltip mode.
-- Comparison history: initial P2 controls were miniature 18 px bare icons without persistent button affordance. Removing the bare variant and adopting the shared 28 x 24 framed icon-button sizing resolved the mismatch.
-- Findings: no actionable P0, P1, or P2 mismatch remains for this correction.
+- Source visual truth: the existing signed-app idle capture at `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-23 at 1.03.47 AM.jpeg`, together with the requested interaction contract that the same one-pixel boundary lights across its full height and acts as the splitter.
+- Rendered implementation: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-23 at 1.18.11 AM.jpeg` during the signed-build resize interaction, plus `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/com.openai.sky.CUAService/Wavecrate codex-editorial-terminal-colors Screenshot 2026-07-23 at 1.17.58 AM.jpeg` for the idle state.
+- Viewport and density: both implementation captures are 1289 x 768 native logical pixels at the same density; no resampling was used before comparison.
+- State: the idle capture precedes interaction; the active capture holds the pointer on the widened invisible hit target.
+- Full-view evidence: the sidebar resizes while the sample workspace remains directly adjacent; no visible gutter is introduced.
+- Focused evidence: the active rail is projected as a root workspace overlay, so it remains continuous above the source header, waveform, sample header, rows, metadata sections, and status boundary instead of disappearing behind later sibling paint. The idle view retains the one-pixel neutral divider.
+- Fonts and typography: unchanged.
+- Spacing and layout rhythm: unchanged except for the user-controlled sidebar width; the structural divider remains exactly one pixel.
+- Colors and visual tokens: idle uses `border_emphasis`; hover/drag uses the shared accent emphasis token.
+- Hover intent: hover-only resize chrome waits 100 ms before revealing the accent state, preventing flashes during fast pointer crossings. Pointer-down still reveals the active rail immediately.
+- Image quality and asset fidelity: no image assets changed.
+- Copy and content: unchanged.
+- Primary interaction tested: hovering three pixels inside the boundary routes to the splitter; pointer press, 20 px drag, and release update the sidebar width. Release followed by an in-bounds native pointer move remains visually idle until the pointer exits and re-enters.
+- Comparison history: P2 rail occlusion was found where workspace and sidebar children painted after the original local overlay; fixed by promoting the rail to the shell workspace overlay. A sticky mouse-up highlight was fixed with a retained release latch that suppresses hover until pointer exit.
+- Findings: no remaining P0/P1/P2 mismatch. The former one-pixel-only hit target and center-glyph hover chrome were replaced by a five-pixel invisible target with a one-pixel trailing rail.
+- Validation: `cargo test -p wavecrate --lib folder_tree_and_sample_list_share_one_pixel_boundary`, `cargo test -p radiant --lib drag_handle`, `cargo check -q`, both diff checks, and `bash scripts/build.sh --release`. The exact-head signed app was launched, but the final Computer Use capture was blocked by the locked Mac session.
 
 final result: passed
+
+## Reference palette and waveform-height refinement
+
+- Source visual truth: `/var/folders/31/5t9ygsr14l198_s16mc9wymw0000gn/T/codex-clipboard-27d776a0-01d0-4df6-b99a-27c0485a777d.png`.
+- Reference sampling confirmed the existing workspace charcoal `(27, 30, 30)`, coral active color `(233, 88, 67)`, and primary text remain aligned. The remaining mismatch was the neutral stroke hierarchy: emphasized borders and grid lines were brighter than the reference.
+- The shared theme now keeps the matched background, accent, and text tokens while lowering emphasized borders to `(64, 67, 66)`, strong grids to `(54, 57, 57)`, and soft grids to `(40, 43, 43)`. The normal one-pixel border remains `(58, 61, 61)`.
+- The waveform viewport grows from 172 to 196 logical pixels. The containing panel grows by the same 24 pixels, from 202 to 226, preserving the existing 30-pixel title-and-scrollbar allowance and synchronized loading/drop overlays.
+- Validation: the focused Radiant palette test passed; all 16 waveform-panel-focused tests passed; `cargo check -q` and both diff checks passed. Independent review found no issues. A fresh signed release bundle was built and launched.
+- Final live capture was attempted against the exact rebuilt app, but the Mac session is locked. Deterministic token, geometry, renderer, and signed-build evidence therefore provide the final verification for this refinement.
+
+## Filter-family selected state
+
+- Enabled filter families now project the shared sidebar selected-row chrome behind their flat label and control content: the quiet selected fill plus the two-pixel coral leading rail.
+- The filter labels themselves remain input-only and paint no local fill or border, preserving the reference's flat typography. Nested text inputs, dropdowns, playback-type toggles, rating swatches, and label activation retain their existing identities and dispatch behavior.
+- Validation: all 28 filter-section tests passed, including a new active/inactive selected-chrome regression; `cargo check -q` and both diff checks passed; independent review found no issues; a fresh signed bundle was built and launched.
+- Live comparison is blocked because the Mac session is locked and Computer Use cannot capture the rebuilt app. Unlock the Mac to complete the same-state visual comparison.
+
+final result: blocked

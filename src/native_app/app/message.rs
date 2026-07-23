@@ -460,6 +460,7 @@ pub(in crate::native_app) enum MetadataMessage {
     ToggleMetadataTagCategory(String),
     SelectMetadataTag(String),
     ToggleMetadataTag(String),
+    RemoveMetadataTag(String),
     #[cfg(test)]
     ToggleMetadataTagForFiles {
         tag: String,

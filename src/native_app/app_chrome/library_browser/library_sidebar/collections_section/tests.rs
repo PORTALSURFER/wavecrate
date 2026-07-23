@@ -117,7 +117,7 @@ fn focused_selected_collection_layers_global_selection_and_focus_chrome() {
     let focus = crate::native_app::app_chrome::palette::focused_row_marker();
 
     assert_eq!(
-        frame.paint_plan.first_text_color("1  Collection 1"),
+        frame.paint_plan.first_text_color("1  COLLECTION 1"),
         Some(crate::native_app::app_chrome::palette::ACCENT)
     );
     assert!(
@@ -126,6 +126,44 @@ fn focused_selected_collection_layers_global_selection_and_focus_chrome() {
             .fill_rects()
             .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width)
     );
+}
+
+#[test]
+fn collection_focus_fade_overlays_the_fixed_selected_rail_without_a_horizontal_jump() {
+    let mut collection = collection_view(false, false);
+    collection.selected = true;
+    collection.focused = true;
+    collection.focus_alpha = 128;
+    let row = CollectionRowViewModel {
+        collection,
+        rename: None,
+    };
+    let frame = collection_row(&row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
+    let selected = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == crate::native_app::app_chrome::palette::ACCENT
+                && (fill.rect.width()
+                    - crate::native_app::app_chrome::palette::SELECTED_ROW_MARKER_WIDTH)
+                    .abs()
+                    < 0.5
+        })
+        .expect("selected rail");
+    let focus = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == crate::native_app::app_chrome::palette::PALE_MARKER.with_alpha(128)
+                && (fill.rect.width()
+                    - crate::native_app::app_chrome::palette::FOCUSED_ROW_MARKER_WIDTH)
+                    .abs()
+                    < 0.5
+        })
+        .expect("fading focus rail");
+
+    assert_eq!(selected.rect.min.x, focus.rect.min.x);
 }
 
 #[test]
@@ -208,10 +246,9 @@ fn collections_resize_header_uses_full_width_hit_target() {
         .expect("collections resize header layout rect");
     let drag = ui::DragHandleMessage::started(ui::Point::new(header.center().x, header.center().y));
 
-    assert!(
-        header.width() >= section.width() - COLLECTIONS_PANEL_PADDING * 2.0,
-        "collections resize header should span the useful panel width, section={section:?}, header={header:?}"
-    );
+    assert_eq!(header.min.x, section.min.x);
+    assert_eq!(header.max.x, section.max.x);
+    assert_eq!(header.min.y, section.min.y);
     assert_eq!(
         collections_section(&model).view_dispatch_widget_output(
             COLLECTIONS_RESIZE_HEADER_ID,

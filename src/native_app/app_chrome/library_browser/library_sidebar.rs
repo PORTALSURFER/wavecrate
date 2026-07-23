@@ -43,6 +43,36 @@ pub(in crate::native_app) fn library_sidebar(
         .fill_height()
 }
 
+/// Builds a resizable sidebar panel whose drag rail sits on the section edge.
+///
+/// Panel content keeps its normal inset, while the resize header remains outside
+/// that padding so its visual rail and hit target align with the divider above.
+fn edge_aligned_resize_panel(
+    key: &'static str,
+    header_id: u64,
+    header_height: f32,
+    content: ui::View<GuiMessage>,
+    panel_height: f32,
+    content_padding: f32,
+    content_spacing: f32,
+    map: impl Fn(ui::DragHandleMessage) -> GuiMessage + Send + Sync + 'static,
+) -> ui::View<GuiMessage> {
+    ui::panel_section_from_header_parts(
+        radiant::application::PanelSectionHeaderParts::resize_header(
+            key,
+            header_height,
+            content.padding(content_padding).fill_width().fill_height(),
+            map,
+        )
+        .header_id(header_id)
+        .padding(0.0)
+        .spacing(content_spacing)
+        .without_chrome()
+        .height(panel_height),
+    )
+    .fill_width()
+}
+
 pub(in crate::native_app) fn curation_filter_dropdown_overlay(
     model: &LibrarySidebarViewModel,
     bottom_status_bar_height: f32,

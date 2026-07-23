@@ -37,7 +37,7 @@ fn source_keyboard_focus_navigates_configured_order_and_clamps_at_edges() {
 }
 
 #[test]
-fn pointer_source_focus_keeps_navigation_domain_without_persistent_focus_visual() {
+fn pointer_source_focus_keeps_navigation_domain_and_starts_transient_focus_visual() {
     let sources = vec![
         deferred_source("source-a", wavecrate::sample_sources::SourceRole::Normal),
         deferred_source("source-b", wavecrate::sample_sources::SourceRole::Normal),
@@ -47,7 +47,7 @@ fn pointer_source_focus_keeps_navigation_domain_without_persistent_focus_visual(
     browser.focus_selected_source_for_pointer();
 
     assert!(browser.source_keyboard_focus_active());
-    assert!(!browser.source_keyboard_focus_visible());
+    assert!(browser.source_keyboard_focus_visible());
     assert_eq!(browser.adjacent_source_id(1).as_deref(), Some("source-b"));
 
     browser.focus_selected_source_for_keyboard();

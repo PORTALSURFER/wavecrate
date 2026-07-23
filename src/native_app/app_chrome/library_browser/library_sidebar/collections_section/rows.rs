@@ -95,13 +95,17 @@ fn collection_row_actions(
 
 /// Builds the visible collection row contents above the input layer.
 fn collection_visual(collection: &SampleCollectionView) -> ui::View<GuiMessage> {
-    let label = format!("{}  {}", collection.hotkey, collection.name);
+    let label = format!(
+        "{}  {}",
+        collection.hotkey,
+        collection.name.to_ascii_uppercase()
+    );
     ui::row([
-        collection_swatch(collection.color).width(16.0),
+        collection_swatch(collection.color).width(22.0),
         collection_label(label, collection.selected || collection.focused),
         collection_count(collection.assigned_count),
     ])
-    .padding_x(6.0)
+    .padding_x(8.0)
     .fill_width()
     .height(COLLECTION_ROW_HEIGHT)
     .spacing(0.0)
@@ -119,8 +123,11 @@ fn collection_label(label: String, selected: bool) -> ui::View<GuiMessage> {
 /// Builds the reusable collection color swatch.
 fn collection_swatch(color: ui::Rgba8) -> ui::View<GuiMessage> {
     ui::color_marker(Some(color))
+        .side(10)
+        .inset(0)
+        .align(ui::ColorMarkerAlign::Left)
         .view()
-        .width(16.0)
+        .width(22.0)
         .height(COLLECTION_ROW_HEIGHT)
 }
 

@@ -25,9 +25,12 @@ pub(in crate::native_app) struct FolderBrowserState {
     pub(super) collection_panel: CollectionPanelState,
     pub(super) panel_layout: BrowserPanelLayoutState,
     pub(super) sample_list: SampleListState,
-    /// Most recent keyboard navigation activity. Pointer activation preserves
-    /// the navigation domain but clears this visual-only focus timestamp.
+    /// Most recent keyboard or pointer focus activity. Pointer focus records
+    /// its exact folder target when selection state alone is ambiguous.
     keyboard_focus_shown_at: Option<Instant>,
+    keyboard_focus_hold: Duration,
+    keyboard_focus_alpha: u8,
+    pub(super) pointer_focused_folder_id: Option<String>,
 }
 
 const KEYBOARD_FOCUS_HOLD: Duration = Duration::from_millis(800);
@@ -92,6 +95,9 @@ impl FolderBrowserState {
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
             keyboard_focus_shown_at: None,
+            keyboard_focus_hold: Duration::ZERO,
+            keyboard_focus_alpha: 0,
+            pointer_focused_folder_id: None,
         };
         state.refresh_missing_collection_state();
         state
@@ -118,6 +124,9 @@ impl FolderBrowserState {
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
             keyboard_focus_shown_at: None,
+            keyboard_focus_hold: Duration::ZERO,
+            keyboard_focus_alpha: 0,
+            pointer_focused_folder_id: None,
         }
     }
 
@@ -126,18 +135,18 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn keyboard_focus_alpha(&self) -> u8 {
-        self.keyboard_focus_alpha_at(Instant::now())
+        self.keyboard_focus_alpha
     }
 
-    fn keyboard_focus_alpha_at(&self, now: Instant) -> u8 {
+    pub(in crate::native_app) fn keyboard_focus_alpha_at(&self, now: Instant) -> u8 {
         let Some(shown_at) = self.keyboard_focus_shown_at else {
             return 0;
         };
         let elapsed = now.checked_duration_since(shown_at).unwrap_or_default();
-        if elapsed <= KEYBOARD_FOCUS_HOLD {
+        if elapsed <= self.keyboard_focus_hold {
             return u8::MAX;
         }
-        let fade_elapsed = elapsed.saturating_sub(KEYBOARD_FOCUS_HOLD);
+        let fade_elapsed = elapsed.saturating_sub(self.keyboard_focus_hold);
         if fade_elapsed >= KEYBOARD_FOCUS_FADE {
             return 0;
         }
@@ -146,11 +155,35 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn show_keyboard_focus(&mut self) {
-        self.keyboard_focus_shown_at = Some(Instant::now());
+        self.pointer_focused_folder_id = None;
+        self.show_focus_at(Instant::now(), KEYBOARD_FOCUS_HOLD);
+    }
+
+    pub(in crate::native_app) fn show_pointer_focus(&mut self) {
+        self.pointer_focused_folder_id = None;
+        self.show_focus_at(Instant::now(), Duration::ZERO);
+    }
+
+    pub(in crate::native_app) fn show_pointer_focus_for_folder(&mut self, folder_id: String) {
+        self.pointer_focused_folder_id = Some(folder_id);
+        self.show_focus_at(Instant::now(), Duration::ZERO);
+    }
+
+    fn show_focus_at(&mut self, shown_at: Instant, hold: Duration) {
+        self.keyboard_focus_shown_at = Some(shown_at);
+        self.keyboard_focus_hold = hold;
+        self.keyboard_focus_alpha = u8::MAX;
+    }
+
+    pub(in crate::native_app) fn advance_keyboard_focus_fade(&mut self, now: Instant) {
+        self.keyboard_focus_alpha = self.keyboard_focus_alpha_at(now);
     }
 
     pub(in crate::native_app) fn hide_keyboard_focus(&mut self) {
         self.keyboard_focus_shown_at = None;
+        self.keyboard_focus_hold = Duration::ZERO;
+        self.keyboard_focus_alpha = 0;
+        self.pointer_focused_folder_id = None;
     }
 
     #[cfg(test)]
@@ -521,7 +554,7 @@ mod keyboard_focus_tests {
     fn keyboard_focus_holds_then_fades_without_clearing_navigation_state() {
         let mut state = FolderBrowserState::empty();
         let shown_at = Instant::now();
-        state.keyboard_focus_shown_at = Some(shown_at);
+        state.show_focus_at(shown_at, KEYBOARD_FOCUS_HOLD);
 
         assert_eq!(state.keyboard_focus_alpha_at(shown_at), u8::MAX);
         assert_eq!(
@@ -535,6 +568,41 @@ mod keyboard_focus_tests {
             0
         );
         assert!(state.keyboard_focus_shown_at.is_some());
+    }
+
+    #[test]
+    fn pointer_focus_fades_immediately_and_restarts_from_full_on_every_click() {
+        let mut state = FolderBrowserState::empty();
+        let first_click = Instant::now();
+        state.show_focus_at(first_click, Duration::ZERO);
+        let midway = first_click + KEYBOARD_FOCUS_FADE / 2;
+
+        assert!(state.keyboard_focus_alpha_at(midway).abs_diff(128) <= 1);
+        state.show_focus_at(midway, Duration::ZERO);
+        assert_eq!(state.keyboard_focus_alpha_at(midway), u8::MAX);
+        assert!(
+            state
+                .keyboard_focus_alpha_at(midway + KEYBOARD_FOCUS_FADE / 2)
+                .abs_diff(128)
+                <= 1
+        );
+        assert_eq!(
+            state.keyboard_focus_alpha_at(midway + KEYBOARD_FOCUS_FADE),
+            0
+        );
+    }
+
+    #[test]
+    fn frame_advancement_commits_focus_opacity_for_projection() {
+        let mut state = FolderBrowserState::empty();
+        let shown_at = Instant::now();
+        state.show_focus_at(shown_at, Duration::ZERO);
+
+        assert_eq!(state.keyboard_focus_alpha(), u8::MAX);
+        state.advance_keyboard_focus_fade(shown_at + KEYBOARD_FOCUS_FADE / 2);
+        assert!(state.keyboard_focus_alpha().abs_diff(128) <= 1);
+        state.advance_keyboard_focus_fade(shown_at + KEYBOARD_FOCUS_FADE);
+        assert_eq!(state.keyboard_focus_alpha(), 0);
     }
 }
 

@@ -21,8 +21,8 @@ use crate::native_app::ui::ids::{
 };
 use radiant::prelude as ui;
 use radiant::runtime::{
-    PaintBrush, PaintFillPath, PaintPath, PaintPathCommand, PaintPrimitive, SurfaceNode,
-    TransientOverlayContext, WidgetPaint,
+    PaintBrush, PaintFillPath, PaintLinearGradient, PaintPath, PaintPathCommand, PaintPrimitive,
+    SurfaceNode, TransientOverlayContext, WidgetPaint,
 };
 use radiant::widgets::{TextWidget, WidgetSizing};
 
@@ -48,6 +48,7 @@ const SOURCE_PROCESSING_SEGMENT_FRACTION: f32 = 0.28;
 const SOURCE_PROCESSING_MIN_SEGMENT_WIDTH: f32 = 28.0;
 const SOURCE_PROCESSING_TRACK_ALPHA: u8 = 42;
 const SOURCE_PROCESSING_SEGMENT_ALPHA: u8 = 235;
+const SOURCE_PROCESSING_SEGMENT_TAIL_ALPHA: u8 = 0;
 
 pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::View<GuiMessage> {
     bottom_status_bar(StatusBarViewModel::from_app_state(state))
@@ -143,18 +144,93 @@ impl NativeAppState {
         let position = (context.animation_time.as_secs_f32()
             * SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND)
             .fract();
-        let Some(segment) = radiant::gui::feedback::horizontal_progress_activity_rect(
-            track,
-            position,
-            SOURCE_PROCESSING_SEGMENT_FRACTION,
-            SOURCE_PROCESSING_MIN_SEGMENT_WIDTH,
-        ) else {
-            return;
-        };
         let mut paint = WidgetPaint::new(primitives, SOURCE_PROCESSING_SOURCE_PULSE_ID);
         paint.push_visible_fill_rect(track, ACCENT.with_alpha(SOURCE_PROCESSING_TRACK_ALPHA));
-        paint.push_visible_fill_rect(segment, ACCENT.with_alpha(SOURCE_PROCESSING_SEGMENT_ALPHA));
+        drop(paint);
+        for (segment, gradient) in source_processing_gradient_slices(track, position) {
+            primitives.push(PaintPrimitive::FillPath(PaintFillPath::new(
+                SOURCE_PROCESSING_SOURCE_PULSE_ID,
+                rectangle_path(segment),
+                PaintBrush::linear_gradient(gradient),
+            )));
+        }
     }
+}
+
+fn source_processing_gradient_slices(
+    track: ui::Rect,
+    position: f32,
+) -> Vec<(ui::Rect, PaintLinearGradient)> {
+    if !track.has_finite_positive_area() {
+        return Vec::new();
+    }
+    let segment_width = (track.width() * SOURCE_PROCESSING_SEGMENT_FRACTION).clamp(
+        SOURCE_PROCESSING_MIN_SEGMENT_WIDTH.min(track.width()),
+        track.width(),
+    );
+    if segment_width <= 0.0 {
+        return Vec::new();
+    }
+    let position = if position.is_finite() {
+        position.rem_euclid(1.0)
+    } else {
+        0.0
+    };
+    let head_x = track.min.x + track.width() * position;
+    let tail_x = head_x - segment_width;
+    let tail_color = ACCENT.with_alpha(SOURCE_PROCESSING_SEGMENT_TAIL_ALPHA);
+    let head_color = ACCENT.with_alpha(SOURCE_PROCESSING_SEGMENT_ALPHA);
+    let mut slices = Vec::with_capacity(2);
+
+    if tail_x < track.min.x {
+        let wrapped_tail_x = tail_x + track.width();
+        let wrapped_head_x = head_x + track.width();
+        slices.push((
+            ui::Rect::from_min_max(ui::Point::new(wrapped_tail_x, track.min.y), track.max),
+            PaintLinearGradient::new(
+                ui::Point::new(wrapped_tail_x, track.min.y),
+                ui::Point::new(wrapped_head_x, track.min.y),
+                tail_color,
+                head_color,
+            ),
+        ));
+    }
+
+    if head_x > track.min.x {
+        slices.push((
+            ui::Rect::from_min_max(
+                ui::Point::new(tail_x.max(track.min.x), track.min.y),
+                ui::Point::new(head_x.min(track.max.x), track.max.y),
+            ),
+            PaintLinearGradient::new(
+                ui::Point::new(tail_x, track.min.y),
+                ui::Point::new(head_x, track.min.y),
+                tail_color,
+                head_color,
+            ),
+        ));
+    }
+
+    slices.retain(|(rect, gradient)| rect.has_finite_positive_area() && gradient.is_paintable());
+    slices
+}
+
+fn rectangle_path(rect: ui::Rect) -> PaintPath {
+    PaintPath::from([
+        PaintPathCommand::MoveTo(rect.min),
+        PaintPathCommand::LineTo(ui::Point::new(rect.max.x, rect.min.y)),
+        PaintPathCommand::LineTo(rect.max),
+        PaintPathCommand::LineTo(ui::Point::new(rect.min.x, rect.max.y)),
+        PaintPathCommand::Close,
+    ])
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn source_processing_gradient_slices_for_tests(
+    track: ui::Rect,
+    position: f32,
+) -> Vec<(ui::Rect, PaintLinearGradient)> {
+    source_processing_gradient_slices(track, position)
 }
 
 fn status_segment(label: impl Into<ui::TextContent>) -> ui::View<GuiMessage> {

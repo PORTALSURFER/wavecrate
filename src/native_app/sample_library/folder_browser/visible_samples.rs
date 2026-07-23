@@ -758,7 +758,8 @@ impl FolderBrowserState {
     ) -> VisibleSampleRow<'a> {
         let harvest_facts = harvest_lookup.facts_for_file(self, file);
         let selected = self.is_file_selected(&file.id);
-        let focused = !self.source_keyboard_focus_active()
+        let focused = self.pointer_focused_folder_id.is_none()
+            && !self.source_keyboard_focus_active()
             && self.keyboard_focus_visible()
             && self.selected_file_id() == Some(file.id.as_str());
         VisibleSampleRow {

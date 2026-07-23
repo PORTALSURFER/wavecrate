@@ -261,6 +261,43 @@ fn keyboard_navigation_layers_focus_over_active_source_selection() {
 }
 
 #[test]
+fn source_focus_fade_overlays_the_fixed_selected_rail_without_a_horizontal_jump() {
+    let source = test_source("source-focused-fade");
+    let mut state =
+        FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    state.focus_selected_source_for_keyboard();
+    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first_mut().expect("source row");
+    row.focus_alpha = 128;
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+    let selected_color = source_selected_marker_color_for_tests();
+    let focus_color = crate::native_app::app_chrome::palette::PALE_MARKER.with_alpha(128);
+    let selected = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == selected_color
+                && (fill.rect.width() - SELECTED_ROW_MARKER_WIDTH).abs() < 0.5
+        })
+        .expect("selected rail");
+    let focus = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.color == focus_color
+                && (fill.rect.width()
+                    - crate::native_app::app_chrome::palette::FOCUSED_ROW_MARKER_WIDTH)
+                    .abs()
+                    < 0.5
+        })
+        .expect("fading focus rail");
+
+    assert_eq!(selected.rect.min.x, focus.rect.min.x);
+    assert_eq!(selected.rect.min.x, SOURCE_ROW_INSET_X);
+}
+
+#[test]
 fn source_row_keeps_actions_enabled_while_processing_feedback_is_overlay_owned() {
     let source = test_source("source-processing");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());

@@ -4,7 +4,7 @@ use crate::native_app::test_support::{
     sample_browser::{DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH},
     state::{FolderBrowserState, GuiMessage, NativeAppStateFixture},
 };
-use radiant::runtime::Command;
+use radiant::runtime::{Command, Event};
 use radiant::{
     gui::types::{Point, Vector2},
     runtime::SurfaceFrame,
@@ -44,7 +44,7 @@ fn folder_tree_and_sample_list_share_one_pixel_boundary() {
         .with_synthetic_waveform()
         .with_folder_browser(FolderBrowserState::from_root(root))
         .build();
-    let runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let tree = runtime
         .layout()
         .rects
@@ -81,6 +81,93 @@ fn folder_tree_and_sample_list_share_one_pixel_boundary() {
                 || stroke.rect.height() <= 40.0
         }),
         "inner lists must not paint structural edges beside the continuous sidebar rail"
+    );
+
+    let hover = Point::new(samples.min.x - 3.0, samples.center().y);
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(hover)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID),
+        "the resize hit target should extend inward from the one-pixel rail"
+    );
+    let hovered_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let crossing_rail = hovered_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            (fill.rect.min.x - tree.max.x).abs() < 0.01
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.rect.min.y <= tree.min.y
+                && fill.rect.max.y >= samples.max.y
+        })
+        .expect("resize rail during a fast pointer crossing");
+    assert_eq!(crossing_rail.rect, rail.rect);
+    assert_eq!(
+        crossing_rail.color,
+        radiant::prelude::ThemeTokens::default().border_emphasis,
+        "a fast pointer crossing should not flash the resize highlight"
+    );
+
+    let initial_width = runtime.bridge().state().ui.chrome.folder_panel.size();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(hover)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    let pressed_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let active_rail = pressed_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.widget_id == crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.color != radiant::prelude::ThemeTokens::default().border_emphasis
+        })
+        .expect("pointer-down should light the resize rail immediately");
+    let active_rail_index = pressed_frame
+        .paint_plan
+        .primitives
+        .iter()
+        .rposition(|primitive| {
+            primitive.widget_id()
+                == Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+                && primitive.rects().any(|rect| rect == active_rail.rect)
+        })
+        .expect("active resize rail paint primitive");
+    assert!(
+        pressed_frame.paint_plan.primitives[active_rail_index + 1..]
+            .iter()
+            .filter(|primitive| primitive.is_paint())
+            .flat_map(|primitive| primitive.rects())
+            .all(|rect| !rect.overlaps(active_rail.rect)),
+        "the resize rail must remain unobscured by later sidebar or workspace paint"
+    );
+
+    let drag = Point::new(hover.x + 20.0, hover.y);
+    assert_eq!(
+        runtime.dispatch_event(Event::pointer_move(drag)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.folder_panel.size(),
+        initial_width + 20.0
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(drag)),
+        Some(crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID)
+    );
+    let _ = runtime.dispatch_event(Event::pointer_move(drag));
+    let released_frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let released_rail = released_frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            fill.widget_id == crate::native_app::ui::ids::LIBRARY_SIDEBAR_RESIZE_HANDLE_ID
+                && (fill.rect.width() - 1.0).abs() < 0.01
+        })
+        .expect("released sidebar resize rail");
+    assert_eq!(
+        released_rail.color,
+        radiant::prelude::ThemeTokens::default().border_emphasis,
+        "releasing the mouse should immediately clear active resize highlighting"
     );
 }
 

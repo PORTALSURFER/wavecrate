@@ -12,13 +12,15 @@ mod rows;
 #[cfg(test)]
 mod tests;
 
+use super::edge_aligned_resize_panel;
 use rows::{
-    FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_LABEL_CONTROL_SPACING, FILTER_LABEL_WIDTH,
-    FILTER_ROW_CONTROL_HEIGHT, FILTER_ROW_HEIGHT, FILTER_ROW_SPACING, FILTER_ROW_VERTICAL_INSET,
-    curation_filter_dropdown_menu, filter_rows, harvest_filter_dropdown_menu,
+    FILTER_CONTROL_HORIZONTAL_PADDING, FILTER_CONTROLS_CONTENT_HEIGHT,
+    FILTER_LABEL_CONTROL_SPACING, FILTER_LABEL_WIDTH, FILTER_ROW_CONTROL_HEIGHT, FILTER_ROW_HEIGHT,
+    FILTER_ROW_SPACING, FILTER_ROW_VERTICAL_INSET, curation_filter_dropdown_menu, filter_rows,
+    harvest_filter_dropdown_menu,
 };
 
-pub(super) const FILTER_PANEL_PADDING: f32 = 6.0;
+pub(super) const FILTER_PANEL_PADDING: f32 = 10.0;
 #[cfg(test)]
 const FILTER_PANEL_HEADER_HEIGHT: f32 = SIDEBAR_PANEL_HEADER_HEIGHT;
 const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
@@ -31,20 +33,16 @@ const CURATION_FILTER_ROW_INDEX: usize = 2;
 const HARVEST_FILTER_ROW_INDEX: usize = 3;
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
-    let panel = ui::panel_section_from_header_parts(
-        radiant::application::PanelSectionHeaderParts::resize_header(
-            "filter-resize-header",
-            SIDEBAR_PANEL_HEADER_HEIGHT,
-            filter_controls(model),
-            |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message)),
-        )
-        .header_id(FILTER_RESIZE_HEADER_ID)
-        .height(model.panel_height)
-        .padding(FILTER_PANEL_PADDING)
-        .without_chrome()
-        .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
-    )
-    .fill_width();
+    let panel = edge_aligned_resize_panel(
+        "filter-resize-header",
+        FILTER_RESIZE_HEADER_ID,
+        SIDEBAR_PANEL_HEADER_HEIGHT,
+        filter_controls(model),
+        model.panel_height,
+        FILTER_PANEL_PADDING,
+        FILTER_PANEL_HEADER_CONTENT_SPACING,
+        |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFilterPanel(message)),
+    );
     #[cfg(test)]
     {
         panel.id(FILTER_SECTION_NODE_ID)
@@ -120,8 +118,11 @@ fn filter_dropdown_overlay(
     let trigger_bottom_inset =
         filter_bottom_inset + (model.panel_height - trigger_bottom_from_filter_top).max(0.0);
     let menu_bottom_inset = (trigger_bottom_inset - FILTER_ROW_SPACING - size.y).max(0.0);
-    let menu_inset_x =
-        sidebar_inset_x + FILTER_PANEL_PADDING + FILTER_LABEL_WIDTH + FILTER_LABEL_CONTROL_SPACING;
+    let menu_inset_x = sidebar_inset_x
+        + FILTER_PANEL_PADDING
+        + FILTER_LABEL_WIDTH
+        + FILTER_LABEL_CONTROL_SPACING
+        + FILTER_CONTROL_HORIZONTAL_PADDING;
     ui::anchored_layer(
         menu,
         size,

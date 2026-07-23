@@ -716,18 +716,20 @@ fn pressed_and_hover_state_survive_retained_widget_refresh() {
 }
 
 #[test]
-/// Verifies cached sample rows paint the loaded marker.
-fn loaded_rows_paint_right_edge_marker() {
+/// Verifies cached sample rows reserve a separate rail before the scrollbar.
+fn loaded_rows_paint_readiness_marker_clear_of_scrollbar() {
     let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = sample_hit_target(false, false, false, true);
     let plan = sample_widget_plan(&target, bounds);
 
     assert!(
-        plan.fill_rects()
-            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
-                && fill.rect.width() == 2.0
-                && fill.color == CACHED_MARKER),
-        "loaded rows should show a near-white right-edge marker"
+        plan.fill_rects().any(|fill| fill.rect.min.x
+            == bounds.max.x - CACHED_MARKER_EDGE_INSET - 2.0
+            && fill.rect.max.x
+                == bounds.max.x - SAMPLE_LIST_SCROLLBAR_WIDTH - CACHED_MARKER_SCROLLBAR_GAP
+            && fill.rect.width() == 2.0
+            && fill.color == CACHED_MARKER),
+        "loaded rows should show a near-white readiness marker clear of the scrollbar lane"
     );
 }
 
@@ -741,9 +743,7 @@ fn unloaded_rows_do_not_paint_loaded_marker() {
     assert!(
         !plan
             .fill_rects()
-            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
-                && fill.rect.width() == 2.0
-                && fill.color == CACHED_MARKER),
+            .any(|fill| fill.rect.width() == 2.0 && fill.color == CACHED_MARKER),
         "unloaded rows should not show the loaded marker"
     );
 }

@@ -198,6 +198,9 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.library
+            .folder_browser
+            .advance_keyboard_focus_fade(std::time::Instant::now());
         self.background
             .source_processing
             .set_foreground_activity(self.waveform_sample_load_active());

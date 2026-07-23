@@ -261,19 +261,20 @@ impl SourceRowViewModel {
         let reorder_drag_source =
             folder_browser.source_reorder_drag_source_id() == Some(source.id.as_str());
         let reorder_drop_after = folder_browser.source_reorder_drop_marker_after(&source.id);
-        let focused =
-            selected_source_id == source.id && folder_browser.source_keyboard_focus_visible();
+        let selected = selected_source_id == source.id;
+        let focus_alpha = if selected && folder_browser.source_keyboard_focus_active() {
+            folder_browser.keyboard_focus_alpha()
+        } else {
+            0
+        };
+        let focused = focus_alpha > 0;
         Self {
             id: source.id.clone(),
             label: source.label.clone(),
             role: source.role,
-            selected: selected_source_id == source.id,
+            selected,
             focused,
-            focus_alpha: if focused {
-                folder_browser.keyboard_focus_alpha()
-            } else {
-                0
-            },
+            focus_alpha,
             reorder_enabled: folder_browser.source_reorder_enabled(&source.id),
             reorder_drag_active: folder_browser.source_reorder_drag_active(),
             reorder_drag_source,
