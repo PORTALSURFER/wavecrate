@@ -314,10 +314,16 @@ fn apply_batch(
                 .targeted_file
                 .as_ref()
                 .expect("verified targeted files retain their descriptor through apply");
-            if !targeted_path_matches_handle(root, &relative_path, file_handle)? {
-                context.mark_source_tree_incomplete();
-                context.existing.remove(&relative_path);
-                continue;
+            match targeted_path_binding(root, &relative_path, file_handle)? {
+                TargetedPathBinding::Matches => {}
+                // A link or absence is a definite deletion: leave its old row
+                // in `existing` for the missing phase to retire.
+                TargetedPathBinding::Retire => continue,
+                TargetedPathBinding::Changed => {
+                    context.mark_source_tree_incomplete();
+                    context.existing.remove(&relative_path);
+                    continue;
+                }
             }
         } else {
             let absolute = root.join(&relative_path);
@@ -472,11 +478,17 @@ fn prepare_targeted_for_apply(
 
 /// Confirm that the path used as the manifest key is still bound to the same
 /// no-follow file descriptor that targeted discovery classified and hashed.
-fn targeted_path_matches_handle(
+enum TargetedPathBinding {
+    Matches,
+    Retire,
+    Changed,
+}
+
+fn targeted_path_binding(
     root: &Path,
     relative_path: &Path,
     expected: &std::fs::File,
-) -> Result<bool, ScanError> {
+) -> Result<TargetedPathBinding, ScanError> {
     let source_root =
         Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
             path: root.to_path_buf(),
@@ -484,28 +496,41 @@ fn targeted_path_matches_handle(
         })?;
     let Some((parent, name)) = open_target_parent_nofollow(&source_root, root, relative_path)?
     else {
-        return Ok(false);
+        return Ok(TargetedPathBinding::Retire);
     };
     let mut options = OpenOptions::new();
     options.read(true).follow(FollowSymlinks::No);
     let current = match parent.open_with(&name, &options) {
         Ok(file) => file.into_std(),
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(TargetedPathBinding::Retire);
+        }
         Err(source) => {
+            if parent
+                .symlink_metadata(&name)
+                .is_ok_and(|metadata| metadata.is_symlink())
+            {
+                return Ok(TargetedPathBinding::Retire);
+            }
             tracing::warn!(
                 path = %root.join(relative_path).display(),
                 error = %source,
                 "Skipping targeted sync path that no longer opens without following links"
             );
-            return Ok(false);
+            return Ok(TargetedPathBinding::Changed);
         }
     };
     if !current.metadata().is_ok_and(|metadata| metadata.is_file()) {
-        return Ok(false);
+        return Ok(TargetedPathBinding::Retire);
     }
-    same_open_file(expected, &current).map_err(|source| ScanError::Io {
+    let matches = same_open_file(expected, &current).map_err(|source| ScanError::Io {
         path: root.join(relative_path),
         source,
+    })?;
+    Ok(if matches {
+        TargetedPathBinding::Matches
+    } else {
+        TargetedPathBinding::Changed
     })
 }
 
@@ -753,10 +778,10 @@ mod tests {
         std::fs::remove_file(&source).unwrap();
         symlink(&outside_file, &source).unwrap();
 
-        assert!(
-            !super::targeted_path_matches_handle(dir.path(), Path::new("one.wav"), &expected,)
-                .unwrap()
-        );
+        assert!(matches!(
+            super::targeted_path_binding(dir.path(), Path::new("one.wav"), &expected).unwrap(),
+            super::TargetedPathBinding::Retire
+        ));
     }
 
     #[cfg(unix)]
@@ -776,13 +801,59 @@ mod tests {
         std::fs::rename(&nested, dir.path().join("moved")).unwrap();
         symlink(outside.path(), &nested).unwrap();
 
-        assert!(
-            !super::targeted_path_matches_handle(
-                dir.path(),
-                Path::new("nested/one.wav"),
-                &expected,
-            )
-            .unwrap()
+        assert!(matches!(
+            super::targeted_path_binding(dir.path(), Path::new("nested/one.wav"), &expected,)
+                .unwrap(),
+            super::TargetedPathBinding::Retire
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn targeted_apply_retires_a_file_replaced_by_a_link_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("one.wav");
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"source").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(Path::new("one.wav").to_path_buf(), entry)]),
+            ScanMode::Targeted,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
         );
+        let file = std::fs::File::open(&source).unwrap();
+        let prepared = PreparedFile {
+            facts: super::super::scan_fs::read_facts_from_open_file(dir.path(), &source, &file)
+                .unwrap(),
+            hash_required: false,
+            needs_hash: false,
+            requires_apply: true,
+            identity_replaced: false,
+            content_hash: None,
+            targeted_file: Some(file),
+            targeted_handle_verified: true,
+        };
+
+        std::fs::remove_file(&source).unwrap();
+        symlink(&outside_file, &source).unwrap();
+        apply_batch(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            false,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+        )
+        .unwrap();
+
+        assert!(context.existing.contains_key(Path::new("one.wav")));
     }
 }
