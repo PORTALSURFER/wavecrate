@@ -16,7 +16,7 @@ pub use model::{
 };
 pub use snapshot::{
     ArtifactPublishOutcome, ReadinessActivity, ReadinessClassification, ReadinessDeficit,
-    ReadinessEntry, ReadinessSnapshot, ReadinessStageCounts,
+    ReadinessEntry, ReadinessProgress, ReadinessSnapshot, ReadinessStageCounts,
 };
 #[cfg(test)]
 pub(crate) use store::reconcile_readiness_with_hook;

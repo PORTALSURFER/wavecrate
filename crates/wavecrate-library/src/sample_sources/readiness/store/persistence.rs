@@ -612,7 +612,7 @@ pub fn persist_readiness_deficits(
     deficits: &[ReadinessDeficit],
     created_at: i64,
 ) -> Result<usize, ReadinessError> {
-    persist_readiness_deficits_inner(connection, deficits, created_at, None, &mut || {})
+    persist_readiness_deficits_inner(connection, deficits, created_at, None, &mut |_| {})
 }
 
 pub(super) fn persist_readiness_deficits_inner(
@@ -620,15 +620,19 @@ pub(super) fn persist_readiness_deficits_inner(
     deficits: &[ReadinessDeficit],
     created_at: i64,
     cancel: Option<&AtomicBool>,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(super::super::ReadinessProgress),
 ) -> Result<usize, ReadinessError> {
     cancellation_checkpoint(cancel)?;
     let mut unique = BTreeSet::new();
     let tx = connection.transaction()?;
     let mut changed = 0;
-    for deficit in deficits {
+    let total = deficits.len();
+    for (index, deficit) in deficits.iter().enumerate() {
         cancellation_checkpoint(cancel)?;
-        progress();
+        progress(super::super::ReadinessProgress::QueueingTargets {
+            completed: index.saturating_add(1),
+            total,
+        });
         let target = &deficit.target;
         if !unique.insert((
             target.key(),

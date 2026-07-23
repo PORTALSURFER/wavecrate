@@ -292,8 +292,8 @@ fn source_processing_discovery_uses_compact_activity_feedback() {
             source_row_active: true,
             completed: 0,
             total: 0,
-            stage: String::from("Checking pending work"),
-            detail: String::from("Counting unfinished analysis, similarity, and indexing jobs"),
+            stage: String::from("Inspecting source manifest"),
+            detail: String::from("Reading eligible files"),
         },
     );
 
@@ -314,10 +314,8 @@ fn source_processing_discovery_uses_compact_activity_feedback() {
         [
             String::from("Type: Source processing"),
             String::from("Source: Projects"),
-            String::from("Progress: Counting pending jobs"),
-            String::from(
-                "Current: Checking pending work | Counting unfinished analysis, similarity, and indexing jobs"
-            ),
+            String::from("Progress: Active (total not available)"),
+            String::from("Current: Inspecting source manifest | Reading eligible files"),
         ]
     );
 }

@@ -24,7 +24,7 @@ impl<'connection> ReadinessView<'connection> {
         source_id: &str,
         now: i64,
     ) -> Result<ReadinessSnapshot, ReadinessError> {
-        reconcile::reconcile_readiness_inner(self.connection, source_id, now, None, &mut || {})
+        reconcile::reconcile_readiness_inner(self.connection, source_id, now, None, &mut |_| {})
     }
 
     /// Reconcile with cancellation-safe progress reporting.
@@ -33,7 +33,7 @@ impl<'connection> ReadinessView<'connection> {
         source_id: &str,
         now: i64,
         cancel: &AtomicBool,
-        progress: &mut dyn FnMut(),
+        progress: &mut dyn FnMut(crate::sample_sources::readiness::ReadinessProgress),
     ) -> Result<ReadinessSnapshot, ReadinessError> {
         reconcile::reconcile_readiness_inner(
             self.connection,

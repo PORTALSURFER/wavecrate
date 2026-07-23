@@ -25,8 +25,7 @@ impl SourceProcessingLifecycle {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum SourceProcessingActivity {
     Discovering {
-        phase: String,
-        completed_steps: usize,
+        phase: SourceDiscoveryPhase,
     },
     Readiness {
         stage: ReadinessStage,
@@ -42,6 +41,17 @@ pub(in crate::native_app) enum SourceProcessingActivity {
     WaitingForRetry {
         retry_at: i64,
     },
+}
+
+/// Stable user-facing phases within source readiness discovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum SourceDiscoveryPhase {
+    Preparing,
+    InspectingManifest,
+    PreparingTargets,
+    ComparingReadiness,
+    ComparingChangedReadiness,
+    QueueingWork,
 }
 
 /// Backend-neutral progress for one source lifecycle.

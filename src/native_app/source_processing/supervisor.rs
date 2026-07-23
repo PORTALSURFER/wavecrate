@@ -23,8 +23,8 @@ use wavecrate::sample_sources::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
         ReadinessDeltaPublicationOutcome, ReadinessEligibility, ReadinessFailureClassification,
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessMembership,
-        ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot, ReadinessStage,
-        ReadinessStore, ReadinessTarget, ReadinessTargetDeltaPublication,
+        ReadinessProgress, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
+        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessTargetDeltaPublication,
         ReadinessTargetPublication, ReadinessWorkMutationOutcome, SourceAvailability,
     },
     scanner::{
@@ -35,8 +35,8 @@ use wavecrate::sample_sources::{
 
 use super::worker::{SourceProcessingFailure, source_database_failure};
 use super::{
-    SourceProcessingActivity, SourceProcessingEvent, SourceProcessingEventSink,
-    SourceProcessingLifecycle, SourceProcessingProgressEvent,
+    SourceDiscoveryPhase, SourceProcessingActivity, SourceProcessingEvent,
+    SourceProcessingEventSink, SourceProcessingLifecycle, SourceProcessingProgressEvent,
     scheduler::{
         BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane,
         WorkCandidate,

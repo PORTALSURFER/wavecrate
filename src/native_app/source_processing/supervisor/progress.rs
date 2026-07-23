@@ -2,9 +2,9 @@ use super::{
     BTreeMap, BTreeSet, DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL, DISCOVERY_PROGRESS_LOG_INTERVAL,
     DISCOVERY_PROGRESS_REFRESH_INTERVAL, Instant, PROGRESS_REFRESH_INTERVAL,
     ReadinessClassification, ReadinessEligibility, ReadinessScopeKind, ReadinessSnapshot,
-    ReadinessStage, RuntimeCandidate, RuntimeTask, Shared, SourceDiscoveryStats,
-    SourceProcessingActivity, SourceProcessingEvent, SourceProcessingLifecycle,
-    SourceProcessingProgressEvent, earliest_deadline,
+    ReadinessStage, RuntimeCandidate, RuntimeTask, Shared, SourceDiscoveryPhase,
+    SourceDiscoveryStats, SourceProcessingActivity, SourceProcessingEvent,
+    SourceProcessingLifecycle, SourceProcessingProgressEvent, earliest_deadline,
 };
 
 pub(super) struct DiscoveryProgressPublisher<'a> {
@@ -12,16 +12,57 @@ pub(super) struct DiscoveryProgressPublisher<'a> {
     pub(super) source_id: &'a str,
     pub(super) lifecycle_generation: u64,
     pub(super) started_at: Instant,
-    pub(super) last_phase: Option<&'static str>,
+    pub(super) last_progress: Option<DiscoveryProgressUpdate>,
     pub(super) last_event_publish_at: Option<Instant>,
     pub(super) last_log_publish_at: Option<Instant>,
     pub(super) event_published: bool,
+    pub(super) work_units: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct DiscoveryProgressUpdate {
+    pub(super) phase: SourceDiscoveryPhase,
+    pub(super) completed: usize,
+    pub(super) total: usize,
+}
+
+impl DiscoveryProgressUpdate {
+    pub(super) const fn indeterminate(phase: SourceDiscoveryPhase) -> Self {
+        Self {
+            phase,
+            completed: 0,
+            total: 0,
+        }
+    }
+
+    pub(super) const fn determinate(
+        phase: SourceDiscoveryPhase,
+        completed: usize,
+        total: usize,
+    ) -> Self {
+        Self {
+            phase,
+            completed,
+            total,
+        }
+    }
 }
 
 impl DiscoveryProgressPublisher<'_> {
-    pub(super) fn advance(&mut self, phase: &'static str, work_units: usize) {
-        let phase_changed = self.last_phase != Some(phase);
+    pub(super) fn advance(&mut self, progress: DiscoveryProgressUpdate) {
+        self.work_units = self.work_units.saturating_add(1);
+        let phase_changed = self
+            .last_progress
+            .is_none_or(|previous| previous.phase != progress.phase);
+        let regressed = self.last_progress.is_some_and(|previous| {
+            discovery_phase_rank(progress.phase) < discovery_phase_rank(previous.phase)
+                || (previous.phase == progress.phase
+                    && previous.total > 0
+                    && progress.total > 0
+                    && progress.completed < previous.completed)
+        });
         let event_due = self.started_at.elapsed() >= DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL
+            && !regressed
             && (phase_changed
                 || self.last_event_publish_at.is_none_or(|published_at| {
                     published_at.elapsed() >= DISCOVERY_PROGRESS_REFRESH_INTERVAL
@@ -34,11 +75,10 @@ impl DiscoveryProgressPublisher<'_> {
                         self.lifecycle_generation,
                     ),
                     source_row_active: true,
-                    completed: 0,
-                    total: 0,
+                    completed: progress.completed.min(progress.total),
+                    total: progress.total,
                     activity: SourceProcessingActivity::Discovering {
-                        phase: phase.to_string(),
-                        completed_steps: work_units,
+                        phase: progress.phase,
                     },
                 },
             ));
@@ -54,13 +94,28 @@ impl DiscoveryProgressPublisher<'_> {
                 event = "source_processing.discovery_progress",
                 source_id = self.source_id,
                 lifecycle_generation = self.lifecycle_generation,
-                phase,
-                work_units,
+                phase = ?progress.phase,
+                work_units = self.work_units,
+                completed = progress.completed,
+                total = progress.total,
                 "Source discovery reconciliation advanced"
             );
             self.last_log_publish_at = Some(Instant::now());
         }
-        self.last_phase = Some(phase);
+        if !regressed {
+            self.last_progress = Some(progress);
+        }
+    }
+}
+
+fn discovery_phase_rank(phase: SourceDiscoveryPhase) -> u8 {
+    match phase {
+        SourceDiscoveryPhase::Preparing => 0,
+        SourceDiscoveryPhase::InspectingManifest => 1,
+        SourceDiscoveryPhase::PreparingTargets => 2,
+        SourceDiscoveryPhase::ComparingReadiness
+        | SourceDiscoveryPhase::ComparingChangedReadiness => 3,
+        SourceDiscoveryPhase::QueueingWork => 4,
     }
 }
 

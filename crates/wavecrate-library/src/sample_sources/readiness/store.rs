@@ -220,7 +220,7 @@ impl<'connection> ReadinessStore<'connection> {
         source_id: &str,
         now: i64,
     ) -> Result<ReadinessSnapshot, ReadinessError> {
-        reconcile::reconcile_readiness_inner(self.connection, source_id, now, None, &mut || {})
+        reconcile::reconcile_readiness_inner(self.connection, source_id, now, None, &mut |_| {})
     }
 
     /// Reconcile a source while reporting checkpoints and honoring cancellation.
@@ -229,7 +229,7 @@ impl<'connection> ReadinessStore<'connection> {
         source_id: &str,
         now: i64,
         cancel: &AtomicBool,
-        progress: &mut dyn FnMut(),
+        progress: &mut dyn FnMut(super::ReadinessProgress),
     ) -> Result<ReadinessSnapshot, ReadinessError> {
         reconcile::reconcile_readiness_inner(
             self.connection,
@@ -251,7 +251,7 @@ impl<'connection> ReadinessStore<'connection> {
         scope_ids: &BTreeSet<String>,
         now: i64,
         cancel: &AtomicBool,
-        progress: &mut dyn FnMut(),
+        progress: &mut dyn FnMut(super::ReadinessProgress),
     ) -> Result<ReadinessSnapshot, ReadinessError> {
         reconcile::reconcile_readiness_scopes_inner(
             self.connection,
@@ -274,7 +274,7 @@ impl<'connection> ReadinessStore<'connection> {
             deficits,
             created_at,
             None,
-            &mut || {},
+            &mut |_| {},
         )
     }
 
@@ -284,7 +284,7 @@ impl<'connection> ReadinessStore<'connection> {
         deficits: &[ReadinessDeficit],
         created_at: i64,
         cancel: &AtomicBool,
-        progress: &mut dyn FnMut(),
+        progress: &mut dyn FnMut(super::ReadinessProgress),
     ) -> Result<usize, ReadinessError> {
         persistence::persist_readiness_deficits_inner(
             self.connection,

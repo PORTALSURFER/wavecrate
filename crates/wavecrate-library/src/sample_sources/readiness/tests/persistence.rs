@@ -975,7 +975,7 @@ fn one_identity_delta_preserves_unchanged_targets_and_running_work() {
             &BTreeSet::from([String::from("change"), String::from("delete")]),
             200,
             &std::sync::atomic::AtomicBool::new(false),
-            &mut || {},
+            &mut |_| {},
         )
         .expect("reconcile only affected readiness scopes");
     assert_eq!(delta_snapshot.entries.len(), 4);

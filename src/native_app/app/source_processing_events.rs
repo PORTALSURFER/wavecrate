@@ -63,7 +63,7 @@ fn map_event(event: SourceProcessingEvent) -> GuiMessage {
 }
 
 fn map_progress(event: SourceProcessingProgressEvent) -> SourceProcessingProgress {
-    let (stage, detail) = activity_copy(&event.activity);
+    let (stage, detail) = activity_copy(&event.activity, event.completed, event.total);
     SourceProcessingProgress {
         source_id: event.lifecycle.source_id,
         lifecycle_generation: event.lifecycle.generation,
@@ -76,15 +76,15 @@ fn map_progress(event: SourceProcessingProgressEvent) -> SourceProcessingProgres
     }
 }
 
-fn activity_copy(activity: &SourceProcessingActivity) -> (String, String) {
+fn activity_copy(
+    activity: &SourceProcessingActivity,
+    completed: usize,
+    total: usize,
+) -> (String, String) {
     match activity {
-        SourceProcessingActivity::Discovering {
-            phase,
-            completed_steps,
-        } => (
-            String::from("Checking pending work"),
-            format!("{phase} | {completed_steps} reconciliation steps completed"),
-        ),
+        SourceProcessingActivity::Discovering { phase } => {
+            discovery_copy(*phase, completed.min(total), total)
+        }
         SourceProcessingActivity::Readiness {
             stage,
             relative_path,
@@ -135,6 +135,56 @@ fn activity_copy(activity: &SourceProcessingActivity) -> (String, String) {
                 },
             )
         }
+    }
+}
+
+fn discovery_copy(
+    phase: crate::native_app::source_processing::SourceDiscoveryPhase,
+    completed: usize,
+    total: usize,
+) -> (String, String) {
+    use crate::native_app::source_processing::SourceDiscoveryPhase;
+
+    let determinate = |unit: &str| {
+        if total > 0 {
+            format!("{completed} / {total} {unit}")
+        } else {
+            String::new()
+        }
+    };
+    match phase {
+        SourceDiscoveryPhase::Preparing => (
+            String::from("Preparing source readiness"),
+            String::from("Checking durable readiness state"),
+        ),
+        SourceDiscoveryPhase::InspectingManifest => (
+            String::from("Inspecting source manifest"),
+            String::from("Reading eligible files"),
+        ),
+        SourceDiscoveryPhase::PreparingTargets => (
+            String::from("Inspecting source manifest"),
+            determinate("files inspected"),
+        ),
+        SourceDiscoveryPhase::ComparingReadiness => (
+            String::from("Comparing source readiness"),
+            if total > 0 {
+                determinate("readiness targets compared")
+            } else {
+                String::from("Loading durable readiness")
+            },
+        ),
+        SourceDiscoveryPhase::ComparingChangedReadiness => (
+            String::from("Comparing changed readiness"),
+            if total > 0 {
+                determinate("readiness targets compared")
+            } else {
+                String::from("Loading changed readiness")
+            },
+        ),
+        SourceDiscoveryPhase::QueueingWork => (
+            String::from("Queueing unfinished work"),
+            determinate("readiness targets checked"),
+        ),
     }
 }
 
@@ -225,16 +275,12 @@ mod tests {
     }
 
     #[test]
-    fn maps_discovery_audit_and_completion_without_changing_visible_copy() {
+    fn maps_truthful_discovery_audit_and_completion_copy() {
         let discovery = mapped_progress(SourceProcessingActivity::Discovering {
-            phase: String::from("Comparing durable readiness"),
-            completed_steps: 128,
+            phase: crate::native_app::source_processing::SourceDiscoveryPhase::ComparingReadiness,
         });
-        assert_eq!(discovery.stage, "Checking pending work");
-        assert_eq!(
-            discovery.detail,
-            "Comparing durable readiness | 128 reconciliation steps completed"
-        );
+        assert_eq!(discovery.stage, "Comparing source readiness");
+        assert_eq!(discovery.detail, "3 / 5 readiness targets compared");
 
         let audit = mapped_progress(SourceProcessingActivity::ManifestAudit {
             checked: Some(9),
@@ -250,6 +296,19 @@ mod tests {
         };
         assert!(!completed.active);
         assert!(completed.source_id.is_empty());
+    }
+
+    #[test]
+    fn large_discovery_counts_keep_the_phase_unit_and_denominator() {
+        let (stage, detail) = discovery_copy(
+            crate::native_app::source_processing::SourceDiscoveryPhase::ComparingReadiness,
+            17_435,
+            21_697,
+        );
+        assert_eq!(stage, "Comparing source readiness");
+        assert_eq!(detail, "17435 / 21697 readiness targets compared");
+        assert!(!detail.contains("reconciliation steps"));
+        assert!(!detail.contains("101506"));
     }
 
     #[test]

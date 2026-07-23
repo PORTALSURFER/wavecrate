@@ -1,8 +1,9 @@
 use super::{
-    AtomicBool, Cancellable, MANIFEST_AUDIT_INTERVAL_SECONDS, META_LAST_MANIFEST_AUDIT_AT,
-    META_WAV_PATHS_REVISION, PendingReadinessDelta, ProcessingLane, ReadinessClassification,
-    ReadinessStore, RuntimeCandidate, RuntimeTask, SampleSource, SourceAvailability,
-    SourceDiscoveryStats, WorkCandidate, active_recording_deferrals, cancelled, earliest_deadline,
+    AtomicBool, Cancellable, DiscoveryProgressUpdate, MANIFEST_AUDIT_INTERVAL_SECONDS,
+    META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION, PendingReadinessDelta, ProcessingLane,
+    ReadinessClassification, ReadinessProgress, ReadinessStore, RuntimeCandidate, RuntimeTask,
+    SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats, WorkCandidate,
+    active_recording_deferrals, cancelled, earliest_deadline,
     legacy_unsupported_decode_failure_text, publish_current_readiness_delta_with_cancel,
     publish_current_readiness_targets_with_cancel_and_checkpoint, readiness_contract_version,
     retire_legacy_playback_readiness, similarity_prerequisite_blocker_stats,
@@ -70,7 +71,7 @@ pub(super) fn discover_source_candidates_with_connection(
         None,
         false,
         cancel,
-        &mut |_, _| {},
+        &mut |_| {},
     )
 }
 
@@ -83,10 +84,9 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
     pending_readiness_delta: Option<&PendingReadinessDelta>,
     safety_probe_only: bool,
     cancel: &AtomicBool,
-    progress: &mut dyn FnMut(&'static str, usize),
+    progress: &mut dyn FnMut(DiscoveryProgressUpdate),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     let source_id = source.id.as_str();
-    let mut work_units = 0_usize;
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
     if connection
@@ -164,7 +164,9 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             task: RuntimeTask::ManifestAudit,
         });
     }
-    progress("Retiring legacy playback readiness", work_units);
+    progress(DiscoveryProgressUpdate::indeterminate(
+        SourceDiscoveryPhase::Preparing,
+    ));
     if matches!(
         retire_legacy_playback_readiness(source, connection, cancel)?,
         Cancellable::Cancelled
@@ -186,15 +188,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
     }
     if !delta_applied {
         let target_publication = publish_current_readiness_targets_with_cancel_and_checkpoint(
-            connection,
-            source_id,
-            now,
-            cancel,
-            true,
-            &mut || {
-                work_units = work_units.saturating_add(1);
-                progress("Reading manifest and readiness targets", work_units);
-            },
+            connection, source_id, now, cancel, true, progress,
         )?;
         if matches!(target_publication, Cancellable::Cancelled) {
             return Ok(Cancellable::Cancelled);
@@ -226,9 +220,20 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
                     .scope_ids,
                 now,
                 cancel,
-                &mut || {
-                    work_units = work_units.saturating_add(1);
-                    progress("Comparing changed readiness", work_units);
+                &mut |update| {
+                    progress(match update {
+                        ReadinessProgress::Inspecting => DiscoveryProgressUpdate::indeterminate(
+                            SourceDiscoveryPhase::ComparingChangedReadiness,
+                        ),
+                        ReadinessProgress::ComparingTargets { completed, total } => {
+                            DiscoveryProgressUpdate::determinate(
+                                SourceDiscoveryPhase::ComparingChangedReadiness,
+                                completed,
+                                total,
+                            )
+                        }
+                        ReadinessProgress::QueueingTargets { .. } => unreachable!(),
+                    });
                 },
             )
         } else {
@@ -236,9 +241,20 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
                 source_id,
                 now,
                 cancel,
-                &mut || {
-                    work_units = work_units.saturating_add(1);
-                    progress("Comparing durable readiness", work_units);
+                &mut |update| {
+                    progress(match update {
+                        ReadinessProgress::Inspecting => DiscoveryProgressUpdate::indeterminate(
+                            SourceDiscoveryPhase::ComparingReadiness,
+                        ),
+                        ReadinessProgress::ComparingTargets { completed, total } => {
+                            DiscoveryProgressUpdate::determinate(
+                                SourceDiscoveryPhase::ComparingReadiness,
+                                completed,
+                                total,
+                            )
+                        }
+                        ReadinessProgress::QueueingTargets { .. } => unreachable!(),
+                    });
                 },
             )
         };
@@ -264,9 +280,15 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             &persistable_deficits,
             now,
             cancel,
-            &mut || {
-                work_units = work_units.saturating_add(1);
-                progress("Queueing unfinished jobs", work_units);
+            &mut |update| {
+                let ReadinessProgress::QueueingTargets { completed, total } = update else {
+                    unreachable!();
+                };
+                progress(DiscoveryProgressUpdate::determinate(
+                    SourceDiscoveryPhase::QueueingWork,
+                    completed,
+                    total,
+                ));
             },
         ) {
             Ok(_) => {}

@@ -33,7 +33,7 @@ pub(super) fn publish_current_readiness_targets_with_cancel(
         now,
         cancel,
         false,
-        &mut || {},
+        &mut |_| {},
     )
 }
 

@@ -116,6 +116,31 @@ pub enum ReadinessActivity {
     WaitingForRetry,
 }
 
+/// User-meaningful progress emitted while readiness is inspected and reconciled.
+///
+/// The indeterminate inspection phase deliberately does not expose internal row visits. Once the
+/// target set is loaded, comparison and queueing report exact target counts without another
+/// database pass.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessProgress {
+    /// Durable targets, artifacts, and existing work are being loaded.
+    Inspecting,
+    /// Loaded readiness targets are being classified.
+    ComparingTargets {
+        /// Targets classified so far.
+        completed: usize,
+        /// Total loaded targets to classify.
+        total: usize,
+    },
+    /// Actionable readiness targets are being checked for durable queue work.
+    QueueingTargets {
+        /// Actionable targets checked so far.
+        completed: usize,
+        /// Total actionable targets to check.
+        total: usize,
+    },
+}
+
 /// Reconciled source readiness plus observable per-stage diagnostics.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReadinessSnapshot {

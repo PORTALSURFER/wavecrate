@@ -69,7 +69,7 @@ fn reconcile_readiness_with_cancel_and_progress(
     source_id: &str,
     now: i64,
     cancel: &AtomicBool,
-    progress: &mut dyn FnMut(),
+    progress: &mut dyn FnMut(ReadinessProgress),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     ReadinessView::new(connection)
         .reconcile_with_cancel_and_progress(source_id, now, cancel, progress)

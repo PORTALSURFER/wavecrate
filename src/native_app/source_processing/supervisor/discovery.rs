@@ -1,7 +1,7 @@
 use super::{
-    Arc, AtomicBool, BTreeMap, BTreeSet, Cancellable, DiscoveryProgressPublisher, Instant,
-    PendingReadinessDelta, ProcessingLane, ReadinessStore, RuntimeCandidate,
-    SOURCE_DISCOVERY_RETRY_SECONDS, SampleSource, Shared, SourceDatabase,
+    Arc, AtomicBool, BTreeMap, BTreeSet, Cancellable, DiscoveryProgressPublisher,
+    DiscoveryProgressUpdate, Instant, PendingReadinessDelta, ProcessingLane, ReadinessStore,
+    RuntimeCandidate, SOURCE_DISCOVERY_RETRY_SECONDS, SampleSource, Shared, SourceDatabase,
     SourceDatabaseConnectionRole, SourceDiscoveryStats, cancelled,
     discover_source_candidates_with_connection_and_progress, now_epoch_seconds,
     readiness_safety_probe_is_current, source_processing_schema_available,
@@ -67,10 +67,11 @@ pub(super) fn discover_candidates(
             source_id: source.id.as_str(),
             lifecycle_generation: in_flight_work.lifecycle_generation,
             started_at: Instant::now(),
-            last_phase: None,
+            last_progress: None,
             last_event_publish_at: None,
             last_log_publish_at: None,
             event_published: false,
+            work_units: 0,
         };
         let discovery_result = {
             let _writer = shared
@@ -84,7 +85,7 @@ pub(super) fn discover_candidates(
                 pending_readiness_deltas.get(source.id.as_str()),
                 safety_probe_only,
                 source_cancel,
-                &mut |phase, work_units| progress.advance(phase, work_units),
+                &mut |update| progress.advance(update),
             )
         };
         match discovery_result {
@@ -155,7 +156,7 @@ pub(super) fn discover_source_candidates(
         None,
         false,
         cancel,
-        &mut |_, _| {},
+        &mut |_| {},
     )
 }
 
@@ -167,7 +168,7 @@ pub(super) fn discover_source_candidates_with_progress(
     pending_readiness_delta: Option<&PendingReadinessDelta>,
     safety_probe_only: bool,
     cancel: &AtomicBool,
-    progress: &mut dyn FnMut(&'static str, usize),
+    progress: &mut dyn FnMut(DiscoveryProgressUpdate),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);

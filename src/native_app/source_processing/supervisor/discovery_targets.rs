@@ -1,7 +1,8 @@
 use super::{
-    AtomicBool, Cancellable, META_WAV_PATHS_REVISION, Ordering, READINESS_MANIFEST_VERSION,
-    READINESS_MEMBERSHIP_VERSION, ReadinessEligibility, ReadinessMembership, ReadinessStage,
-    ReadinessStore, ReadinessTarget, ReadinessTargetPublication, SampleSource, SourceAvailability,
+    AtomicBool, Cancellable, DiscoveryProgressUpdate, META_WAV_PATHS_REVISION, Ordering,
+    READINESS_MANIFEST_VERSION, READINESS_MEMBERSHIP_VERSION, ReadinessEligibility,
+    ReadinessMembership, ReadinessStage, ReadinessStore, ReadinessTarget,
+    ReadinessTargetPublication, SampleSource, SourceAvailability, SourceDiscoveryPhase,
     invalidate_persisted_waveform_cache_ref, native_similarity_artifact_version,
     retained_waveform_cache_ref_is_owned,
 };
@@ -59,9 +60,11 @@ pub(super) fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     now: i64,
     cancel: &AtomicBool,
     allow_revision_noop: bool,
-    checkpoint: &mut impl FnMut(),
+    progress: &mut (impl FnMut(DiscoveryProgressUpdate) + ?Sized),
 ) -> Result<Cancellable<bool>, String> {
-    checkpoint();
+    progress(DiscoveryProgressUpdate::indeterminate(
+        SourceDiscoveryPhase::InspectingManifest,
+    ));
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
@@ -100,7 +103,9 @@ pub(super) fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         let mut query = statement.query([]).map_err(|error| error.to_string())?;
         let mut rows = Vec::new();
         while let Some(row) = query.next().map_err(|error| error.to_string())? {
-            checkpoint();
+            progress(DiscoveryProgressUpdate::indeterminate(
+                SourceDiscoveryPhase::InspectingManifest,
+            ));
             if cancelled(cancel) {
                 return Ok(Cancellable::Cancelled);
             }
@@ -121,7 +126,9 @@ pub(super) fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         .map_err(|error| error.to_string())?;
     let mut manifest = Vec::with_capacity(rows.len());
     for (path, identity, content_hash, file_size, modified_ns) in rows {
-        checkpoint();
+        progress(DiscoveryProgressUpdate::indeterminate(
+            SourceDiscoveryPhase::InspectingManifest,
+        ));
         if cancelled(cancel) {
             return Ok(Cancellable::Cancelled);
         }
@@ -148,8 +155,15 @@ pub(super) fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     let similarity_artifact_version = native_similarity_artifact_version();
     let mut membership = ReadinessMembership::default();
     let mut targets = Vec::with_capacity(manifest.len().saturating_mul(3).saturating_add(1));
-    for (path, identity, content_hash, content_generation, file_size) in &manifest {
-        checkpoint();
+    let manifest_total = manifest.len();
+    for (index, (path, identity, content_hash, content_generation, file_size)) in
+        manifest.iter().enumerate()
+    {
+        progress(DiscoveryProgressUpdate::determinate(
+            SourceDiscoveryPhase::PreparingTargets,
+            index.saturating_add(1),
+            manifest_total,
+        ));
         if cancelled(cancel) {
             return Ok(Cancellable::Cancelled);
         }

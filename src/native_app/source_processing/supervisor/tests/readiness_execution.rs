@@ -112,7 +112,7 @@ fn legacy_playback_readiness_is_retired_without_requeueing_source_work() {
         source.id.as_str(),
         now_epoch_seconds(),
         &AtomicBool::new(false),
-        &mut || {},
+        &mut |_| {},
     )
     .expect("ignore legacy playback rows during reconciliation");
     assert_eq!(snapshot.entries.len(), 4);

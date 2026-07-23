@@ -62,7 +62,7 @@ fn profile_large_source_discovery_baseline() {
 }
 
 #[test]
-fn discovery_reports_monotonic_work_backed_progress() {
+fn discovery_progress_reports_phase_specific_truthful_counts() {
     const FILE_COUNT: usize = 8;
     let directory = tempfile::tempdir().expect("progress source");
     let source = SampleSource::new_with_id(
@@ -105,7 +105,7 @@ fn discovery_reports_monotonic_work_backed_progress() {
         None,
         false,
         &AtomicBool::new(false),
-        &mut |phase, work_units| updates.push((phase, work_units)),
+        &mut |update| updates.push(update),
     )
     .expect("discover source with progress") else {
         panic!("progress discovery unexpectedly cancelled");
@@ -113,24 +113,35 @@ fn discovery_reports_monotonic_work_backed_progress() {
 
     assert!(updates.len() > FILE_COUNT);
     assert!(
-        updates.windows(2).all(|pair| pair[0].1 <= pair[1].1),
-        "discovery work units must never move backward"
-    );
-    assert!(updates.last().unwrap().1 > updates.first().unwrap().1);
-    assert!(
         updates
             .iter()
-            .any(|(phase, _)| *phase == "Comparing durable readiness")
+            .any(|update| update.phase == SourceDiscoveryPhase::InspectingManifest)
     );
     assert!(
         updates
             .iter()
-            .any(|(phase, _)| *phase == "Queueing unfinished jobs")
+            .any(|update| update.phase == SourceDiscoveryPhase::PreparingTargets
+                && update.completed == FILE_COUNT
+                && update.total == FILE_COUNT)
+    );
+    assert!(
+        updates.iter().any(|update| {
+            update.phase == SourceDiscoveryPhase::ComparingReadiness
+                && update.completed == FILE_COUNT * 3 + 1
+                && update.total == FILE_COUNT * 3 + 1
+        })
+    );
+    assert!(
+        updates.iter().any(|update| {
+            update.phase == SourceDiscoveryPhase::QueueingWork
+                && update.completed == FILE_COUNT * 3 + 1
+                && update.total == FILE_COUNT * 3 + 1
+        })
     );
 }
 
 #[test]
-fn discovery_progress_publisher_exposes_advancing_counter() {
+fn discovery_progress_publisher_exposes_determinate_target_progress() {
     let directory = tempfile::tempdir().expect("progress source");
     let source = SampleSource::new_with_id(
         SourceId::from_string("progress-publisher"),
@@ -144,15 +155,24 @@ fn discovery_progress_publisher_exposes_advancing_counter() {
         source_id: "progress-publisher",
         lifecycle_generation,
         started_at: Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL,
-        last_phase: None,
+        last_progress: None,
         last_event_publish_at: None,
         last_log_publish_at: None,
         event_published: false,
+        work_units: 0,
     };
 
-    publisher.advance("Comparing durable readiness", 128);
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::ComparingReadiness,
+        128,
+        512,
+    ));
     publisher.last_event_publish_at = Some(Instant::now() - DISCOVERY_PROGRESS_REFRESH_INTERVAL);
-    publisher.advance("Comparing durable readiness", 256);
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::ComparingReadiness,
+        256,
+        512,
+    ));
 
     let updates = receiver
         .try_iter()
@@ -164,19 +184,72 @@ fn discovery_progress_publisher_exposes_advancing_counter() {
     assert_eq!(updates.len(), 2);
     assert_eq!(updates[0].lifecycle.source_id, "progress-publisher");
     assert_eq!(updates[0].lifecycle.generation, lifecycle_generation);
+    assert_eq!((updates[0].completed, updates[0].total), (128, 512));
     assert_eq!(
         updates[0].activity,
         SourceProcessingActivity::Discovering {
-            phase: String::from("Comparing durable readiness"),
-            completed_steps: 128,
+            phase: SourceDiscoveryPhase::ComparingReadiness,
         }
     );
+    assert_eq!((updates[1].completed, updates[1].total), (256, 512));
     assert_eq!(
         updates[1].activity,
         SourceProcessingActivity::Discovering {
-            phase: String::from("Comparing durable readiness"),
-            completed_steps: 256,
+            phase: SourceDiscoveryPhase::ComparingReadiness,
         }
+    );
+}
+
+#[test]
+fn discovery_progress_publisher_rejects_phase_and_count_regressions() {
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("progress-regression"),
+        PathBuf::from("/library/progress-regression"),
+    );
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let shared = Shared::new(vec![source], Some(Arc::new(sender)));
+    let lifecycle_generation = shared.control().source_lifecycle_generations["progress-regression"];
+    let mut publisher = DiscoveryProgressPublisher {
+        shared: &shared,
+        source_id: "progress-regression",
+        lifecycle_generation,
+        started_at: Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL,
+        last_progress: None,
+        last_event_publish_at: None,
+        last_log_publish_at: None,
+        event_published: false,
+        work_units: 0,
+    };
+
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::QueueingWork,
+        4,
+        8,
+    ));
+    publisher.last_event_publish_at = Some(Instant::now() - DISCOVERY_PROGRESS_REFRESH_INTERVAL);
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::QueueingWork,
+        3,
+        8,
+    ));
+    publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::ComparingReadiness,
+        8,
+        8,
+    ));
+
+    let updates = receiver
+        .try_iter()
+        .filter(|event| matches!(event, SourceProcessingEvent::Progress(_)))
+        .count();
+    assert_eq!(updates, 1, "stale progress must not replace newer progress");
+    assert_eq!(
+        publisher.last_progress,
+        Some(DiscoveryProgressUpdate::determinate(
+            SourceDiscoveryPhase::QueueingWork,
+            4,
+            8,
+        ))
     );
 }
 
@@ -193,28 +266,35 @@ fn discovery_phase_progress_is_debug_only() {
         source_id: "progress-log-policy",
         lifecycle_generation,
         started_at: Instant::now(),
-        last_phase: None,
+        last_progress: None,
         last_event_publish_at: None,
         last_log_publish_at: None,
         event_published: false,
+        work_units: 0,
     };
 
     let info = capture_logs(tracing::Level::INFO, || {
-        publisher.advance("Reading manifest and readiness targets", 1);
+        publisher.advance(DiscoveryProgressUpdate::indeterminate(
+            SourceDiscoveryPhase::InspectingManifest,
+        ));
     });
     assert!(!info.contains("source_processing.discovery_progress"));
 
-    publisher.last_phase = None;
+    publisher.last_progress = None;
     publisher.last_log_publish_at = None;
     let debug = capture_logs(tracing::Level::DEBUG, || {
-        publisher.advance("Comparing durable readiness", 2);
+        publisher.advance(DiscoveryProgressUpdate::determinate(
+            SourceDiscoveryPhase::ComparingReadiness,
+            1,
+            2,
+        ));
     });
     assert!(debug.contains("source_processing.discovery_progress"));
     assert!(debug.contains("work_units=2"));
 }
 
 #[test]
-fn large_source_discovery_cancels_mid_manifest_and_resumes_cleanly() {
+fn discovery_progress_cancellation_mid_manifest_resumes_cleanly() {
     const FILE_COUNT: usize = 512;
     let directory = tempfile::tempdir().expect("large cancellation source");
     let source = SampleSource::new_with_id(
@@ -262,7 +342,7 @@ fn large_source_discovery_cancels_mid_manifest_and_resumes_cleanly() {
         100,
         &cancel,
         false,
-        &mut || {
+        &mut |_| {
             checkpoints += 1;
             if checkpoints == 128 {
                 cancel.store(true, Ordering::Release);
