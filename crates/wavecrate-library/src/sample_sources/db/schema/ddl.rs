@@ -17,6 +17,34 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
     CREATE TABLE IF NOT EXISTS source_manifest_audit_seen (
         path TEXT PRIMARY KEY
     ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS source_content_audit_state (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        rotation_id INTEGER NOT NULL,
+        rotation_started_at INTEGER NOT NULL,
+        cursor TEXT NOT NULL DEFAULT '',
+        checkpoint_revision INTEGER NOT NULL DEFAULT 0,
+        verified_entries INTEGER NOT NULL DEFAULT 0,
+        verified_bytes INTEGER NOT NULL DEFAULT 0,
+        bytes_read INTEGER NOT NULL DEFAULT 0,
+        skipped_entries INTEGER NOT NULL DEFAULT 0,
+        last_batch_at INTEGER,
+        last_rotation_completed_at INTEGER,
+        last_rotation_seconds INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS source_content_audit_entries (
+        path TEXT PRIMARY KEY,
+        verified_rotation INTEGER,
+        verified_at INTEGER,
+        verified_file_size INTEGER,
+        verified_modified_ns INTEGER,
+        verified_file_identity TEXT,
+        last_attempt_at INTEGER,
+        retry_at INTEGER,
+        skip_reason TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        bytes_read INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY(path) REFERENCES wav_files(path) ON DELETE CASCADE
+    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS wav_files (
         path TEXT PRIMARY KEY,
         file_size INTEGER NOT NULL,

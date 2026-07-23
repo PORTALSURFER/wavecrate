@@ -38,7 +38,7 @@ impl PendingReadinessDelta {
 
 #[derive(Clone, Debug)]
 pub(super) enum RuntimeTask {
-    ManifestAudit,
+    ManifestAudit { accelerated: bool },
     Readiness(ReadinessTarget),
 }
 

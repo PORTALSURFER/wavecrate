@@ -244,7 +244,9 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
         candidates.push(RuntimeCandidate {
             schedule: WorkCandidate::source(source_id, ProcessingLane::Scan, 0, now),
             source: source.clone(),
-            task: RuntimeTask::ManifestAudit,
+            task: RuntimeTask::ManifestAudit {
+                accelerated: force_manifest_audit,
+            },
         });
     }
     progress(DiscoveryProgressUpdate::indeterminate(

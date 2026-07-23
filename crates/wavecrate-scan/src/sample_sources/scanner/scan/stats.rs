@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use wavecrate_library::sample_sources::SourceManifestEntry;
+use wavecrate_library::sample_sources::db::ContentAuditReport;
 
 /// One non-audio regular file observed during the authoritative source traversal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +57,8 @@ pub struct ScanStats {
     pub hashes_computed: usize,
     /// Number of files whose content hashes were deferred during the scan.
     pub hashes_pending: usize,
+    /// Durable content-verification coverage after this scan.
+    pub content_audit: Option<ContentAuditReport>,
     /// Number of missing rows reconciled to renamed files.
     pub renames_reconciled: usize,
     /// Detailed list of files whose source-visible metadata was updated in place.
@@ -79,6 +82,7 @@ pub struct ScanStats {
 impl ScanStats {
     pub(super) fn merge_deferred_hashes(&mut self, mut deferred: Self) {
         self.hashes_computed += deferred.hashes_computed;
+        self.content_audit = deferred.content_audit.take().or(self.content_audit.take());
         self.hashes_pending = self.hashes_pending.saturating_sub(deferred.hashes_computed);
         self.renames_reconciled += deferred.renames_reconciled;
         self.updated_samples.append(&mut deferred.updated_samples);

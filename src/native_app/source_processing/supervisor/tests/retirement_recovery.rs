@@ -215,7 +215,7 @@ fn macos_safety_probe_requires_durable_watcher_coverage() {
     assert!(
         candidates
             .iter()
-            .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit)),
+            .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit { .. })),
         "a macOS source without a durable watcher checkpoint must remain audit-eligible"
     );
     #[cfg(not(target_os = "macos"))]

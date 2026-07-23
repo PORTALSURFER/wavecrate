@@ -117,7 +117,7 @@ fn completion_from_removed_lifecycle_cannot_mutate_readded_source_state() {
     let candidate = || RuntimeCandidate {
         schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Scan, 0, 0),
         source: source.clone(),
-        task: RuntimeTask::ManifestAudit,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
     };
     let mut candidates = vec![candidate()];
     let mut source_stats = BTreeMap::new();
@@ -332,7 +332,7 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
             now_epoch_seconds(),
         ),
         source,
-        task: RuntimeTask::ManifestAudit,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
     };
     assert_eq!(
         execute_candidate(
@@ -340,6 +340,7 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
             0,
             &AtomicBool::new(false),
             &DatabaseWriterGate::default(),
+            ContentAuditActivity::default(),
             &mut |event| sender.send(event).is_ok(),
         )
         .expect("execute manifest audit"),

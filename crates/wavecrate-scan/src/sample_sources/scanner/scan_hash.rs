@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
+use crate::sample_sources::db::{
+    ContentAuditSkipReason, PendingRenameEntry, SourceWriteBatch, WavEntry,
+};
 use wavecrate_library::sample_sources::{SourceEntryFileType, classify_source_entry};
 
 use super::scan::{ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample};
@@ -19,7 +22,124 @@ struct HashBackfill {
     file_identity: Option<String>,
 }
 
-const META_CONTENT_AUDIT_CURSOR: &str = "source_content_audit_cursor_v1";
+const CONTENT_AUDIT_RETRY_SECONDS: i64 = 15 * 60;
+
+/// Resource ceilings for one resumable content-verification batch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ContentAuditBudget {
+    /// Maximum wall time for one admitted slice.
+    pub max_elapsed: Duration,
+    /// Maximum bytes hashed by one admitted slice, after allowing one oversize file.
+    pub max_bytes: u64,
+    /// Maximum entries attempted by one admitted slice.
+    pub max_entries: usize,
+    /// Desired maximum age of a complete verification rotation.
+    pub target_coverage_age: Duration,
+    /// Portion of the entry ceiling reserved for due retries.
+    pub retry_entries: usize,
+}
+
+impl ContentAuditBudget {
+    /// Build a compatibility budget bounded only by entry count.
+    pub fn entry_limited(max_entries: usize) -> Self {
+        Self {
+            max_elapsed: Duration::MAX,
+            max_bytes: u64::MAX,
+            max_entries,
+            target_coverage_age: Duration::from_secs(30 * 24 * 60 * 60),
+            retry_entries: max_entries.div_ceil(4).max(1),
+        }
+    }
+
+    /// Derive a finite daily slice from source scale while retaining hard time, byte, and entry
+    /// ceilings. Playback/foreground work and slower source classes use the conservative lane.
+    pub fn adaptive(
+        total_entries: usize,
+        activity: ContentAuditActivity,
+        storage: ContentAuditStorage,
+        accelerated: bool,
+    ) -> Self {
+        Self::adaptive_for_target(
+            total_entries,
+            activity,
+            storage,
+            accelerated,
+            Duration::from_secs(30 * 24 * 60 * 60),
+        )
+    }
+
+    /// Derive an adaptive slice for an explicit content-coverage objective.
+    pub fn adaptive_for_target(
+        total_entries: usize,
+        activity: ContentAuditActivity,
+        storage: ContentAuditStorage,
+        accelerated: bool,
+        target_coverage_age: Duration,
+    ) -> Self {
+        const AUDIT_INTERVAL_SECONDS: u64 = 24 * 60 * 60;
+        let target_intervals = usize::try_from(
+            target_coverage_age
+                .as_secs()
+                .div_ceil(AUDIT_INTERVAL_SECONDS)
+                .max(1),
+        )
+        .unwrap_or(usize::MAX);
+        let desired_entries = total_entries.div_ceil(target_intervals).max(1);
+        let constrained = activity.playback_active
+            || activity.foreground_active
+            || storage == ContentAuditStorage::ExternalOrNetwork;
+        let (max_elapsed, max_bytes, hard_entry_cap) = match (constrained, accelerated) {
+            (true, false) => (Duration::from_secs(1), 64 * 1024 * 1024, 1_024),
+            (true, true) => (Duration::from_secs(2), 128 * 1024 * 1024, 2_048),
+            (false, false) => (Duration::from_secs(5), 512 * 1024 * 1024, 4_096),
+            (false, true) => (Duration::from_secs(10), 1024 * 1024 * 1024, 8_192),
+        };
+        let max_entries = desired_entries
+            .saturating_mul(if accelerated { 4 } else { 1 })
+            .clamp(1, hard_entry_cap);
+        Self {
+            max_elapsed,
+            max_bytes,
+            max_entries,
+            target_coverage_age,
+            retry_entries: max_entries.div_ceil(4).max(1),
+        }
+    }
+}
+
+/// Foreground resource activity used to select conservative hashing ceilings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ContentAuditActivity {
+    /// Whether playback is actively consuming source resources.
+    pub playback_active: bool,
+    /// Whether foreground browsing/loading is active.
+    pub foreground_active: bool,
+}
+
+/// Coarse storage class used to avoid aggressive hashing on slow sources.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ContentAuditStorage {
+    /// A source on the normal local storage path.
+    #[default]
+    Local,
+    /// A removable, mounted, or network-addressed source.
+    ExternalOrNetwork,
+}
+
+impl ContentAuditStorage {
+    /// Conservatively classify a source root from platform path conventions.
+    pub fn classify(root: &std::path::Path) -> Self {
+        #[cfg(target_os = "windows")]
+        if root.to_string_lossy().starts_with(r"\\") {
+            return Self::ExternalOrNetwork;
+        }
+        #[cfg(target_os = "macos")]
+        if root.starts_with("/Volumes") {
+            return Self::ExternalOrNetwork;
+        }
+        Self::Local
+    }
+}
 
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
     cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
@@ -28,51 +148,194 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 pub(super) fn verify_content_batch(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
-    max_hashes: usize,
-    audit_completed_at: Option<i64>,
+    budget: ContentAuditBudget,
+    now: i64,
 ) -> Result<ScanStats, ScanError> {
-    let manifest_before = super::manifest::capture_manifest(db)?;
+    verify_content_batch_with_writer(db, cancel, budget, now, &UncoordinatedScanWriter)
+}
+
+pub(super) fn verify_content_batch_with_writer(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    now: i64,
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    verify_content_batch_with_post_hash_hook(db, cancel, budget, now, writer, |_| {})
+}
+
+fn verify_content_batch_with_post_hash_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    now: i64,
+    writer: &impl ScanWriter,
+    mut post_hash: impl FnMut(&std::path::Path),
+) -> Result<ScanStats, ScanError> {
+    let started = Instant::now();
+    verify_content_batch_with_hooks(db, cancel, budget, now, writer, &mut post_hash, &mut || {
+        started.elapsed()
+    })
+}
+
+fn verify_content_batch_with_hooks(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    now: i64,
+    writer: &impl ScanWriter,
+    post_hash: &mut impl FnMut(&std::path::Path),
+    elapsed: &mut impl FnMut() -> Duration,
+) -> Result<ScanStats, ScanError> {
+    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
-    let entries = db.list_manifest_entries()?;
-    let cursor = db
-        .get_metadata(META_CONTENT_AUDIT_CURSOR)?
-        .unwrap_or_default();
+    let entries = manifest_before.clone();
+    let checkpoint = {
+        let _writer = writer.lock(ScanWritePhase::Manifest);
+        db.begin_or_resume_content_audit(now, manifest_revision)?
+    };
+    let states = db.content_audit_entry_states()?;
+    let mut retry = entries
+        .iter()
+        .filter(|entry| {
+            states.get(&entry.relative_path).is_some_and(|state| {
+                !state.verifies(entry, checkpoint.rotation_id) && state.retry_is_due(now)
+            })
+        })
+        .take(budget.retry_entries.min(budget.max_entries))
+        .cloned()
+        .collect::<Vec<_>>();
+    let retry_paths = retry
+        .iter()
+        .map(|entry| entry.relative_path.clone())
+        .collect::<HashSet<_>>();
     let start = entries
         .iter()
-        .position(|entry| entry.relative_path.to_string_lossy().as_ref() > cursor.as_str())
+        .position(|entry| {
+            entry.relative_path.to_string_lossy().as_ref() > checkpoint.cursor.as_str()
+        })
         .unwrap_or(0);
-    let selected = entries
+    let mut forward = entries
         .iter()
         .cycle()
         .skip(start)
-        .take(max_hashes.min(entries.len()))
+        .take(entries.len())
+        .filter(|entry| {
+            !retry_paths.contains(&entry.relative_path)
+                && states.get(&entry.relative_path).is_none_or(|state| {
+                    !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
+                })
+        })
+        .take(budget.max_entries.saturating_sub(retry.len()))
         .cloned()
         .collect::<Vec<_>>();
+    let mut selected = Vec::with_capacity(retry.len() + forward.len());
+    selected.append(&mut retry);
+    selected.append(&mut forward);
     let mut stats = ScanStats::default();
     let mut verified = Vec::new();
+    let mut skipped = Vec::new();
+    let mut attempted_bytes = 0_u64;
+    let mut last_forward = None;
     for entry in &selected {
         if cancel_requested(cancel) {
-            return Err(ScanError::Canceled);
+            break;
+        }
+        if !verified.is_empty() || !skipped.is_empty() {
+            if elapsed() >= budget.max_elapsed
+                || attempted_bytes.saturating_add(entry.file_size) > budget.max_bytes
+            {
+                break;
+            }
+        }
+        if !retry_paths.contains(&entry.relative_path) {
+            last_forward = Some(entry.relative_path.clone());
         }
         let absolute = root.join(&entry.relative_path);
         if !is_supported_regular_audio_file(&absolute) {
+            let reason = if absolute.exists() {
+                ContentAuditSkipReason::Unsupported
+            } else {
+                ContentAuditSkipReason::Unavailable
+            };
+            skipped.push((entry.clone(), reason, 0));
             continue;
         }
-        let before_hash = read_facts(&root, &absolute)?;
-        let content_hash = compute_content_hash(&absolute, cancel)?;
-        let after_hash = read_facts(&root, &absolute)?;
+        let before_hash = match read_facts(&root, &absolute) {
+            Ok(facts) => facts,
+            Err(_) => {
+                skipped.push((entry.clone(), ContentAuditSkipReason::Unavailable, 0));
+                continue;
+            }
+        };
+        let content_hash = match compute_content_hash(&absolute, cancel) {
+            Ok(hash) => hash,
+            Err(ScanError::Canceled) => break,
+            Err(_) => {
+                attempted_bytes = attempted_bytes.saturating_add(before_hash.size);
+                skipped.push((
+                    entry.clone(),
+                    ContentAuditSkipReason::HashFailed,
+                    before_hash.size,
+                ));
+                continue;
+            }
+        };
+        post_hash(&absolute);
+        attempted_bytes = attempted_bytes.saturating_add(before_hash.size);
+        let after_hash = match read_facts(&root, &absolute) {
+            Ok(facts) => facts,
+            Err(_) => {
+                skipped.push((
+                    entry.clone(),
+                    ContentAuditSkipReason::Unavailable,
+                    before_hash.size,
+                ));
+                continue;
+            }
+        };
         if !before_hash.same_content_snapshot(&after_hash) {
+            skipped.push((
+                entry.clone(),
+                ContentAuditSkipReason::ChangedDuringHash,
+                before_hash.size,
+            ));
             continue;
         }
         verified.push((entry.clone(), after_hash, content_hash));
         stats.hashes_computed += 1;
     }
-    if cancel_requested(cancel) {
-        return Err(ScanError::Canceled);
-    }
-    let committed_snapshot = if !selected.is_empty() || audit_completed_at.is_some() {
+    let cancelled = cancel_requested(cancel);
+    let committed_snapshot = if !verified.is_empty() || !skipped.is_empty() {
+        let _writer = writer.lock(ScanWritePhase::DeferredHash);
         let mut batch = db.write_batch()?;
-        for (previous, facts, content_hash) in &verified {
+        if !batch.matches_revision(manifest_revision)? {
+            return Err(ScanError::StaleRevision {
+                expected: manifest_revision,
+                actual: db.get_revision()?,
+            });
+        }
+        let mut committed_verified = Vec::with_capacity(verified.len());
+        for (previous, facts, content_hash) in verified {
+            match read_facts(&root, &root.join(&previous.relative_path)) {
+                Ok(committed_facts) if facts.same_content_snapshot(&committed_facts) => {
+                    committed_verified.push((previous, facts, content_hash));
+                }
+                Ok(_) => skipped.push((previous, ContentAuditSkipReason::ChangedDuringHash, 0)),
+                Err(_) => {
+                    skipped.push((previous, ContentAuditSkipReason::Unavailable, 0));
+                }
+            }
+        }
+        for (previous, facts, content_hash) in &committed_verified {
+            batch.record_content_audit_verified(
+                &previous.relative_path,
+                checkpoint.rotation_id,
+                now,
+                facts.size,
+                facts.modified_ns,
+                facts.file_identity.as_deref(),
+            )?;
             if previous.content_hash.as_deref() == Some(content_hash.as_str())
                 && previous.file_size == facts.size
                 && previous.modified_ns == facts.modified_ns
@@ -112,21 +375,50 @@ pub(super) fn verify_content_batch(
                 });
             }
         }
-        if let Some(last) = selected.last() {
-            batch.set_metadata(
-                META_CONTENT_AUDIT_CURSOR,
-                last.relative_path.to_string_lossy().as_ref(),
+        for (entry, reason, bytes_read) in &skipped {
+            batch.record_content_audit_skipped(
+                &entry.relative_path,
+                now,
+                now.saturating_add(CONTENT_AUDIT_RETRY_SECONDS),
+                *reason,
+                *bytes_read,
             )?;
         }
-        if let Some(completed_at) = audit_completed_at {
-            batch.complete_manifest_audit(completed_at)?;
-        }
+        batch.checkpoint_content_audit(
+            last_forward.as_deref(),
+            manifest_revision,
+            attempted_bytes,
+            now,
+        )?;
         batch.commit_with_manifest_snapshot()?
     } else {
         db.manifest_snapshot_with_revision()?
     };
     super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
-    Ok(stats)
+    let report = {
+        let _writer = writer.lock(ScanWritePhase::Manifest);
+        db.content_audit_report(now)?
+    };
+    if report.remaining_entries == 0 && report.total_entries > 0 {
+        let manifest_before = stats.manifest_after.clone();
+        let _writer = writer.lock(ScanWritePhase::Manifest);
+        let mut batch = db.write_batch()?;
+        batch.complete_content_audit_rotation(now, stats.committed_delta.revision)?;
+        let committed = batch.commit_with_manifest_snapshot()?;
+        super::manifest::publish_committed_delta(&mut stats, manifest_before, committed);
+    }
+    stats.content_audit = Some({
+        let _writer = writer.lock(ScanWritePhase::Manifest);
+        db.content_audit_report(now)?
+    });
+    if cancelled {
+        Err(ScanError::Incomplete {
+            committed: Box::new(stats),
+            error: ScanError::Canceled.to_string(),
+        })
+    } else {
+        Ok(stats)
+    }
 }
 
 fn is_supported_regular_audio_file(path: &std::path::Path) -> bool {
@@ -646,11 +938,309 @@ fn apply_deep_rename(
 
 #[cfg(test)]
 mod tests {
-    use std::{path::Path, sync::atomic::AtomicBool};
+    use std::{
+        path::Path,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        },
+    };
 
     use crate::sample_sources::SourceDatabase;
 
     use super::*;
+
+    #[derive(Clone, Default)]
+    struct ObservedWriter {
+        active: Arc<AtomicBool>,
+        locks: Arc<AtomicUsize>,
+    }
+
+    struct ObservedWriterGuard(Arc<AtomicBool>);
+
+    impl Drop for ObservedWriterGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::Release);
+        }
+    }
+
+    impl ScanWriter for ObservedWriter {
+        type Guard = ObservedWriterGuard;
+
+        fn lock(&self, _phase: ScanWritePhase) -> Self::Guard {
+            assert!(!self.active.swap(true, Ordering::AcqRel));
+            self.locks.fetch_add(1, Ordering::AcqRel);
+            ObservedWriterGuard(Arc::clone(&self.active))
+        }
+    }
+
+    fn content_fixture(count: usize, bytes: usize) -> (tempfile::TempDir, SourceDatabase) {
+        let directory = tempfile::tempdir().expect("content source");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
+        for index in 0..count {
+            let relative = PathBuf::from(format!("sample-{index:05}.wav"));
+            std::fs::write(directory.path().join(&relative), vec![index as u8; bytes])
+                .expect("write content fixture");
+            let facts = read_facts(directory.path(), &directory.path().join(&relative))
+                .expect("content facts");
+            database
+                .upsert_file(&relative, facts.size, facts.modified_ns)
+                .expect("insert content manifest");
+        }
+        (directory, database)
+    }
+
+    #[test]
+    fn adaptive_content_budget_has_a_finite_large_source_horizon() {
+        let idle = ContentAuditBudget::adaptive(
+            10_000,
+            ContentAuditActivity::default(),
+            ContentAuditStorage::Local,
+            false,
+        );
+        assert_eq!(idle.max_entries, 334);
+        assert_eq!(idle.max_elapsed, Duration::from_secs(5));
+        assert_eq!(idle.max_bytes, 512 * 1024 * 1024);
+
+        let busy_external = ContentAuditBudget::adaptive(
+            29_000,
+            ContentAuditActivity {
+                playback_active: true,
+                foreground_active: true,
+            },
+            ContentAuditStorage::ExternalOrNetwork,
+            false,
+        );
+        assert_eq!(busy_external.max_entries, 967);
+        assert_eq!(busy_external.max_elapsed, Duration::from_secs(1));
+        assert_eq!(busy_external.max_bytes, 64 * 1024 * 1024);
+
+        let seven_day = ContentAuditBudget::adaptive_for_target(
+            10_000,
+            ContentAuditActivity::default(),
+            ContentAuditStorage::Local,
+            false,
+            Duration::from_secs(7 * 24 * 60 * 60),
+        );
+        assert_eq!(seven_day.max_entries, 1_429);
+        assert_eq!(
+            seven_day.target_coverage_age,
+            Duration::from_secs(7 * 24 * 60 * 60)
+        );
+    }
+
+    #[test]
+    fn content_audit_resumes_without_recounting_committed_entries() {
+        let (_directory, database) = content_fixture(10, 32);
+        let budget = ContentAuditBudget {
+            max_elapsed: Duration::MAX,
+            max_bytes: u64::MAX,
+            max_entries: 3,
+            target_coverage_age: Duration::from_secs(30 * 24 * 60 * 60),
+            retry_entries: 1,
+        };
+
+        let first = verify_content_batch(&database, None, budget, 100).expect("first slice");
+        let first_report = first.content_audit.expect("first coverage");
+        assert_eq!(first_report.verified_entries, 3);
+        assert_eq!(first_report.remaining_entries, 7);
+
+        drop(database);
+        let database = SourceDatabase::open_for_source_write(_directory.path()).expect("reopen");
+        let second = verify_content_batch(&database, None, budget, 101).expect("second slice");
+        let second_report = second.content_audit.expect("second coverage");
+        assert_eq!(second_report.verified_entries, 6);
+        assert_eq!(second_report.remaining_entries, 4);
+        assert_eq!(second.hashes_computed, 3);
+    }
+
+    #[test]
+    fn content_audit_byte_budget_allows_one_oversize_file_then_stops() {
+        let (_directory, database) = content_fixture(4, 32);
+        let budget = ContentAuditBudget {
+            max_elapsed: Duration::MAX,
+            max_bytes: 16,
+            max_entries: 4,
+            target_coverage_age: Duration::from_secs(30 * 24 * 60 * 60),
+            retry_entries: 1,
+        };
+
+        let stats = verify_content_batch(&database, None, budget, 100).expect("byte slice");
+
+        assert_eq!(stats.hashes_computed, 1);
+        let report = stats.content_audit.expect("coverage");
+        assert_eq!(report.verified_entries, 1);
+        assert_eq!(report.bytes_read, 32);
+    }
+
+    #[test]
+    fn content_audit_time_budget_stops_at_the_next_file_boundary() {
+        let (_directory, database) = content_fixture(3, 32);
+        let elapsed = std::cell::Cell::new(Duration::ZERO);
+        let mut post_hash = |_: &std::path::Path| elapsed.set(Duration::from_secs(1));
+        let mut observe_elapsed = || elapsed.get();
+        let budget = ContentAuditBudget {
+            max_elapsed: Duration::from_secs(1),
+            max_bytes: u64::MAX,
+            max_entries: 3,
+            target_coverage_age: Duration::from_secs(30 * 24 * 60 * 60),
+            retry_entries: 1,
+        };
+
+        let stats = verify_content_batch_with_hooks(
+            &database,
+            None,
+            budget,
+            100,
+            &UncoordinatedScanWriter,
+            &mut post_hash,
+            &mut observe_elapsed,
+        )
+        .expect("time-bounded slice");
+
+        assert_eq!(stats.hashes_computed, 1);
+        let report = stats.content_audit.expect("coverage");
+        assert_eq!(report.verified_entries, 1);
+        assert_eq!(report.remaining_entries, 2);
+    }
+
+    #[test]
+    fn cancellation_commits_verified_checkpoint_and_resume_skips_it() {
+        let (_directory, database) = content_fixture(3, 32);
+        let cancel = AtomicBool::new(false);
+        let budget = ContentAuditBudget::entry_limited(3);
+
+        let result = verify_content_batch_with_post_hash_hook(
+            &database,
+            Some(&cancel),
+            budget,
+            100,
+            &UncoordinatedScanWriter,
+            |_| cancel.store(true, Ordering::Release),
+        );
+        let ScanError::Incomplete { committed, .. } = result.expect_err("cancel content slice")
+        else {
+            panic!("cancellation after a hash must retain committed coverage");
+        };
+        assert_eq!(
+            committed
+                .content_audit
+                .as_ref()
+                .expect("cancel coverage")
+                .verified_entries,
+            1
+        );
+
+        cancel.store(false, Ordering::Release);
+        let resumed = verify_content_batch(
+            &database,
+            Some(&cancel),
+            ContentAuditBudget::entry_limited(1),
+            101,
+        )
+        .expect("resume content slice");
+        assert_eq!(resumed.hashes_computed, 1);
+        assert_eq!(
+            resumed
+                .content_audit
+                .expect("resumed coverage")
+                .verified_entries,
+            2
+        );
+    }
+
+    #[test]
+    fn changed_during_hash_remains_due_with_retry_reason() {
+        let (directory, database) = content_fixture(2, 32);
+        let changing = directory.path().join("sample-00000.wav");
+        let result = verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            ContentAuditBudget::entry_limited(1),
+            100,
+            &UncoordinatedScanWriter,
+            |path| {
+                assert_eq!(path, changing);
+                std::fs::write(path, [7_u8; 64]).expect("mutate during hash");
+            },
+        )
+        .expect("skip unstable content");
+
+        let report = result.content_audit.expect("coverage");
+        assert_eq!(report.verified_entries, 0);
+        assert_eq!(report.skipped_retry_entries, 1);
+        let states = database.content_audit_entry_states().expect("entry states");
+        assert_eq!(
+            states[Path::new("sample-00000.wav")].skip_reason.as_deref(),
+            Some("changed_during_hash")
+        );
+
+        let forward =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 101)
+                .expect("continue past delayed retry");
+        assert_eq!(forward.hashes_computed, 1);
+        assert_eq!(
+            forward
+                .content_audit
+                .expect("forward coverage")
+                .skipped_retry_entries,
+            1
+        );
+        assert_eq!(
+            database.content_audit_entry_states().unwrap()[Path::new("sample-00000.wav")].attempts,
+            1
+        );
+
+        let retry =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 1_000)
+                .expect("retry stable content");
+        assert_eq!(retry.hashes_computed, 1);
+        let state = database.content_audit_entry_states().unwrap();
+        assert_eq!(state[Path::new("sample-00000.wav")].skip_reason, None);
+        assert_eq!(state[Path::new("sample-00000.wav")].attempts, 2);
+    }
+
+    #[test]
+    fn content_hashing_does_not_hold_the_runtime_database_writer() {
+        let (_directory, database) = content_fixture(2, 32);
+        let writer = ObservedWriter::default();
+        let active = Arc::clone(&writer.active);
+
+        verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            ContentAuditBudget::entry_limited(2),
+            100,
+            &writer,
+            |_| assert!(!active.load(Ordering::Acquire)),
+        )
+        .expect("content slice");
+
+        assert!(writer.locks.load(Ordering::Acquire) >= 3);
+        assert!(!writer.active.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn content_audit_rejects_a_stale_manifest_revision_before_commit() {
+        let (_directory, database) = content_fixture(1, 32);
+
+        let result = verify_content_batch_with_post_hash_hook(
+            &database,
+            None,
+            ContentAuditBudget::entry_limited(1),
+            100,
+            &UncoordinatedScanWriter,
+            |_| {
+                database
+                    .set_metadata("concurrent_manifest_writer", "1")
+                    .expect("advance source revision");
+            },
+        );
+
+        assert!(matches!(result, Err(ScanError::StaleRevision { .. })));
+        assert!(database.content_audit_entry_states().unwrap().is_empty());
+    }
 
     #[test]
     fn deep_hash_scan_checks_cancel_before_writer_lock() {
