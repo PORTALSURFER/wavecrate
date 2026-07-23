@@ -155,4 +155,8 @@ pub(in crate::native_app) struct SourceProcessingSupervisor {
 mod liveness_tests;
 
 #[cfg(test)]
+#[path = "../../test_support/source_processing_state_machine/mod.rs"]
+mod state_machine_tests;
+
+#[cfg(test)]
 mod tests;
