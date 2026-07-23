@@ -197,6 +197,14 @@ impl LibraryAppState {
             .mark_targeted_sync_finished(source_id, lifecycle_generation);
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn targeted_source_sync_active_for_tests(
+        &self,
+        source_id: &str,
+    ) -> bool {
+        self.source_scan.targeted_sync_active_for_tests(source_id)
+    }
+
     pub(in crate::native_app) fn retire_source_workflow(&mut self, source_id: &str) -> bool {
         self.source_scan.retire_source(source_id)
     }

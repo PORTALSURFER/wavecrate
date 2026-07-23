@@ -418,6 +418,11 @@ impl SourceScanWorkflow {
         }
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn targeted_sync_active_for_tests(&self, source_id: &str) -> bool {
+        self.active_targeted_syncs.contains_key(source_id)
+    }
+
     pub(in crate::native_app) fn next_pending_targeted_sync(
         &mut self,
     ) -> Option<PendingTargetedSourceSync> {

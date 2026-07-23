@@ -324,6 +324,7 @@ impl NativeAppState {
                     self.background
                         .source_processing
                         .finish_foreground_source_refresh(&source_id, "source_scan_worker_failed");
+                    self.maybe_run_pending_source_refresh(context);
                     self.ui.status.sample = failure.clone();
                     tracing::error!(
                         target: "wavecrate::source_processing",
@@ -540,6 +541,7 @@ impl NativeAppState {
                         &completion.source_id,
                         "source_scan_terminal",
                     );
+                self.maybe_run_pending_source_refresh(context);
                 tracing::info!(
                     target: "wavecrate::source_processing",
                     task_id = completion.task_id,

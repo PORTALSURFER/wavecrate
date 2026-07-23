@@ -82,6 +82,49 @@ fn foreground_scan_hands_exact_committed_identities_to_readiness() {
 }
 
 #[test]
+fn foreground_scan_terminal_release_admits_coalesced_watcher_paths() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("followup.wav");
+    fs::write(&sample_path, [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 105)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let mut context = ui::UiUpdateContext::default();
+    state.launch_folder_scan(request.clone(), &mut context);
+    state.refresh_source_after_filesystem_change(
+        source_id.clone(),
+        vec![sample_path],
+        false,
+        true,
+        &mut context,
+    );
+    assert!(
+        !state
+            .library
+            .targeted_source_sync_active_for_tests(&source_id),
+        "watcher paths must wait while the foreground scan owns the source"
+    );
+
+    let result = crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
+    state.finish_folder_scan(result, &mut context);
+
+    assert!(
+        state
+            .library
+            .targeted_source_sync_active_for_tests(&source_id),
+        "terminal scan release must immediately admit the coalesced targeted follow-up"
+    );
+}
+
+#[test]
 fn mismatched_folder_scan_registration_cannot_adopt_existing_source_generation() {
     let requested_root = tempfile::tempdir().expect("requested source root");
     let authoritative_root = tempfile::tempdir().expect("authoritative source root");
