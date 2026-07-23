@@ -6,6 +6,7 @@ use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMe
 use crate::native_app::sample_library::folder_browser::view_contract::{
     SIDEBAR_PANEL_HEADER_CONTENT_SPACING, SIDEBAR_PANEL_HEADER_HEIGHT,
 };
+use crate::native_app::ui::ids as widget_ids;
 
 use super::edge_aligned_resize_panel;
 use super::tag_entry_layout::TAG_FIELD_LINE_GAP;
@@ -61,6 +62,7 @@ fn tag_entry_field(field: TagEditorFieldProjection) -> ui::View<GuiMessage> {
 
     if field.layout.requires_scroll {
         ui::scroll(content)
+            .id(widget_ids::METADATA_TAG_SCROLL_NODE_ID)
             .padding(3.0)
             .fill_width()
             .height(field.layout.field_height)

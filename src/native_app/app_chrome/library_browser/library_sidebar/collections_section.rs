@@ -22,6 +22,8 @@ const COLLECTIONS_SECTION_NODE_ID: u64 = widget_ids::COLLECTIONS_SECTION_NODE_ID
 /// Stable layout node id for the collection rows scroll viewport.
 const COLLECTIONS_LIST_SCROLL_NODE_ID: u64 = widget_ids::COLLECTIONS_LIST_SCROLL_NODE_ID;
 const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_ID;
+const COLLECTIONS_OVERFLOW_FADE_RAMP: f32 = 12.0;
+const COLLECTIONS_OVERFLOW_FADE_MAX_ALPHA: u8 = u8::MAX;
 
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
@@ -44,4 +46,20 @@ pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::Vi
         |message| GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message)),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)
+}
+
+/// Returns the opacity for the passive bottom-edge affordance.
+///
+/// The fade starts becoming visible at the first clipped pixel, then reaches
+/// its intended strength over roughly one row. The ease-out curve deliberately
+/// makes the initial clipping legible without making the cue pop to full
+/// opacity.
+pub(in crate::native_app) fn collection_overflow_fade_alpha(
+    panel_height: f32,
+    full_height: f32,
+) -> u8 {
+    let clipped_height = (full_height - panel_height).max(0.0);
+    let progress = (clipped_height / COLLECTIONS_OVERFLOW_FADE_RAMP).clamp(0.0, 1.0);
+    let strength = 1.0 - (1.0 - progress).powi(3);
+    (f32::from(COLLECTIONS_OVERFLOW_FADE_MAX_ALPHA) * strength).round() as u8
 }
