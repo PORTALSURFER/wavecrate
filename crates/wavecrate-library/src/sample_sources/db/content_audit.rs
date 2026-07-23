@@ -17,6 +17,8 @@ pub struct ContentAuditCheckpoint {
     pub rotation_started_at: i64,
     /// Last forward-progress path committed by the rotation.
     pub cursor: String,
+    /// Last retry path attempted, used for durable round-robin retry fairness.
+    pub retry_cursor: String,
     /// Source manifest revision observed by the latest checkpoint.
     pub checkpoint_revision: u64,
 }
@@ -98,6 +100,8 @@ pub struct ContentAuditReport {
     pub checkpoint_revision: u64,
     /// Last committed forward-progress path.
     pub cursor: String,
+    /// Last committed retry path.
+    pub retry_cursor: String,
     /// Current supported manifest entry count.
     pub total_entries: usize,
     /// Current supported manifest byte count.
@@ -165,7 +169,8 @@ impl SourceDatabase {
             .map_err(map_sql_error)?;
         let checkpoint = transaction
             .query_row(
-                "SELECT rotation_id, rotation_started_at, cursor, checkpoint_revision
+                "SELECT rotation_id, rotation_started_at, cursor, retry_cursor,
+                        checkpoint_revision
                  FROM source_content_audit_state
                  WHERE singleton = 1",
                 [],
@@ -174,7 +179,8 @@ impl SourceDatabase {
                         rotation_id: row.get(0)?,
                         rotation_started_at: row.get(1)?,
                         cursor: row.get(2)?,
-                        checkpoint_revision: row.get::<_, i64>(3)?.max(0) as u64,
+                        retry_cursor: row.get(3)?,
+                        checkpoint_revision: row.get::<_, i64>(4)?.max(0) as u64,
                     })
                 },
             )
@@ -241,6 +247,7 @@ impl SourceDatabase {
             rotation_started_at: checkpoint.rotation_started_at,
             checkpoint_revision: checkpoint.checkpoint_revision,
             cursor: checkpoint.cursor,
+            retry_cursor: checkpoint.retry_cursor,
             total_entries: manifest.len(),
             total_bytes: manifest.iter().map(|entry| entry.file_size).sum(),
             ..ContentAuditReport::default()
@@ -382,16 +389,19 @@ impl SourceWriteBatch<'_> {
     pub fn checkpoint_content_audit(
         &mut self,
         cursor: Option<&Path>,
+        retry_cursor: Option<&Path>,
         checkpoint_revision: u64,
         bytes_read: u64,
         batch_at: i64,
     ) -> Result<(), SourceDbError> {
         let cursor = cursor.map(normalize_relative_path).transpose()?;
+        let retry_cursor = retry_cursor.map(normalize_relative_path).transpose()?;
         self.tx
             .execute(
                 "UPDATE source_content_audit_state
                  SET cursor = COALESCE(?1, cursor),
-                     checkpoint_revision = ?2,
+                     retry_cursor = COALESCE(?2, retry_cursor),
+                     checkpoint_revision = ?3,
                      verified_entries = (
                          SELECT COUNT(*)
                          FROM source_content_audit_entries AS entry
@@ -416,7 +426,7 @@ impl SourceWriteBatch<'_> {
                            AND entry.skip_reason IS NULL
                            AND wav.missing = 0
                      ), 0),
-                     bytes_read = bytes_read + ?3,
+                     bytes_read = bytes_read + ?4,
                      skipped_entries = (
                          SELECT COUNT(*)
                          FROM source_content_audit_entries AS entry
@@ -424,10 +434,11 @@ impl SourceWriteBatch<'_> {
                          WHERE entry.skip_reason IS NOT NULL
                            AND wav.missing = 0
                      ),
-                     last_batch_at = ?4
+                     last_batch_at = ?5
                  WHERE singleton = 1",
                 params![
                     cursor,
+                    retry_cursor,
                     i64::try_from(checkpoint_revision).unwrap_or(i64::MAX),
                     i64::try_from(bytes_read).unwrap_or(i64::MAX),
                     batch_at
@@ -449,6 +460,7 @@ impl SourceWriteBatch<'_> {
                  SET rotation_id = rotation_id + 1,
                      rotation_started_at = ?1,
                      cursor = '',
+                     retry_cursor = '',
                      checkpoint_revision = ?2,
                      verified_entries = 0,
                      verified_bytes = 0,
@@ -489,6 +501,7 @@ mod tests {
 
         assert_eq!(checkpoint.rotation_id, 1);
         assert_eq!(checkpoint.cursor, "nested/last.wav");
+        assert_eq!(checkpoint.retry_cursor, "");
         assert_eq!(checkpoint.checkpoint_revision, 7);
         assert!(
             database

@@ -109,6 +109,7 @@ pub(super) fn execute_candidate(
                     source_id = candidate.source.id.as_str(),
                     rotation_id = report.rotation_id,
                     checkpoint_revision = report.checkpoint_revision,
+                    retry_cursor = report.retry_cursor.as_str(),
                     verified_entries = report.verified_entries,
                     total_entries = report.total_entries,
                     remaining_entries = report.remaining_entries,

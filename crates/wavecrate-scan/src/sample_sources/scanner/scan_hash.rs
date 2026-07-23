@@ -206,13 +206,26 @@ fn verify_content_batch_with_hooks(
             .max_entries
             .saturating_sub(usize::from(forward_is_due)),
     );
-    let mut retry = entries
+    let due_retries = entries
         .iter()
         .filter(|entry| {
             states.get(&entry.relative_path).is_some_and(|state| {
                 !state.verifies(entry, checkpoint.rotation_id) && state.retry_is_due(now)
             })
         })
+        .cloned()
+        .collect::<Vec<_>>();
+    let retry_start = due_retries
+        .iter()
+        .position(|entry| {
+            entry.relative_path.to_string_lossy().as_ref() > checkpoint.retry_cursor.as_str()
+        })
+        .unwrap_or(0);
+    let mut retry = due_retries
+        .iter()
+        .cycle()
+        .skip(retry_start)
+        .take(due_retries.len())
         .take(retry_limit)
         .cloned()
         .collect::<Vec<_>>();
@@ -248,6 +261,7 @@ fn verify_content_batch_with_hooks(
     let mut skipped = Vec::new();
     let mut attempted_bytes = 0_u64;
     let mut last_forward = None;
+    let mut last_retry = None;
     for entry in &selected {
         if cancel_requested(cancel) {
             break;
@@ -259,7 +273,9 @@ fn verify_content_batch_with_hooks(
                 break;
             }
         }
-        if !retry_paths.contains(&entry.relative_path) {
+        if retry_paths.contains(&entry.relative_path) {
+            last_retry = Some(entry.relative_path.clone());
+        } else {
             last_forward = Some(entry.relative_path.clone());
         }
         let absolute = root.join(&entry.relative_path);
@@ -397,6 +413,7 @@ fn verify_content_batch_with_hooks(
         }
         batch.checkpoint_content_audit(
             last_forward.as_deref(),
+            last_retry.as_deref(),
             manifest_revision,
             attempted_bytes,
             now,
@@ -1261,6 +1278,34 @@ mod tests {
                     .unwrap(),
                 1,
             )
+        );
+    }
+
+    #[test]
+    fn retry_cursor_rotates_past_a_persistently_unavailable_path() {
+        let (directory, database) = content_fixture(3, 32);
+        std::fs::remove_file(directory.path().join("sample-00000.wav")).unwrap();
+        std::fs::remove_file(directory.path().join("sample-00001.wav")).unwrap();
+        verify_content_batch(&database, None, ContentAuditBudget::entry_limited(2), 100)
+            .expect("record two unavailable entries");
+
+        verify_content_batch(&database, None, ContentAuditBudget::entry_limited(2), 1_000)
+            .expect("retry the first path while reserving forward progress");
+        let first_retry = database.content_audit_report(1_000).unwrap();
+        assert_eq!(first_retry.retry_cursor, "sample-00000.wav");
+
+        verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 2_000)
+            .expect("rotate the retry slot to the later path");
+        let states = database.content_audit_entry_states().unwrap();
+        assert_eq!(states[Path::new("sample-00000.wav")].attempts, 2);
+        assert_eq!(
+            states[Path::new("sample-00001.wav")].attempts,
+            2,
+            "the later due retry must eventually own the bounded retry slot"
+        );
+        assert_eq!(
+            database.content_audit_report(2_000).unwrap().retry_cursor,
+            "sample-00001.wav"
         );
     }
 
