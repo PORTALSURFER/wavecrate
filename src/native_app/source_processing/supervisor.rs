@@ -20,12 +20,13 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole, SourceMetadataStorage,
     db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
-        ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
+        ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessActivity, ReadinessClassification,
         ReadinessDeltaPublicationOutcome, ReadinessEligibility, ReadinessFailureClassification,
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessMembership,
         ReadinessProgress, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
-        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessTargetDeltaPublication,
-        ReadinessTargetPublication, ReadinessWorkMutationOutcome, SourceAvailability,
+        ReadinessStage, ReadinessStageCounts, ReadinessStore, ReadinessTarget,
+        ReadinessTargetDeltaPublication, ReadinessTargetPublication, ReadinessWorkMutationOutcome,
+        SourceAvailability,
     },
     scanner::{
         CommittedSourceDelta, ScanError, audit_source_and_record_with_progress,
@@ -36,7 +37,8 @@ use wavecrate::sample_sources::{
 use super::worker::{SourceProcessingFailure, source_database_failure};
 use super::{
     SourceDiscoveryPhase, SourceProcessingActivity, SourceProcessingEvent,
-    SourceProcessingEventSink, SourceProcessingLifecycle, SourceProcessingProgressEvent,
+    SourceProcessingEventSink, SourceProcessingHealthEvent, SourceProcessingHealthState,
+    SourceProcessingLifecycle, SourceProcessingProgressEvent,
     scheduler::{
         BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane,
         WorkCandidate,
@@ -69,6 +71,7 @@ mod execution_pool;
 mod execution_readiness;
 mod execution_stages;
 mod execution_validation;
+mod health;
 mod lifecycle;
 mod model;
 mod progress;
@@ -103,6 +106,7 @@ use execution_pool::*;
 use execution_readiness::*;
 use execution_stages::*;
 use execution_validation::*;
+use health::*;
 use model::*;
 use progress::*;
 use registry::*;

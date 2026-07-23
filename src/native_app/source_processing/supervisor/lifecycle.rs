@@ -189,6 +189,14 @@ impl SourceProcessingSupervisor {
         {
             control.priority.current_folder = None;
         }
+        self.shared
+            .published_source_health
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .retain(|source_id, health| {
+                control.source_lifecycle_generations.get(source_id)
+                    == Some(&health.lifecycle.generation)
+            });
         control.notify("configured_sources_changed");
         drop(control);
         self.shared.budget_wake.notify_all();

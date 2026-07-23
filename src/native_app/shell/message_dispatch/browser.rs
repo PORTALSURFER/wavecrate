@@ -52,6 +52,21 @@ impl NativeAppState {
                 }
                 self.finish_similarity_readiness_advanced(source_id, context);
             }
+            GuiMessage::SourceProcessingHealth(health) => {
+                if !self.library.folder_browser.source_exists(&health.source_id)
+                    || self
+                        .background
+                        .source_lifecycle_generations
+                        .get(&health.source_id)
+                        != Some(&health.lifecycle_generation)
+                {
+                    return;
+                }
+                self.background
+                    .source_processing_health
+                    .insert(health.source_id.clone(), health);
+                context.repaint(ui::RepaintScope::Projection);
+            }
             GuiMessage::SourceProcessingProgress(progress) => {
                 let source_is_current = if progress.source_id.is_empty() {
                     !progress.active

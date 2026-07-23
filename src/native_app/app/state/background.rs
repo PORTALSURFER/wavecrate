@@ -13,7 +13,8 @@ use wavecrate::audio::AudioPlayer;
 use crate::native_app::app::GuiSourceProcessingEventSink;
 use crate::native_app::app::{
     ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
-    NormalizationQueueItem, PendingWaveformDestructiveEdit, SourceProcessingProgress,
+    NormalizationQueueItem, PendingWaveformDestructiveEdit, SourceProcessingHealth,
+    SourceProcessingProgress,
 };
 use crate::native_app::source_processing::SourceProcessingSupervisor;
 use crate::native_app::waveform::WaveformPreservedMarks;
@@ -45,6 +46,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
     pub(in crate::native_app) file_move_progress: Option<FileMoveProgress>,
     pub(in crate::native_app) source_processing_progress: Option<SourceProcessingProgress>,
+    pub(in crate::native_app) source_processing_health: BTreeMap<String, SourceProcessingHealth>,
     pub(in crate::native_app) source_lifecycle_generations: BTreeMap<String, u64>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: frame_ui::FrameCadenceMonitor,
@@ -119,6 +121,7 @@ impl BackgroundTaskState {
             normalization_queue: VecDeque::new(),
             file_move_progress: None,
             source_processing_progress: None,
+            source_processing_health: BTreeMap::new(),
             source_lifecycle_generations,
             progress_tick: 0.0,
             frame_cadence: frame_ui::FrameCadenceMonitor::new(),
