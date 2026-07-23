@@ -6265,6 +6265,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "wavecrate-library",
+ "windows 0.62.2",
 ]
 
 [[package]]

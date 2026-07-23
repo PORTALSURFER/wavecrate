@@ -20,3 +20,6 @@ tempfile = "3.23.0"
 
 [target.'cfg(unix)'.dev-dependencies]
 libc = "0.2.176"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }

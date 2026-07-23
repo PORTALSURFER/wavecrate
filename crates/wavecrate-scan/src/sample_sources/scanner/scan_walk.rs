@@ -3,9 +3,12 @@
 use std::{
     cell::Cell,
     io::{Seek, SeekFrom},
-    path::Path,
+    path::{Component, Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
+
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
+use cap_std::fs::{Dir, OpenOptions};
 
 use crate::sample_sources::SourceDatabase;
 
@@ -306,7 +309,17 @@ fn apply_batch(
     let mut audited_paths = Vec::with_capacity(ready.len());
     for file in ready {
         let relative_path = file.facts.relative.clone();
-        if !file.targeted_handle_verified {
+        if file.targeted_handle_verified {
+            let file_handle = file
+                .targeted_file
+                .as_ref()
+                .expect("verified targeted files retain their descriptor through apply");
+            if !targeted_path_matches_handle(root, &relative_path, file_handle)? {
+                context.mark_source_tree_incomplete();
+                context.existing.remove(&relative_path);
+                continue;
+            }
+        } else {
             let absolute = root.join(&relative_path);
             match read_facts(root, &absolute) {
                 Ok(current) if prepared_still_current(&file, &current) => {}
@@ -417,14 +430,21 @@ fn prepare_targeted_for_apply(
     post_hash: &mut impl FnMut(&Path),
 ) -> Result<PrepareForApply, ScanError> {
     let absolute = root.join(&prepared.facts.relative);
-    let mut file = prepared
-        .targeted_file
-        .take()
-        .expect("verified targeted files retain their open descriptor until preparation");
-    let before_hash = read_facts_from_open_file(root, &absolute, &file)?;
+    let before_hash = read_facts_from_open_file(
+        root,
+        &absolute,
+        prepared
+            .targeted_file
+            .as_ref()
+            .expect("verified targeted files retain their open descriptor until preparation"),
+    )?;
     if !facts_match(&prepared, &before_hash) {
         return Ok(PrepareForApply::Skip);
     }
+    let file = prepared
+        .targeted_file
+        .as_mut()
+        .expect("verified targeted files retain their open descriptor until preparation");
     let current_needs_hash = db
         .entry_for_path(&prepared.facts.relative)?
         .is_none_or(|entry| {
@@ -439,9 +459,7 @@ fn prepare_targeted_for_apply(
                 path: absolute.clone(),
                 source,
             })?;
-        prepared.content_hash = Some(compute_content_hash_with_reader(
-            &absolute, &mut file, cancel,
-        )?);
+        prepared.content_hash = Some(compute_content_hash_with_reader(&absolute, file, cancel)?);
         post_hash(&absolute);
         let after_hash = read_facts_from_open_file(root, &absolute, &file)?;
         if !prepared.facts.same_content_snapshot(&after_hash) {
@@ -450,6 +468,122 @@ fn prepare_targeted_for_apply(
         prepared.facts = after_hash;
     }
     Ok(PrepareForApply::Ready(prepared))
+}
+
+/// Confirm that the path used as the manifest key is still bound to the same
+/// no-follow file descriptor that targeted discovery classified and hashed.
+fn targeted_path_matches_handle(
+    root: &Path,
+    relative_path: &Path,
+    expected: &std::fs::File,
+) -> Result<bool, ScanError> {
+    let source_root =
+        Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
+            path: root.to_path_buf(),
+            source,
+        })?;
+    let Some((parent, name)) = open_target_parent_nofollow(&source_root, root, relative_path)?
+    else {
+        return Ok(false);
+    };
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let current = match parent.open_with(&name, &options) {
+        Ok(file) => file.into_std(),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(source) => {
+            tracing::warn!(
+                path = %root.join(relative_path).display(),
+                error = %source,
+                "Skipping targeted sync path that no longer opens without following links"
+            );
+            return Ok(false);
+        }
+    };
+    if !current.metadata().is_ok_and(|metadata| metadata.is_file()) {
+        return Ok(false);
+    }
+    same_open_file(expected, &current).map_err(|source| ScanError::Io {
+        path: root.join(relative_path),
+        source,
+    })
+}
+
+fn open_target_parent_nofollow(
+    source_root: &Dir,
+    root: &Path,
+    relative_path: &Path,
+) -> Result<Option<(Dir, PathBuf)>, ScanError> {
+    let Some(name) = relative_path.file_name() else {
+        return Ok(None);
+    };
+    let mut dir = source_root.try_clone().map_err(|source| ScanError::Io {
+        path: root.to_path_buf(),
+        source,
+    })?;
+    let mut traversed = PathBuf::new();
+    for component in relative_path
+        .parent()
+        .into_iter()
+        .flat_map(Path::components)
+    {
+        let Component::Normal(part) = component else {
+            continue;
+        };
+        traversed.push(part);
+        dir = match dir.open_dir_nofollow(part) {
+            Ok(dir) => dir,
+            Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                if dir
+                    .symlink_metadata(part)
+                    .is_ok_and(|metadata| metadata.is_symlink())
+                {
+                    return Ok(None);
+                }
+                return Err(ScanError::Io {
+                    path: root.join(&traversed),
+                    source,
+                });
+            }
+        };
+    }
+    Ok(Some((dir, PathBuf::from(name))))
+}
+
+#[cfg(unix)]
+fn same_open_file(left: &std::fs::File, right: &std::fs::File) -> std::io::Result<bool> {
+    use std::os::unix::fs::MetadataExt;
+
+    let left = left.metadata()?;
+    let right = right.metadata()?;
+    Ok(left.dev() == right.dev() && left.ino() == right.ino())
+}
+
+#[cfg(windows)]
+fn same_open_file(left: &std::fs::File, right: &std::fs::File) -> std::io::Result<bool> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle},
+    };
+
+    let information = |file: &std::fs::File| {
+        let mut information = BY_HANDLE_FILE_INFORMATION::default();
+        unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }
+            .map_err(std::io::Error::other)?;
+        Ok::<_, std::io::Error>((
+            information.dwVolumeSerialNumber,
+            information.nFileIndexHigh,
+            information.nFileIndexLow,
+        ))
+    };
+    Ok(information(left)? == information(right)?)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_open_file(_left: &std::fs::File, _right: &std::fs::File) -> std::io::Result<bool> {
+    Ok(false)
 }
 
 fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
@@ -601,5 +735,54 @@ mod tests {
             .unwrap();
 
         assert!(matches!(outcome, PrepareForApply::Skip));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn targeted_apply_rejects_a_file_replaced_by_a_symlink_after_hashing() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("one.wav");
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"source").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let expected = std::fs::File::open(&source).unwrap();
+
+        std::fs::remove_file(&source).unwrap();
+        symlink(&outside_file, &source).unwrap();
+
+        assert!(
+            !super::targeted_path_matches_handle(dir.path(), Path::new("one.wav"), &expected,)
+                .unwrap()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn targeted_apply_rejects_a_descendant_of_a_replaced_directory() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        let source = nested.join("one.wav");
+        std::fs::write(&source, b"source").unwrap();
+        let expected = std::fs::File::open(&source).unwrap();
+        let outside = tempdir().unwrap();
+        std::fs::write(outside.path().join("one.wav"), b"outside").unwrap();
+
+        std::fs::rename(&nested, dir.path().join("moved")).unwrap();
+        symlink(outside.path(), &nested).unwrap();
+
+        assert!(
+            !super::targeted_path_matches_handle(
+                dir.path(),
+                Path::new("nested/one.wav"),
+                &expected,
+            )
+            .unwrap()
+        );
     }
 }
