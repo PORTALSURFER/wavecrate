@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 
 use crate::sample_sources::SourceDatabase;
+use crate::sample_sources::db::SourceManifestEntry;
 
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
@@ -21,8 +22,8 @@ pub enum ScanMode {
     /// Update the database with new/modified files and mark missing entries.
     /// Full hashing is staged for large files to keep quick scans responsive.
     Quick,
-    /// Force a full rescan, pruning missing rows and unmatched pending renames
-    /// to rebuild state from disk.
+    /// Force a full rescan, pruning missing rows and pending renames without
+    /// matching current destinations to rebuild state from disk.
     Hard,
 }
 
@@ -33,7 +34,7 @@ pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
 }
 
 /// Rescan the entire source, pruning rows for files that no longer exist and
-/// clearing any unmatched pending rename rows left over from prior quick scans.
+/// clearing pending rename rows that have no matching current destinations.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
     scan(db, ScanMode::Hard, None, None, None)
 }
@@ -194,8 +195,119 @@ fn scan_with_writer(
         }
     }
     let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context, writer)
-        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer));
+        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer))
+        .and_then(|committed_snapshot| {
+            reconcile_scan_renames(
+                db,
+                &mut context,
+                &manifest_before,
+                committed_snapshot,
+                cancel,
+                writer,
+            )
+        });
     finish_scan_result(manifest_before, context, result)
+}
+
+pub(crate) fn reconcile_scan_renames(
+    db: &SourceDatabase,
+    context: &mut ScanContext,
+    manifest_before: &[SourceManifestEntry],
+    committed_snapshot: (u64, Vec<SourceManifestEntry>),
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+    let current_candidates = context
+        .stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let persisted_candidates = db
+        .list_retained_rename_destinations()?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let mut candidates = current_candidates.clone();
+    candidates.extend(persisted_candidates.iter().cloned());
+    let carried_candidates_need_revalidation = persisted_candidates
+        .iter()
+        .any(|path| !current_candidates.contains(path));
+    let renamed = if carried_candidates_need_revalidation {
+        super::super::scan_hash::deep_hash_scan_with_writer(
+            db,
+            cancel,
+            &candidates,
+            super::super::scan_hash::DeferredHashScope::RenameCandidates,
+            None,
+            None,
+            writer,
+        )?
+        .renamed_samples
+    } else {
+        super::super::scan_hash::reconcile_hashed_rename_candidates_with_writer(
+            db,
+            &candidates,
+            cancel,
+            writer,
+        )?
+    };
+    if renamed.is_empty() && context.mode != ScanMode::Hard {
+        return Ok(committed_snapshot);
+    }
+
+    let original_paths = manifest_before
+        .iter()
+        .map(|entry| entry.relative_path.clone())
+        .collect::<HashSet<_>>();
+    for rename in &renamed {
+        if current_candidates.contains(&rename.new_relative_path) {
+            context.stats.added = context.stats.added.saturating_sub(1);
+            context.stats.content_changed = context.stats.content_changed.saturating_sub(1);
+            context
+                .stats
+                .changed_samples
+                .retain(|sample| sample.relative_path != rename.new_relative_path);
+        }
+        if original_paths.contains(&rename.old_relative_path) {
+            context.stats.missing = context.stats.missing.saturating_sub(1);
+        }
+    }
+    context.stats.rename_candidate_paths.retain(|candidate| {
+        !renamed
+            .iter()
+            .any(|rename| rename.new_relative_path == *candidate)
+    });
+    context.stats.updated += renamed.len();
+    context.stats.renames_reconciled += renamed.len();
+    context.stats.renamed_samples.extend(renamed);
+    if context.mode == ScanMode::Hard {
+        let candidate_hashes = db
+            .list_manifest_entries()?
+            .into_iter()
+            .filter(|entry| candidates.contains(&entry.relative_path))
+            .filter_map(|entry| entry.content_hash)
+            .collect::<HashSet<_>>();
+        let pending_to_clear = db
+            .list_pending_renames()?
+            .into_iter()
+            .filter(|entry| {
+                entry
+                    .content_hash
+                    .as_ref()
+                    .is_none_or(|hash| !candidate_hashes.contains(hash))
+            })
+            .map(|entry| entry.relative_path)
+            .collect::<Vec<_>>();
+        let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
+        let mut batch = db.write_batch()?;
+        for path in pending_to_clear {
+            batch.clear_pending_rename(&path)?;
+        }
+        batch.prune_invalid_retained_rename_destinations()?;
+        batch.clear_unretained_pending_rename_destinations()?;
+        batch.commit()?;
+    }
+    Ok(db.manifest_snapshot_with_revision()?)
 }
 
 pub(crate) fn finish_scan_result(

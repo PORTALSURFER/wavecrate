@@ -7,7 +7,6 @@ pub(crate) use context::ScanContext;
 pub use errors::ScanError;
 #[cfg(test)]
 pub(crate) use runner::audit_source_and_record_with_post_scan_hook;
-pub(crate) use runner::finish_scan_result;
 pub use runner::{
     ScanMode, audit_source, audit_source_and_record, audit_source_and_record_with_progress,
     complete_deferred_hashes, complete_deferred_hashes_with_cancel,
@@ -16,6 +15,7 @@ pub use runner::{
     complete_pending_deep_hash_for_path, complete_pending_deep_hashes, hard_rescan,
     scan_in_background, scan_once, scan_with_progress, scan_with_progress_and_writer,
 };
+pub(crate) use runner::{finish_scan_result, reconcile_scan_renames};
 pub use stats::{
     ChangedSample, CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity,
     RenamedSample, ScanStats, SourceTreeFile, SourceTreeSnapshot, UpdatedSample,

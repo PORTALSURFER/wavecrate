@@ -155,13 +155,16 @@ impl ScanContext {
         &mut self,
         batch: &mut SourceWriteBatch<'_>,
     ) -> Result<(), ScanError> {
-        if self.rename_candidate_generation.is_some() || self.mode == ScanMode::Hard {
+        if self.rename_candidate_generation.is_some() {
             return Ok(());
         }
         let generation = match self.mode {
             ScanMode::Targeted => batch.begin_targeted_scan_generation()?,
             ScanMode::Quick => batch.begin_quick_scan_rename_candidates()?,
-            ScanMode::Hard => unreachable!("hard scans do not track rename destinations"),
+            // Hard rescans clean transient candidates at completion. A
+            // placeholder generation lets newly discovered paths be staged
+            // without changing scan metadata on otherwise unchanged scans.
+            ScanMode::Hard => 0,
         };
         self.rename_candidate_generation = Some(generation);
         Ok(())

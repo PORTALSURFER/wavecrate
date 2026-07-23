@@ -9,7 +9,7 @@ use std::{
 use crate::sample_sources::SourceDatabase;
 
 use super::scan::{ScanContext, ScanError};
-use super::scan_diff::{PreparedFile, RenameCandidateCache, apply_diff};
+use super::scan_diff::{PreparedFile, apply_diff};
 use super::scan_diff_phase::prepare_diff;
 use super::scan_fs::{
     compute_content_hash, is_supported_scannable_audio_file, read_facts,
@@ -302,7 +302,6 @@ fn apply_batch(
     }
     let mut batch = db.write_batch()?;
     context.ensure_rename_candidate_generation(&mut batch)?;
-    let mut rename_candidates = RenameCandidateCache::default();
     let mut audited_paths = Vec::with_capacity(ready.len());
     for file in ready {
         let relative_path = file.facts.relative.clone();
@@ -315,7 +314,7 @@ fn apply_batch(
                 continue;
             }
         }
-        apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
+        apply_diff(db, &mut batch, file, context)?;
         audited_paths.push(relative_path);
     }
     if cancel_requested(cancel) {

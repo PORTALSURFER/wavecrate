@@ -309,14 +309,7 @@ fn missing_stage_keeps_concurrently_restored_live_row() {
     let mut stats = ScanStats::default();
     let mut batch = db.write_batch().unwrap();
 
-    super::super::super::scan_diff::mark_missing(
-        &db,
-        &mut batch,
-        [stale],
-        &mut stats,
-        ScanMode::Quick,
-    )
-    .unwrap();
+    super::super::super::scan_diff::mark_missing(&db, &mut batch, [stale], &mut stats).unwrap();
     batch.commit().unwrap();
 
     assert_eq!(stats.missing, 0);

@@ -24,7 +24,7 @@ impl RenameCandidateScanKind {
 }
 
 impl SourceDatabase {
-    /// List destination paths discovered in the current or immediately previous targeted scan.
+    /// List recent destinations plus candidates retained for unresolved content matches.
     pub fn list_pending_rename_destinations(&self) -> Result<Vec<PathBuf>, SourceDbError> {
         let generation = self
             .get_metadata(TARGETED_SCAN_GENERATION_KEY)?
@@ -36,7 +36,7 @@ impl SourceDatabase {
             .prepare(
                 "SELECT path
                  FROM pending_wav_rename_destinations
-                 WHERE scan_generation >= ?1
+                 WHERE retained_hash IS NOT NULL OR scan_generation >= ?1
                  ORDER BY path ASC",
             )
             .map_err(map_sql_error)?;
@@ -51,6 +51,34 @@ impl SourceDatabase {
                 Ok(path) => Some(path),
                 Err(error) => {
                     tracing::warn!(%error, "Skipping invalid pending rename destination path");
+                    None
+                }
+            })
+            .collect())
+    }
+
+    /// List only destinations retained because their content matches unresolved metadata.
+    pub fn list_retained_rename_destinations(&self) -> Result<Vec<PathBuf>, SourceDbError> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT path
+                 FROM pending_wav_rename_destinations
+                 WHERE retained_hash IS NOT NULL
+                 ORDER BY path ASC",
+            )
+            .map_err(map_sql_error)?;
+        let rows = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|path| match parse_relative_path_from_db(&path) {
+                Ok(path) => Some(path),
+                Err(error) => {
+                    tracing::warn!(%error, "Skipping invalid retained rename destination path");
                     None
                 }
             })
@@ -104,7 +132,8 @@ impl SourceWriteBatch<'_> {
         self.set_metadata(RENAME_CANDIDATE_LAST_SCAN_KIND_KEY, kind.token())?;
         self.tx
             .execute(
-                "DELETE FROM pending_wav_rename_destinations WHERE scan_generation < ?1",
+                "DELETE FROM pending_wav_rename_destinations
+                 WHERE retained_hash IS NULL AND scan_generation < ?1",
                 params![generation.saturating_sub(1) as i64],
             )
             .map_err(map_sql_error)?;
@@ -124,6 +153,72 @@ impl SourceWriteBatch<'_> {
                  VALUES (?1, ?2)
                  ON CONFLICT(path) DO UPDATE SET scan_generation = excluded.scan_generation",
                 params![path, generation as i64],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
+    /// Keep an eligible destination until the pending content match resolves or becomes invalid.
+    pub fn retain_pending_rename_destination(
+        &mut self,
+        relative_path: &Path,
+        content_hash: &str,
+    ) -> Result<(), SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        self.tx
+            .execute(
+                "UPDATE pending_wav_rename_destinations
+                 SET retained_hash = ?2
+                 WHERE path = ?1",
+                params![path, content_hash],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
+    /// Remove a retained destination and report whether it belonged to unresolved recovery.
+    pub fn clear_retained_pending_rename_destination(
+        &mut self,
+        relative_path: &Path,
+    ) -> Result<bool, SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        self.tx
+            .execute(
+                "DELETE FROM pending_wav_rename_destinations
+                 WHERE path = ?1 AND retained_hash IS NOT NULL",
+                params![path],
+            )
+            .map(|removed| removed != 0)
+            .map_err(map_sql_error)
+    }
+
+    /// Drop retained candidates whose path, content, or pending source no longer matches.
+    pub fn prune_invalid_retained_rename_destinations(&mut self) -> Result<(), SourceDbError> {
+        self.tx
+            .execute(
+                "DELETE FROM pending_wav_rename_destinations AS destination
+                 WHERE destination.retained_hash IS NOT NULL
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM wav_files AS present
+                       JOIN pending_wav_renames AS missing
+                         ON missing.content_hash = destination.retained_hash
+                       WHERE present.path = destination.path
+                         AND present.missing = 0
+                         AND present.content_hash = destination.retained_hash
+                   )",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
+    /// Remove transient destinations after an authoritative hard scan.
+    pub fn clear_unretained_pending_rename_destinations(&mut self) -> Result<(), SourceDbError> {
+        self.tx
+            .execute(
+                "DELETE FROM pending_wav_rename_destinations WHERE retained_hash IS NULL",
+                [],
             )
             .map_err(map_sql_error)?;
         Ok(())
