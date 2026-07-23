@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="wavecrate-red" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff5949"/>
+      <stop offset="0.58" stop-color="#ff433a"/>
+      <stop offset="1" stop-color="#e92d35"/>
+    </linearGradient>
+  </defs>
+  <g
+    transform="translate(51.2 8) scale(.9)"
+    fill="none"
+    stroke="url(#wavecrate-red)"
+    stroke-width="74"
+    stroke-linecap="butt"
+    stroke-linejoin="round"
+  >
+    <path d="M360 160 H406 Q430 160 446.97 176.97 L703.03 433.03 Q720 450 744 450 H920"/>
+    <path d="M280 276 H358 Q382 276 398.97 292.97 L655.03 549.03 Q672 566 696 566 H940"/>
+    <path d="M195 392 H310 Q334 392 350.97 408.97 L607.03 665.03 Q624 682 648 682 H920"/>
+    <path d="M120 508 H262 Q286 508 302.97 524.97 L559.03 781.03 Q576 798 600 798 H840"/>
+    <path d="M105 624 H214 Q238 624 254.97 640.97 L511.03 897.03 Q528 914 552 914 H720"/>
+    <path d="M135 740 H166 Q190 740 206.97 756.97 L463.03 1013.03 Q480 1030 504 1030 H620"/>
+  </g>
+</svg>
