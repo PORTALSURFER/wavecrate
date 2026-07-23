@@ -20,6 +20,14 @@ pub struct SourceTreeSnapshot {
     pub other_files: Vec<SourceTreeFile>,
     /// Bounded diagnostics for entries that could not be classified or enumerated.
     pub diagnostics: Vec<String>,
+    /// Relative directory or entry prefixes whose descendants were not
+    /// authoritatively observed during this traversal.
+    ///
+    /// This is internal scan state carried to missing-row reconciliation. It
+    /// is deliberately unbounded: dropping a prefix here could turn an I/O
+    /// failure into a false deletion.
+    #[doc(hidden)]
+    pub uncertain_prefixes: Vec<PathBuf>,
 }
 
 impl SourceTreeSnapshot {

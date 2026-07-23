@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
@@ -17,6 +17,7 @@ pub(crate) struct ScanContext {
     pub(crate) last_committed_revision: Option<u64>,
     manifest_audit: Option<ManifestAuditCheckpoint>,
     source_tree_incomplete: bool,
+    uncertain_prefixes: BTreeSet<PathBuf>,
 }
 
 struct ManifestAuditCheckpoint {
@@ -60,6 +61,7 @@ impl ScanContext {
             last_committed_revision: None,
             manifest_audit: None,
             source_tree_incomplete: false,
+            uncertain_prefixes: BTreeSet::new(),
         }
     }
 
@@ -69,6 +71,44 @@ impl ScanContext {
 
     pub(in crate::sample_sources::scanner) fn source_tree_incomplete(&self) -> bool {
         self.source_tree_incomplete
+    }
+
+    /// Record a relative prefix whose descendants could not be observed.
+    /// Missing-row reconciliation must leave every existing row below this
+    /// boundary untouched until a later authoritative traversal succeeds.
+    pub(in crate::sample_sources::scanner) fn mark_uncertain_prefixes(
+        &mut self,
+        prefixes: impl IntoIterator<Item = PathBuf>,
+    ) {
+        let mut recorded = false;
+        for prefix in prefixes {
+            if self.uncertain_prefixes.insert(prefix) {
+                recorded = true;
+            }
+        }
+        if recorded {
+            self.mark_source_tree_incomplete();
+        }
+    }
+
+    pub(in crate::sample_sources::scanner) fn preserves_missing_row(
+        &self,
+        path: &std::path::Path,
+    ) -> bool {
+        self.uncertain_prefixes
+            .iter()
+            .any(|prefix| path.starts_with(prefix))
+    }
+
+    pub(in crate::sample_sources::scanner) fn has_uncertain_prefixes(&self) -> bool {
+        !self.uncertain_prefixes.is_empty()
+    }
+
+    pub(in crate::sample_sources::scanner) fn uncertainty_error(&self) -> String {
+        format!(
+            "source traversal could not enumerate {} subtree(s); retry required",
+            self.uncertain_prefixes.len()
+        )
     }
 
     pub(in crate::sample_sources::scanner) fn resume_manifest_audit(
@@ -221,6 +261,12 @@ impl ScanContext {
             revision,
             self.committed_manifest.values().cloned().collect(),
         )
+    }
+
+    pub(in crate::sample_sources::scanner) fn latest_committed_snapshot(
+        &self,
+    ) -> (u64, Vec<SourceManifestEntry>) {
+        self.committed_snapshot(self.committed_manifest_revision)
     }
 }
 

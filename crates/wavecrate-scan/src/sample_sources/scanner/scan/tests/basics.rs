@@ -1,4 +1,7 @@
 use super::*;
+use crate::sample_sources::scanner::scan_fs::{
+    force_directory_entry_failure, force_directory_read_failure, force_file_type_failure,
+};
 
 #[test]
 fn scan_add_update_and_prune_missing() {
@@ -38,6 +41,108 @@ fn scan_add_update_and_prune_missing() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert!(!rows[0].missing);
+}
+
+#[test]
+fn full_scan_preserves_an_unreadable_subtree_and_recovers_its_real_deletion() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("kick.wav"), b"kick").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("protected/kick.wav"), Rating::KEEP_1)
+        .unwrap();
+
+    std::fs::remove_file(protected.join("kick.wav")).unwrap();
+    let failure = force_directory_read_failure(&protected);
+    let result = scan_once(&db);
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("an unreadable subtree must be retryable rather than authoritative");
+    };
+    assert!(error.contains("retry required"));
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert!(
+        committed
+            .source_tree_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| !snapshot.is_complete())
+    );
+    assert_eq!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .expect("unobserved descendant must remain indexed")
+            .tag,
+        Rating::KEEP_1
+    );
+
+    drop(failure);
+    let recovered = scan_once(&db).expect("readable retry");
+    assert_eq!(recovered.missing, 1);
+    assert!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn full_scan_preserves_an_unenumerated_subtree_after_a_directory_entry_failure() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("kick.wav"), b"kick").unwrap();
+    // Keep one entry so the injected iterator failure is exercised after the
+    // indexed audio file disappears during the simulated outage.
+    std::fs::write(protected.join("notes.txt"), b"notes").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("protected/kick.wav"), Rating::KEEP_1)
+        .unwrap();
+
+    std::fs::remove_file(protected.join("kick.wav")).unwrap();
+    let failure = force_directory_entry_failure(&protected);
+    let result = scan_once(&db);
+    let ScanError::Incomplete { committed, .. } = result.unwrap_err() else {
+        panic!("directory iterator failure must be retryable");
+    };
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert_eq!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+
+    drop(failure);
+    assert_eq!(scan_once(&db).unwrap().missing, 1);
+}
+
+#[test]
+fn full_scan_preserves_descendants_after_an_entry_type_failure() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("snare.wav"), b"snare").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    std::fs::remove_file(protected.join("snare.wav")).unwrap();
+    let failure = force_file_type_failure(&protected);
+    let result = scan_once(&db);
+    let ScanError::Incomplete { committed, .. } = result.unwrap_err() else {
+        panic!("entry type failure must be retryable");
+    };
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert!(
+        db.entry_for_path(Path::new("protected/snare.wav"))
+            .unwrap()
+            .is_some()
+    );
+
+    drop(failure);
+    assert_eq!(scan_once(&db).unwrap().missing, 1);
 }
 
 #[test]
@@ -666,6 +771,40 @@ fn bounded_manifest_audit_repairs_same_size_closed_app_edit() {
         Some("1234")
     );
     assert_eq!(stats.committed_delta.revision, db.get_revision().unwrap());
+}
+
+#[test]
+fn manifest_audit_keeps_an_unreadable_subtree_due_for_retry() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("kick.wav"), b"kick").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    std::fs::remove_file(protected.join("kick.wav")).unwrap();
+    let failure = force_directory_read_failure(&protected);
+    let result = audit_source_and_record(&db, None, 8, 1_234);
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("partial manifest audit must remain retryable");
+    };
+    assert!(error.contains("retry required"));
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .is_none()
+    );
+
+    drop(failure);
+    let recovered = audit_source_and_record(&db, None, 8, 1_234).unwrap();
+    assert_eq!(recovered.missing, 1);
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("1234")
+    );
 }
 
 #[test]

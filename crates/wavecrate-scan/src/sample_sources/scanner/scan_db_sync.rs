@@ -18,6 +18,7 @@ pub(super) fn db_sync_phase(
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
     let mut existing = std::mem::take(&mut context.existing)
         .into_values()
+        .filter(|entry| !context.preserves_missing_row(&entry.relative_path))
         .collect::<Vec<_>>()
         .into_iter();
     loop {
@@ -46,6 +47,13 @@ pub(super) fn db_sync_phase(
 
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
+    }
+    // An unreadable subtree is not a completed source scan. Keep its prior
+    // manifest rows and completion metadata intact so the existing retry/audit
+    // owner will revisit it instead of treating the partial traversal as
+    // authoritative.
+    if context.has_uncertain_prefixes() {
+        return Ok(context.latest_committed_snapshot());
     }
     let _writer = writer.lock(ScanWritePhase::Manifest);
     if cancel_requested(cancel) {
