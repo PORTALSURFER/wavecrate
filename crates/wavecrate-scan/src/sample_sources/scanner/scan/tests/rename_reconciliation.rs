@@ -201,6 +201,59 @@ fn hard_rescan_retains_metadata_for_ambiguous_same_content_destinations() {
 }
 
 #[test]
+fn hard_rescan_retains_destinations_when_pending_source_is_only_prior_state() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let first = dir.path().join("first-copy.wav");
+    let second = dir.path().join("second-copy.wav");
+    let payload = b"same sample";
+    std::fs::write(&old, payload).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.set_user_tag(Path::new("old.wav"), Some("Empty manifest recovery"))
+        .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+    std::fs::remove_file(&old).unwrap();
+    sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    assert!(db.list_files().unwrap().is_empty());
+    assert_eq!(db.list_pending_renames().unwrap().len(), 1);
+
+    std::fs::write(&first, payload).unwrap();
+    std::fs::write(&second, payload).unwrap();
+    let ambiguous = hard_rescan(&db).unwrap();
+    assert_eq!(ambiguous.renames_reconciled, 0);
+    assert_eq!(db.list_pending_rename_destinations().unwrap().len(), 2);
+    drop(db);
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    std::fs::remove_file(&first).unwrap();
+    let resolved = hard_rescan(&db).unwrap();
+
+    assert_eq!(resolved.renames_reconciled, 1);
+    let survivor = db
+        .entry_for_path(Path::new("second-copy.wav"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(survivor.tag, Rating::KEEP_1);
+    assert_eq!(
+        survivor.user_tag.as_deref(),
+        Some("Empty manifest recovery")
+    );
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        0
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::second-copy.wav"),
+        1
+    );
+}
+
+#[test]
 fn rename_apply_refreshes_metadata_changed_during_discovery() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");

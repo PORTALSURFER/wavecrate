@@ -155,9 +155,7 @@ impl ScanContext {
         &mut self,
         batch: &mut SourceWriteBatch<'_>,
     ) -> Result<(), ScanError> {
-        if self.rename_candidate_generation.is_some()
-            || (self.mode == ScanMode::Hard && self.committed_manifest.is_empty())
-        {
+        if self.rename_candidate_generation.is_some() {
             return Ok(());
         }
         let generation = match self.mode {
