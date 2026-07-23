@@ -6,6 +6,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(test)]
+use std::{cell::RefCell, collections::BTreeSet};
+
 use tracing::warn;
 use wavecrate_library::filesystem_identity::{
     filesystem_change_marker, stable_filesystem_identity,
@@ -17,6 +20,115 @@ use super::scan::ScanError;
 use super::scan::{SourceTreeFile, SourceTreeSnapshot};
 
 const MAX_LAYOUT_DIAGNOSTICS: usize = 16;
+
+#[cfg(test)]
+thread_local! {
+    static FORCED_DIRECTORY_READ_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+    static FORCED_DIRECTORY_ENTRY_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+    static FORCED_FILE_TYPE_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+}
+
+/// Deterministically emulate an unreadable directory for scanner regression
+/// tests without depending on platform-specific permission behavior.
+#[cfg(test)]
+pub(crate) fn force_directory_read_failure(path: &Path) -> ForcedTraversalFailure {
+    ForcedTraversalFailure::new(path, ForcedFailureKind::DirectoryRead)
+}
+
+/// Deterministically emulate a directory iterator failure for scanner
+/// regression tests without depending on filesystem races.
+#[cfg(test)]
+pub(crate) fn force_directory_entry_failure(path: &Path) -> ForcedTraversalFailure {
+    ForcedTraversalFailure::new(path, ForcedFailureKind::DirectoryEntry)
+}
+
+/// Deterministically emulate an entry-type failure for scanner regression
+/// tests without depending on filesystem races.
+#[cfg(test)]
+pub(crate) fn force_file_type_failure(path: &Path) -> ForcedTraversalFailure {
+    ForcedTraversalFailure::new(path, ForcedFailureKind::FileType)
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy)]
+enum ForcedFailureKind {
+    DirectoryRead,
+    DirectoryEntry,
+    FileType,
+}
+
+#[cfg(test)]
+pub(crate) struct ForcedTraversalFailure {
+    path: PathBuf,
+    kind: ForcedFailureKind,
+}
+
+#[cfg(test)]
+impl ForcedTraversalFailure {
+    fn new(path: &Path, kind: ForcedFailureKind) -> Self {
+        let path = path.to_path_buf();
+        forced_failures(kind).with(|failures| {
+            failures.borrow_mut().insert(path.clone());
+        });
+        Self { path, kind }
+    }
+}
+
+#[cfg(test)]
+impl Drop for ForcedTraversalFailure {
+    fn drop(&mut self) {
+        forced_failures(self.kind).with(|failures| {
+            failures.borrow_mut().remove(&self.path);
+        });
+    }
+}
+
+#[cfg(test)]
+fn forced_failures(
+    kind: ForcedFailureKind,
+) -> &'static std::thread::LocalKey<RefCell<BTreeSet<PathBuf>>> {
+    match kind {
+        ForcedFailureKind::DirectoryRead => &FORCED_DIRECTORY_READ_FAILURES,
+        ForcedFailureKind::DirectoryEntry => &FORCED_DIRECTORY_ENTRY_FAILURES,
+        ForcedFailureKind::FileType => &FORCED_FILE_TYPE_FAILURES,
+    }
+}
+
+#[cfg(test)]
+pub(super) fn forced_directory_read_error(path: &Path) -> Option<std::io::Error> {
+    FORCED_DIRECTORY_READ_FAILURES.with(|failures| {
+        failures.borrow().contains(path).then(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "forced directory read failure",
+            )
+        })
+    })
+}
+
+#[cfg(test)]
+pub(super) fn forced_directory_entry_error(path: &Path) -> Option<std::io::Error> {
+    FORCED_DIRECTORY_ENTRY_FAILURES.with(|failures| {
+        failures.borrow().contains(path).then(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "forced directory entry failure",
+            )
+        })
+    })
+}
+
+#[cfg(test)]
+pub(super) fn forced_file_type_error(path: &Path) -> Option<std::io::Error> {
+    FORCED_FILE_TYPE_FAILURES.with(|failures| {
+        failures.borrow().contains(path).then(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "forced file type failure",
+            )
+        })
+    })
+}
 
 #[derive(Clone, Debug)]
 pub(super) struct FileFacts {
@@ -67,7 +179,7 @@ pub(super) fn visit_dir_with_cancel_check(
         if should_cancel() {
             return Err(ScanError::Canceled);
         }
-        let entries = match fs::read_dir(&dir) {
+        let entries = match read_dir(&dir) {
             Ok(entries) => entries,
             Err(source) if dir != root => {
                 warn!(
@@ -79,6 +191,7 @@ pub(super) fn visit_dir_with_cancel_check(
                     &mut snapshot,
                     format!("read directory {}: {source}", display_relative(root, &dir)),
                 );
+                record_uncertain_prefix(&mut snapshot, root, &dir);
                 continue;
             }
             Err(source) => {
@@ -89,7 +202,7 @@ pub(super) fn visit_dir_with_cancel_check(
             }
         };
         for entry_result in entries {
-            let entry = match entry_result {
+            let entry = match read_dir_entry(entry_result, &dir) {
                 Ok(entry) => entry,
                 Err(err) => {
                     warn!(
@@ -104,12 +217,13 @@ pub(super) fn visit_dir_with_cancel_check(
                             display_relative(root, &dir)
                         ),
                     );
+                    record_uncertain_prefix(&mut snapshot, root, &dir);
                     continue;
                 }
             };
 
             let path = entry.path();
-            let file_type = match entry.file_type() {
+            let file_type = match read_file_type(&entry, &path) {
                 Ok(file_type) => file_type,
                 Err(err) => {
                     warn!(
@@ -121,6 +235,7 @@ pub(super) fn visit_dir_with_cancel_check(
                         &mut snapshot,
                         format!("read file type {}: {err}", display_relative(root, &path)),
                     );
+                    record_uncertain_prefix(&mut snapshot, root, &path);
                     continue;
                 }
             };
@@ -173,7 +288,45 @@ pub(super) fn visit_dir_with_cancel_check(
     snapshot
         .other_files
         .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    snapshot.uncertain_prefixes.sort();
     Ok(snapshot)
+}
+
+fn record_uncertain_prefix(snapshot: &mut SourceTreeSnapshot, root: &Path, path: &Path) {
+    let Ok(relative) = path.strip_prefix(root) else {
+        return;
+    };
+    let relative = relative.to_path_buf();
+    if !snapshot.uncertain_prefixes.contains(&relative) {
+        snapshot.uncertain_prefixes.push(relative);
+    }
+}
+
+fn read_dir(path: &Path) -> Result<fs::ReadDir, std::io::Error> {
+    #[cfg(test)]
+    if let Some(error) = forced_directory_read_error(path) {
+        return Err(error);
+    }
+    fs::read_dir(path)
+}
+
+fn read_file_type(entry: &fs::DirEntry, _path: &Path) -> Result<fs::FileType, std::io::Error> {
+    #[cfg(test)]
+    if let Some(error) = forced_file_type_error(_path) {
+        return Err(error);
+    }
+    entry.file_type()
+}
+
+fn read_dir_entry(
+    entry: Result<fs::DirEntry, std::io::Error>,
+    _directory: &Path,
+) -> Result<fs::DirEntry, std::io::Error> {
+    #[cfg(test)]
+    if let Some(error) = forced_directory_entry_error(_directory) {
+        return Err(error);
+    }
+    entry
 }
 
 fn record_layout_diagnostic(snapshot: &mut SourceTreeSnapshot, diagnostic: String) {

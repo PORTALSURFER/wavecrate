@@ -119,6 +119,7 @@ pub(super) fn walk_phase(
         }
     }
     context.flush_manifest_audit_checkpoint(db)?;
+    context.mark_uncertain_prefixes(source_tree_snapshot.uncertain_prefixes.clone());
     context.stats.source_tree_snapshot =
         Some(finalize_source_tree_snapshot(context, source_tree_snapshot));
     Ok(())

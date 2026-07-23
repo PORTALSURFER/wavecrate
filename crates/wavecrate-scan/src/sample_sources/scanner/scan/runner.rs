@@ -217,6 +217,13 @@ pub(crate) fn reconcile_scan_renames(
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+    // A partial traversal cannot safely consume pending rename state: a
+    // retained source beneath an uncertain prefix may otherwise be claimed as
+    // a move by an observed destination elsewhere. This also keeps hard
+    // rescans from clearing pending metadata until the next complete pass.
+    if context.has_uncertain_prefixes() {
+        return Ok(committed_snapshot);
+    }
     let current_candidates = context
         .stats
         .rename_candidate_paths
@@ -328,6 +335,13 @@ pub(crate) fn finish_scan_result(
                 manifest_before,
                 committed_snapshot,
             );
+            if context.has_uncertain_prefixes() {
+                let error = context.uncertainty_error();
+                return Err(ScanError::Incomplete {
+                    committed: Box::new(context.stats),
+                    error,
+                });
+            }
             Ok(context.stats)
         }
         Err(error) => {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::sample_sources::scanner::scan_fs::force_directory_read_failure;
 use crate::sample_sources::scanner::{sync_paths, sync_paths_with_progress};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -126,6 +127,70 @@ fn targeted_sync_prunes_removed_folder_prefix() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("keep.wav"));
+}
+
+#[test]
+fn targeted_sync_preserves_an_unreadable_directory_until_recovery() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("kick.wav"), b"kick").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("protected/kick.wav"), Rating::KEEP_1)
+        .unwrap();
+
+    std::fs::remove_file(protected.join("kick.wav")).unwrap();
+    let failure = force_directory_read_failure(&protected);
+    let result = sync_paths(&db, &[PathBuf::from("protected")]);
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("targeted unreadable directory must be retryable");
+    };
+    assert!(error.contains("retry required"));
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert_eq!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+
+    drop(failure);
+    let recovered = sync_paths(&db, &[PathBuf::from("protected")]).unwrap();
+    assert_eq!(recovered.missing, 1);
+    assert!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn targeted_sync_normalizes_dot_prefixed_uncertainty_boundaries() {
+    let dir = tempdir().unwrap();
+    let protected = dir.path().join("protected");
+    std::fs::create_dir(&protected).unwrap();
+    std::fs::write(protected.join("kick.wav"), b"kick").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    std::fs::remove_file(protected.join("kick.wav")).unwrap();
+    let failure = force_directory_read_failure(&protected);
+    let target = PathBuf::from("./protected");
+    let result = sync_paths(&db, &[target.clone()]);
+    let ScanError::Incomplete { committed, .. } = result.unwrap_err() else {
+        panic!("dot-prefixed uncertain target must be retryable");
+    };
+    assert!(committed.committed_delta.deleted.is_empty());
+    assert!(
+        db.entry_for_path(Path::new("protected/kick.wav"))
+            .unwrap()
+            .is_some()
+    );
+
+    drop(failure);
+    assert_eq!(sync_paths(&db, &[target]).unwrap().missing, 1);
 }
 
 #[test]
