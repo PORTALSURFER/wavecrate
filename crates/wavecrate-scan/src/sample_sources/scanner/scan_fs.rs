@@ -211,6 +211,60 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
     })
 }
 
+/// Read facts from an already-open regular file.
+///
+/// Targeted watcher reconciliation uses this after opening through a
+/// capability-scoped, no-follow path. Keeping the descriptor through hashing
+/// ensures the object that was classified is the one whose contents are read.
+pub(super) fn read_facts_from_open_file(
+    root: &Path,
+    path: &Path,
+    file: &fs::File,
+) -> Result<FileFacts, ScanError> {
+    let relative = strip_relative(root, path)?;
+    let meta = file.metadata().map_err(|source| ScanError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let modified_ns = to_nanos(
+        &meta.modified().map_err(|source| ScanError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?,
+        path,
+    )?;
+    Ok(FileFacts {
+        relative,
+        size: meta.len(),
+        modified_ns,
+        // On Windows these helpers reopen the supplied path to query handle
+        // metadata. A targeted path may have changed after its no-follow open,
+        // so keep the capability guarantee by omitting the optional markers.
+        // The targeted mode already hashes existing rows and records the
+        // descriptor-derived size and modification time.
+        file_identity: {
+            #[cfg(windows)]
+            {
+                None
+            }
+            #[cfg(not(windows))]
+            {
+                stable_filesystem_identity(path, &meta)
+            }
+        },
+        change_marker: {
+            #[cfg(windows)]
+            {
+                None
+            }
+            #[cfg(not(windows))]
+            {
+                filesystem_change_marker(path, &meta)
+            }
+        },
+    })
+}
+
 pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
         && is_supported_audio(path)
@@ -240,7 +294,7 @@ pub(super) fn compute_content_hash(
     compute_content_hash_with_reader(path, &mut file, cancel)
 }
 
-fn compute_content_hash_with_reader(
+pub(super) fn compute_content_hash_with_reader(
     path: &Path,
     reader: &mut impl Read,
     cancel: Option<&AtomicBool>,

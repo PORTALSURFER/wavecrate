@@ -383,6 +383,47 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn filesystem_sync_retires_a_symlinked_file_from_the_browser_projection() {
+        use std::os::unix::fs as unix_fs;
+
+        let root = tempfile::tempdir().expect("source root");
+        let outside = tempfile::tempdir().expect("outside source root");
+        let tracked = root.path().join("tracked.wav");
+        std::fs::write(&tracked, b"tracked").expect("tracked wav");
+        std::fs::write(outside.path().join("outside.wav"), b"outside").expect("outside wav");
+        let db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
+        scanner::hard_rescan(&db).expect("initial scan");
+        std::fs::remove_file(&tracked).expect("replace tracked wav");
+        unix_fs::symlink(outside.path().join("outside.wav"), &tracked).expect("file link");
+
+        let result = sync_source_database_paths(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+            vec![PathBuf::from("tracked.wav")],
+            1,
+            &AtomicBool::new(false),
+        );
+
+        let success = result.result.expect("sync result");
+        assert!(
+            db.entry_for_path(Path::new("tracked.wav"))
+                .expect("read tracked entry")
+                .is_none()
+        );
+        let projection = success
+            .browser_projection_delta
+            .expect("browser projection delta");
+        assert_eq!(
+            projection.removed_file_ids,
+            vec![tracked.display().to_string()]
+        );
+        assert!(projection.upserted_files.is_empty());
+    }
+
     #[test]
     fn filesystem_sync_reports_lifecycle_cancellation_for_requeue() {
         let root = tempfile::tempdir().expect("source root");
