@@ -46,7 +46,6 @@ pub(in crate::native_app) enum FolderScanLifecycle {
     Queued,
     WaitingForSourceRegistration,
     WaitingForScanCapacity { current_owner: Option<String> },
-    WaitingForDatabaseAccess,
     Scanning,
     ApplyingResults,
     PersistingResults,
@@ -63,7 +62,6 @@ impl FolderScanLifecycle {
             Self::Queued => "Queued",
             Self::WaitingForSourceRegistration => "Waiting for source update",
             Self::WaitingForScanCapacity { .. } => "Waiting for scan capacity",
-            Self::WaitingForDatabaseAccess => "Waiting for database access",
             Self::Scanning => "Scanning",
             Self::ApplyingResults => "Applying results",
             Self::PersistingResults => "Saving results",
@@ -81,7 +79,6 @@ impl FolderScanLifecycle {
             Self::Queued
                 | Self::WaitingForSourceRegistration
                 | Self::WaitingForScanCapacity { .. }
-                | Self::WaitingForDatabaseAccess
                 | Self::RetryScheduled
         )
     }

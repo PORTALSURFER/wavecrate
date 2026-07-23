@@ -15,6 +15,7 @@ use super::scan_fs::{
     compute_content_hash, is_supported_scannable_audio_file, read_facts,
     visit_dir_with_cancel_check,
 };
+use super::scan_writer::{ScanWritePhase, ScanWriter};
 
 const APPLY_BATCH_SIZE: usize = 64;
 
@@ -24,6 +25,7 @@ pub(super) fn walk_phase(
     cancel: Option<&AtomicBool>,
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
     context: &mut ScanContext,
+    writer: &impl ScanWriter,
 ) -> Result<(), ScanError> {
     // Each committed batch is a valid checkpoint. Cancellation may stop the scan between batches;
     // the completion metadata and missing-row reconciliation are not published, so a later scan
@@ -83,7 +85,8 @@ pub(super) fn walk_phase(
             pending.push(prepared);
             if pending.len() == APPLY_BATCH_SIZE {
                 let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-                let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
+                let outcome =
+                    apply_batch(db, root, cancel, context, files, committed.get(), writer)?;
                 if outcome.committed {
                     committed.set(true);
                 }
@@ -101,7 +104,7 @@ pub(super) fn walk_phase(
             Ok(())
         })?;
     if !pending.is_empty() {
-        let outcome = apply_batch(db, root, cancel, context, pending, committed.get())?;
+        let outcome = apply_batch(db, root, cancel, context, pending, committed.get(), writer)?;
         if outcome.committed {
             committed.set(true);
         }
@@ -150,6 +153,7 @@ pub(super) fn apply_prepared_chunk(
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
+    writer: &impl ScanWriter,
 ) -> Result<bool, ScanError> {
     let mut pending = Vec::with_capacity(prepared.len());
     for mut file in prepared {
@@ -170,8 +174,16 @@ pub(super) fn apply_prepared_chunk(
     if pending.is_empty() {
         return Ok(false);
     }
-    apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
-        .map(|outcome| outcome.committed)
+    apply_batch(
+        db,
+        root,
+        cancel,
+        context,
+        pending,
+        tolerate_file_errors,
+        writer,
+    )
+    .map(|outcome| outcome.committed)
 }
 
 fn refresh_noop_preparation_or_skip(
@@ -249,6 +261,7 @@ fn apply_batch(
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
+    writer: &impl ScanWriter,
 ) -> Result<ApplyBatchOutcome, ScanError> {
     let mut ready = Vec::with_capacity(prepared.len());
     for file in prepared {
@@ -283,6 +296,10 @@ fn apply_batch(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
+    let _writer = writer.lock(ScanWritePhase::Manifest);
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
     let mut batch = db.write_batch()?;
     context.ensure_rename_candidate_generation(&mut batch)?;
     let mut rename_candidates = RenameCandidateCache::default();
@@ -300,6 +317,9 @@ fn apply_batch(
         }
         apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
         audited_paths.push(relative_path);
+    }
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
     }
     context.commit_batch(batch)?;
     Ok(ApplyBatchOutcome {
@@ -489,8 +509,16 @@ mod tests {
         assert!(prepared.requires_apply);
 
         std::fs::remove_file(&file_path).unwrap();
-        let outcome = apply_batch(&db, dir.path(), None, &mut context, vec![prepared], true)
-            .expect("tolerated committed batch");
+        let outcome = apply_batch(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            true,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+        )
+        .expect("tolerated committed batch");
 
         assert!(!outcome.committed);
         assert!(context.source_tree_incomplete());

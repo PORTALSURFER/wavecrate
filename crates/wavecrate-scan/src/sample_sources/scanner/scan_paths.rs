@@ -13,6 +13,7 @@ use super::{
     scan_diff_phase::prepare_diff,
     scan_fs::ensure_root_dir,
     scan_walk::apply_prepared_chunk,
+    scan_writer::{ScanWriter, UncoordinatedScanWriter},
 };
 
 const TARGET_PREPARE_BATCH_SIZE: usize = 64;
@@ -32,6 +33,17 @@ pub fn sync_paths_with_progress(
     paths: &[PathBuf],
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
+) -> Result<ScanStats, ScanError> {
+    sync_paths_with_progress_and_writer(db, paths, cancel, on_progress, &UncoordinatedScanWriter)
+}
+
+/// Reconcile changed paths while coordinating only bounded database mutations.
+pub fn sync_paths_with_progress_and_writer(
+    db: &SourceDatabase,
+    paths: &[PathBuf],
+    cancel: Option<&AtomicBool>,
+    on_progress: &mut impl FnMut(usize, &Path),
+    writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
     let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
@@ -73,14 +85,22 @@ pub fn sync_paths_with_progress(
             if prepared.len() == TARGET_PREPARE_BATCH_SIZE {
                 let chunk =
                     std::mem::replace(&mut prepared, Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE));
-                committed |=
-                    apply_prepared_chunk(db, &root, cancel, &mut context, chunk, committed)?;
+                committed |= apply_prepared_chunk(
+                    db,
+                    &root,
+                    cancel,
+                    &mut context,
+                    chunk,
+                    committed,
+                    writer,
+                )?;
             }
         }
         if !prepared.is_empty() {
-            let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
+            let _ =
+                apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed, writer)?;
         }
-        db_sync_phase(db, &mut context, cancel)
+        db_sync_phase(db, &mut context, cancel, writer)
     })();
     super::scan::finish_scan_result(manifest_before, context, result)
 }

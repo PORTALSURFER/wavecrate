@@ -18,6 +18,7 @@ use crate::native_app::{
     source_processing::SourceScanAdmissionState,
 };
 use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
+use wavecrate_scan::sample_sources::scanner::UncoordinatedScanWriter;
 
 use super::maintenance::{
     FolderScanCompletionContext, FolderScanMaintenanceRequest, FolderScanMaintenanceResult,
@@ -144,7 +145,12 @@ impl NativeAppState {
                             None,
                         );
                         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                        return run_folder_scan_worker(request, events, cancel);
+                        return run_folder_scan_worker(
+                            request,
+                            events,
+                            cancel,
+                            &UncoordinatedScanWriter,
+                        );
                     };
                     if admission_generation.is_none() {
                         emit_lifecycle(
@@ -174,7 +180,12 @@ impl NativeAppState {
                             );
                             let cancel =
                                 std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                            return run_folder_scan_worker(request, events, cancel);
+                            return run_folder_scan_worker(
+                                request,
+                                events,
+                                cancel,
+                                &UncoordinatedScanWriter,
+                            );
                         }
                     };
                     recovery_generation.set(Some(generation));
@@ -191,10 +202,6 @@ impl NativeAppState {
                                     FolderScanLifecycle::WaitingForScanCapacity { current_owner },
                                     "Queued behind another source reconciliation",
                                 ),
-                                SourceScanAdmissionState::WaitingForDatabaseAccess => (
-                                    FolderScanLifecycle::WaitingForDatabaseAccess,
-                                    "Waiting for database access",
-                                ),
                                 SourceScanAdmissionState::Admitted => {
                                     (FolderScanLifecycle::Scanning, "Source access acquired")
                                 }
@@ -209,11 +216,17 @@ impl NativeAppState {
                             Some(generation),
                         );
                         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                        return run_folder_scan_worker(request, events, cancel);
+                        return run_folder_scan_worker(
+                            request,
+                            events,
+                            cancel,
+                            &UncoordinatedScanWriter,
+                        );
                     };
                     let cancel = permit.cancel_token();
+                    let scan_writer = permit.scan_writer();
                     let completion_events = events.clone();
-                    let mut result = run_folder_scan_worker(request, events, cancel);
+                    let mut result = run_folder_scan_worker(request, events, cancel, &scan_writer);
                     result.lifecycle_generation = Some(generation);
                     if result.scan.cancelled {
                         emit_lifecycle(
@@ -249,8 +262,12 @@ impl NativeAppState {
                             recovery_generation.get(),
                         );
                         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                        let mut recovery =
-                            run_folder_scan_worker(recovery_request, recovery_events, cancel);
+                        let mut recovery = run_folder_scan_worker(
+                            recovery_request,
+                            recovery_events,
+                            cancel,
+                            &UncoordinatedScanWriter,
+                        );
                         recovery.lifecycle_generation = recovery_generation.get();
                         recovery.terminal_failure =
                             Some(String::from("Source scan worker stopped unexpectedly"));

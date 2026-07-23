@@ -9,6 +9,9 @@ use crate::native_app::sample_library::folder_browser::scan::{
     self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
     PreparedFolderScanResult, prepare_folder_scan_cache_update,
 };
+use wavecrate_scan::sample_sources::scanner::ScanWriter;
+#[cfg(test)]
+use wavecrate_scan::sample_sources::scanner::UncoordinatedScanWriter;
 
 const DISCOVERY_BATCH_SIZE: usize = 64;
 
@@ -21,11 +24,13 @@ pub(in crate::native_app) fn run_folder_scan_worker(
     request: FolderScanRequest,
     events: ui::BusinessEventSink<FolderScanWorkerEvent>,
     cancel: Arc<AtomicBool>,
+    writer: &impl ScanWriter,
 ) -> PreparedFolderScanResult {
     run_folder_scan_worker_with_emit_and_cancel(
         request,
         move |event| events.emit(event),
         cancel.as_ref(),
+        writer,
     )
 }
 
@@ -34,13 +39,19 @@ fn run_folder_scan_worker_with_emit(
     request: FolderScanRequest,
     emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
 ) -> PreparedFolderScanResult {
-    run_folder_scan_worker_with_emit_and_cancel(request, emit, &AtomicBool::new(false))
+    run_folder_scan_worker_with_emit_and_cancel(
+        request,
+        emit,
+        &AtomicBool::new(false),
+        &UncoordinatedScanWriter,
+    )
 }
 
 fn run_folder_scan_worker_with_emit_and_cancel(
     request: FolderScanRequest,
     emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
     cancel: &AtomicBool,
+    writer: &impl ScanWriter,
 ) -> PreparedFolderScanResult {
     let rating_decay_maintenance =
         crate::native_app::sample_library::folder_browser::scan::RatingDecayMaintenanceRequest {
@@ -60,6 +71,7 @@ fn run_folder_scan_worker_with_emit_and_cancel(
             discovery_transport.push(event);
         },
         cancel,
+        writer,
     );
     if !cancel.load(Ordering::Acquire) {
         discovery_transport.flush();
@@ -131,6 +143,7 @@ mod tests {
     use crate::native_app::sample_library::folder_browser::scan::{
         FolderScanItem, FolderScanRequest, INDEX_PROGRESS_REPORT_INTERVAL,
     };
+    use wavecrate_scan::sample_sources::scanner::UncoordinatedScanWriter;
 
     use super::{
         DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit,
@@ -255,6 +268,7 @@ mod tests {
                 true
             },
             cancel.as_ref(),
+            &UncoordinatedScanWriter,
         );
 
         assert!(result.scan.cancelled);

@@ -6,7 +6,7 @@ use crate::native_app::app::{
     GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncResult,
     SourceRefreshCause, SourceRefreshRequest, emit_gui_action,
 };
-use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths;
+use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths_with_writer;
 use crate::native_app::sample_library::source_prep::{
     CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
     SourcePrepIntents, SourcePriorityIntent,
@@ -432,13 +432,15 @@ impl NativeAppState {
                 };
                 let lifecycle_generation = permit.lifecycle_generation();
                 let cancel = permit.cancel_token();
-                let mut result = sync_source_database_paths(
+                let scan_writer = permit.scan_writer();
+                let mut result = sync_source_database_paths_with_writer(
                     source_id,
                     root,
                     database_root,
                     paths,
                     changed_count,
                     cancel.as_ref(),
+                    &scan_writer,
                 );
                 result.lifecycle_generation = lifecycle_generation;
                 drop(permit);

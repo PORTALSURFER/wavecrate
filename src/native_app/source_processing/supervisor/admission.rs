@@ -1,7 +1,6 @@
 use super::{
-    Arc, AtomicBool, DatabasePhase, DatabaseWriterGuard, ExternalScanAdmission,
-    ExternalScanRegistration, Ordering, PathBuf, ProcessingLane, SampleSource, Shared,
-    resolve_registered_source_for_scan_locked,
+    Arc, AtomicBool, DatabaseWriterGate, ExternalScanAdmission, ExternalScanRegistration, Ordering,
+    PathBuf, ProcessingLane, SampleSource, Shared, resolve_registered_source_for_scan_locked,
 };
 
 #[derive(Clone)]
@@ -12,7 +11,6 @@ pub(in crate::native_app) struct SourceProcessingBudgetHandle {
 pub(in crate::native_app) struct SourceProcessingBudgetPermit {
     shared: Arc<Shared>,
     pub(super) permit: Option<super::super::scheduler::BudgetPermit>,
-    database_writer: Option<DatabaseWriterGuard>,
     registration_id: u64,
     pub(super) lifecycle_generation: u64,
     pub(super) cancel: Arc<AtomicBool>,
@@ -22,7 +20,6 @@ pub(in crate::native_app) struct SourceProcessingBudgetPermit {
 pub(in crate::native_app) enum SourceScanAdmissionState {
     WaitingForSourceActivation,
     WaitingForCapacity { current_owner: Option<String> },
-    WaitingForDatabaseAccess,
     Admitted,
 }
 
@@ -123,11 +120,6 @@ impl SourceProcessingBudgetHandle {
             let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
                 drop(budgets);
-                publish_state(SourceScanAdmissionState::WaitingForDatabaseAccess);
-                let database_writer = self
-                    .shared
-                    .database_writer
-                    .lock(DatabasePhase::SerialCompatibility);
                 let cancel = Arc::new(AtomicBool::new(false));
                 let control = self.shared.control();
                 let mut external_scans = self.shared.external_scans();
@@ -144,7 +136,6 @@ impl SourceProcessingBudgetHandle {
                     self.shared.external_scan_wake.notify_all();
                     self.shared.budgets().release(permit);
                     self.shared.budget_wake.notify_all();
-                    drop(database_writer);
                     return None;
                 }
                 external_scans.registrations.insert(
@@ -161,7 +152,6 @@ impl SourceProcessingBudgetHandle {
                 let permit = SourceProcessingBudgetPermit {
                     shared: Arc::clone(&self.shared),
                     permit: Some(permit),
-                    database_writer: Some(database_writer),
                     registration_id: admission_id,
                     lifecycle_generation,
                     cancel,
@@ -239,6 +229,10 @@ impl SourceProcessingBudgetPermit {
         self.lifecycle_generation
     }
 
+    pub(in crate::native_app) fn scan_writer(&self) -> DatabaseWriterGate {
+        self.shared.database_writer.clone()
+    }
+
     fn should_cancel_now(&self) -> bool {
         if self.shared.cancel.load(Ordering::Acquire) {
             return true;
@@ -279,7 +273,6 @@ impl Drop for SourceProcessingBudgetPermit {
             drop(control);
             self.shared.wake.notify_one();
         }
-        self.database_writer.take();
         if let Some(permit) = self.permit.take() {
             let source_id = permit.source_id().to_string();
             self.shared.budgets().release(permit);

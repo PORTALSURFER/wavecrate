@@ -164,6 +164,7 @@ include!("priority_and_epochs.rs");
 include!("retirement_recovery.rs");
 include!("discovery_progress.rs");
 include!("admission_and_audits.rs");
+include!("scan_writer_coordination.rs");
 include!("progress_events.rs");
 include!("progress_lifecycle.rs");
 include!("readiness_execution.rs");

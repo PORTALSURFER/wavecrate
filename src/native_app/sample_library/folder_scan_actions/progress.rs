@@ -29,7 +29,6 @@ impl NativeAppState {
         let blocking_subsystem = match &progress.lifecycle {
             crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForSourceRegistration => Some("source_registration"),
             crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForScanCapacity { .. } => Some("scan_capacity"),
-            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForDatabaseAccess => Some("database_access"),
             _ => None,
         };
         if self.library.apply_folder_scan_progress(progress) {

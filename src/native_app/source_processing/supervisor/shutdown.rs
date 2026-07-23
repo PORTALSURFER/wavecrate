@@ -34,6 +34,9 @@ impl SourceProcessingSupervisor {
             "claim": { "count": database.claim.count, "wait_ms": database.claim.wait_ms, "held_ms": database.claim.held_ms },
             "lease": { "count": database.lease.count, "wait_ms": database.lease.wait_ms, "held_ms": database.lease.held_ms },
             "publish": { "count": database.publish.count, "wait_ms": database.publish.wait_ms, "held_ms": database.publish.held_ms },
+            "scan_open": { "count": database.scan_open.count, "wait_ms": database.scan_open.wait_ms, "held_ms": database.scan_open.held_ms },
+            "scan_manifest": { "count": database.scan_manifest.count, "wait_ms": database.scan_manifest.wait_ms, "held_ms": database.scan_manifest.held_ms },
+            "scan_deferred_hash": { "count": database.scan_deferred_hash.count, "wait_ms": database.scan_deferred_hash.wait_ms, "held_ms": database.scan_deferred_hash.held_ms },
             "serial": { "count": database.serial.count, "wait_ms": database.serial.wait_ms, "held_ms": database.serial.held_ms },
         });
         let telemetry = self.shared.telemetry();

@@ -5,8 +5,11 @@ use std::{
     time::Duration,
 };
 
-use wavecrate::sample_sources::{BrowserMetadataSnapshot, SourceDatabase, scanner};
+use wavecrate::sample_sources::{BrowserMetadataSnapshot, SourceDatabase};
 use wavecrate_library::sample_sources::is_supported_audio;
+use wavecrate_scan::sample_sources::scanner::{
+    self, ScanWritePhase, ScanWriter, UncoordinatedScanWriter,
+};
 
 use crate::native_app::{
     app::{BrowserProjectionDelta, SourceFilesystemSyncResult, SourceFilesystemSyncSuccess},
@@ -25,9 +28,36 @@ pub(in crate::native_app) fn sync_source_database_paths(
     changed_count: usize,
     cancel: &AtomicBool,
 ) -> SourceFilesystemSyncResult {
+    sync_source_database_paths_with_writer(
+        source_id,
+        root,
+        database_root,
+        paths,
+        changed_count,
+        cancel,
+        &UncoordinatedScanWriter,
+    )
+}
+
+pub(in crate::native_app) fn sync_source_database_paths_with_writer(
+    source_id: String,
+    root: PathBuf,
+    database_root: PathBuf,
+    paths: Vec<PathBuf>,
+    changed_count: usize,
+    cancel: &AtomicBool,
+    writer: &impl ScanWriter,
+) -> SourceFilesystemSyncResult {
     let mut result = Err(String::from("Source filesystem sync did not run"));
     for attempt in 0..MAX_SYNC_ATTEMPTS {
-        result = sync_source_database_paths_once(&source_id, &root, &database_root, &paths, cancel);
+        result = sync_source_database_paths_once(
+            &source_id,
+            &root,
+            &database_root,
+            &paths,
+            cancel,
+            writer,
+        );
         if result.is_ok() || cancel.load(Ordering::Acquire) {
             break;
         }
@@ -61,27 +91,42 @@ fn sync_source_database_paths_once(
     database_root: &std::path::Path,
     paths: &[PathBuf],
     cancel: &AtomicBool,
+    writer: &impl ScanWriter,
 ) -> Result<SourceFilesystemSyncSuccess, String> {
     let browser_delta_eligible = paths.iter().all(|path| is_supported_audio(path));
-    SourceDatabase::open_for_background_job_with_database_root(root, database_root)
+    let _writer = writer.lock(ScanWritePhase::Open);
+    if cancel.load(Ordering::Acquire) {
+        return Err(String::from(
+            "Source filesystem sync canceled before database open",
+        ));
+    }
+    let database = SourceDatabase::open_for_background_job_with_database_root(root, database_root);
+    drop(_writer);
+    database
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
-            let (stats, mut incomplete_error) =
-                match scanner::sync_paths_with_progress(&db, paths, Some(cancel), &mut |_, _| {}) {
-                    Ok(stats) => (stats, None),
-                    Err(scanner::ScanError::Incomplete { committed, error }) => {
-                        (*committed, Some(error))
-                    }
-                    Err(error) => return Err(format!("sync source index: {error}")),
-                };
+            let (stats, mut incomplete_error) = match scanner::sync_paths_with_progress_and_writer(
+                &db,
+                paths,
+                Some(cancel),
+                &mut |_, _| {},
+                writer,
+            ) {
+                Ok(stats) => (stats, None),
+                Err(scanner::ScanError::Incomplete { committed, error }) => {
+                    (*committed, Some(error))
+                }
+                Err(error) => return Err(format!("sync source index: {error}")),
+            };
             let committed = stats.clone();
             let completed = if incomplete_error.is_some() {
                 committed
             } else {
-                match scanner::complete_deferred_rename_candidates_with_cancel(
+                match scanner::complete_deferred_rename_candidates_with_cancel_and_writer(
                     &db,
                     stats,
                     Some(cancel),
+                    writer,
                 ) {
                     Ok(completed) => completed,
                     Err(error) => {
