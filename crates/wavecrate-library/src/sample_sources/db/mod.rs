@@ -36,7 +36,8 @@ mod rating_tests;
 mod role_contract_tests;
 
 pub use content_audit::{
-    ContentAuditCheckpoint, ContentAuditEntryState, ContentAuditReport, ContentAuditSkipReason,
+    ContentAuditCheckpoint, ContentAuditEntryState, ContentAuditForwardCandidate,
+    ContentAuditReport, ContentAuditRetryCandidate, ContentAuditSkipReason,
 };
 pub use error::SourceDbError;
 pub(crate) use open::SourceDatabaseOpenMode;
