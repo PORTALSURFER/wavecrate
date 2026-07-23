@@ -152,7 +152,7 @@ Wavecrate should provide:
 21. A session-local undo/redo system for destructive edits, file operations, metadata operations, rating operations, and meaningful UI interaction state.
 22. Clean separation between Wavecrate product logic, Radiant GUI-library logic, reusable audio-engine logic, and persistence/indexing logic.
 23. Tests, diagnostics, and validation workflows that protect real user behavior, performance, and recovery guarantees.
-24. A cohesive editorial-terminal visual language: near-black charcoal surfaces, cool neutral dividers, warm off-white typography, and a restrained coral accent that keeps dense controls and waveform states legible without visual noise.
+24. A cohesive editorial-terminal visual language: near-black charcoal surfaces, cool neutral dividers, warm off-white typography, and a restrained coral accent that keeps dense controls and waveform states legible without visual noise. Spectral waveforms keep low energy in a deep blue-purple lane, mids in coral, and highs in bright cool ivory so frequency content remains distinguishable at a glance.
 
 ## Product Principles
 
