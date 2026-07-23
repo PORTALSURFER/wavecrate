@@ -326,6 +326,7 @@ fn discovery_progress_committed_delta_uses_changed_target_counts() {
         .expect("advance manifest generation");
     let delta = PendingReadinessDelta {
         scope_ids: [identity.clone()].into_iter().collect(),
+        state_machine_inputs: Default::default(),
     };
 
     let mut progress_updates = Vec::new();

@@ -107,12 +107,28 @@ pub(super) fn discover_candidates(
                     consumed_readiness_deltas.insert(source.id.as_str().to_string());
                 }
                 if let Some(health) = health {
-                    shared.publish_source_health(health.into_event(
-                        super::SourceProcessingLifecycle::new(
-                            source.id.as_str(),
-                            in_flight_work.lifecycle_generation,
-                        ),
+                    let health = health.into_event(super::SourceProcessingLifecycle::new(
+                        source.id.as_str(),
+                        in_flight_work.lifecycle_generation,
                     ));
+                    #[cfg(test)]
+                    if let Some(pending) = pending_readiness_deltas
+                        .get(source.id.as_str())
+                        .filter(|pending| !pending.state_machine_inputs.is_empty())
+                    {
+                        shared
+                            .state_machine_publications
+                            .lock()
+                            .unwrap_or_else(|poison| poison.into_inner())
+                            .push(super::StateMachinePublicationObservation {
+                                source_id: source.id.as_str().to_string(),
+                                lifecycle_generation: in_flight_work.lifecycle_generation,
+                                source_generation: health.source_generation,
+                                readiness_revision: health.readiness_revision,
+                                inputs: pending.state_machine_inputs.clone(),
+                            });
+                    }
+                    shared.publish_source_health(health);
                 }
                 shared
                     .control()

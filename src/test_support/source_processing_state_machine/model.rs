@@ -16,6 +16,34 @@ pub(super) enum ScanCause {
     Retry,
 }
 
+impl ScanCause {
+    pub(super) const fn publication_reason(self) -> &'static str {
+        match self {
+            Self::Watcher => "state_machine_watcher",
+            Self::WatcherOverflow => "state_machine_watcher_overflow",
+            Self::Focus => "state_machine_focus",
+            Self::Foreground => "state_machine_foreground",
+            Self::Restart => "state_machine_restart",
+            Self::Lifecycle => "state_machine_lifecycle",
+            Self::Retry => "state_machine_retry",
+        }
+    }
+
+    pub(super) fn from_publication_reason(reason: &str) -> Option<Self> {
+        [
+            Self::Watcher,
+            Self::WatcherOverflow,
+            Self::Focus,
+            Self::Foreground,
+            Self::Restart,
+            Self::Lifecycle,
+            Self::Retry,
+        ]
+        .into_iter()
+        .find(|cause| cause.publication_reason() == reason)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum FailureBoundary {

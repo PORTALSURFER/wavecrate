@@ -5,6 +5,7 @@ mod harness;
 mod invariants;
 mod model;
 mod mutations;
+mod supervisor_observer;
 
 use artifacts::{read_replay, write_failure_artifact};
 use harness::StateMachineHarness;
@@ -21,6 +22,19 @@ const REGRESSION_SEEDS: [u64; 6] = [
     0x1245_0000_0000_0004,
     0x1248_0000_0000_0005,
 ];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum ExecutionMode {
+    ScannerOnly,
+    IntegratedSupervisor,
+}
+
+impl ExecutionMode {
+    fn uses_supervisor(self) -> bool {
+        self == Self::IntegratedSupervisor
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(in crate::native_app::source_processing::supervisor::state_machine_tests) struct FailureSnapshot
@@ -44,7 +58,11 @@ pub(in crate::native_app::source_processing::supervisor::state_machine_tests) st
 #[test]
 fn source_processing_seeded_state_machine_normal_ci() {
     for seed in REGRESSION_SEEDS {
-        run_or_archive(seed, generate(seed, NORMAL_SEQUENCE_LENGTH), false);
+        run_or_archive(
+            seed,
+            generate(seed, NORMAL_SEQUENCE_LENGTH),
+            ExecutionMode::ScannerOnly,
+        );
     }
 }
 
@@ -52,14 +70,22 @@ fn source_processing_seeded_state_machine_normal_ci() {
 #[ignore = "explicit integrated supervisor state-machine lane"]
 fn source_processing_seeded_state_machine_integrated_supervisor() {
     let seed = REGRESSION_SEEDS[0];
-    run_or_archive(seed, generate(seed, NORMAL_SEQUENCE_LENGTH), true);
+    run_or_archive(
+        seed,
+        generate(seed, NORMAL_SEQUENCE_LENGTH),
+        ExecutionMode::IntegratedSupervisor,
+    );
 }
 
 #[test]
 #[ignore = "explicit 1,000-sequence source-processing state-machine stress lane"]
 fn source_processing_seeded_state_machine_stress_1000() {
     for seed in 0..STRESS_SEQUENCE_COUNT {
-        run_or_archive(seed, generate(seed, STRESS_SEQUENCE_LENGTH), false);
+        run_or_archive(
+            seed,
+            generate(seed, STRESS_SEQUENCE_LENGTH),
+            ExecutionMode::ScannerOnly,
+        );
     }
 }
 
@@ -69,12 +95,12 @@ fn source_processing_seeded_state_machine_replay() {
     let value = std::env::var("WAVECRATE_SOURCE_STATE_MACHINE_REPLAY").expect(
         "set WAVECRATE_SOURCE_STATE_MACHINE_REPLAY to a decimal seed or replay artifact path",
     );
-    let (seed, events) = read_replay(&value).expect("load source state-machine replay");
-    run_or_archive(seed, events, true);
+    let (seed, events, mode) = read_replay(&value).expect("load source state-machine replay");
+    run_or_archive(seed, events, mode);
 }
 
-fn run_or_archive(seed: u64, events: Vec<Event>, with_supervisor: bool) {
-    let initial_failure = match StateMachineHarness::new(with_supervisor) {
+fn run_or_archive(seed: u64, events: Vec<Event>, mode: ExecutionMode) {
+    let initial_failure = match StateMachineHarness::new(mode.uses_supervisor()) {
         Ok(harness) => match harness.run(&events) {
             Ok(()) => return,
             Err(failure) => failure,
@@ -91,15 +117,15 @@ fn run_or_archive(seed: u64, events: Vec<Event>, with_supervisor: bool) {
         },
     };
     eprintln!(
-        "state-machine seed {seed} failed before shrinking at event {}: {}",
-        initial_failure.event_index, initial_failure.message
+        "state-machine seed {seed} ({mode:?}) failed before shrinking at event {}: {}",
+        initial_failure.event_index, initial_failure.message,
     );
 
-    let (minimized, failure) = minimize_failure(seed, &events, with_supervisor);
-    let path = write_failure_artifact(seed, minimized, failure.clone())
+    let (minimized, failure) = minimize_failure(seed, &events, mode);
+    let path = write_failure_artifact(seed, minimized, mode, failure.clone())
         .unwrap_or_else(|error| panic!("state-machine failure and artifact write failed: {error}"));
     panic!(
-        "seeded source-processing state machine failed: {}\nreplay artifact: {}\nreplay: WAVECRATE_SOURCE_STATE_MACHINE_REPLAY={} cargo test -p wavecrate --lib source_processing_seeded_state_machine_replay -- --ignored --nocapture",
+        "seeded source-processing state machine failed in {mode:?}: {}\nreplay artifact: {}\nreplay: WAVECRATE_SOURCE_STATE_MACHINE_REPLAY={} cargo test -p wavecrate --lib source_processing_seeded_state_machine_replay -- --ignored --nocapture",
         failure.message,
         path.display(),
         path.display()
@@ -109,7 +135,7 @@ fn run_or_archive(seed: u64, events: Vec<Event>, with_supervisor: bool) {
 fn minimize_failure(
     seed: u64,
     events: &[Event],
-    with_supervisor: bool,
+    mode: ExecutionMode,
 ) -> (Vec<Event>, FailureSnapshot) {
     let mut minimized = events.to_vec();
     let mut index = 0;
@@ -122,13 +148,13 @@ fn minimize_failure(
         }
         let mut candidate = minimized.clone();
         candidate.remove(index);
-        if run_failure(&candidate, with_supervisor).is_some() {
+        if run_failure(&candidate, mode).is_some() {
             minimized = candidate;
         } else {
             index += 1;
         }
     }
-    let failure = run_failure(&minimized, with_supervisor).unwrap_or_else(|| FailureSnapshot {
+    let failure = run_failure(&minimized, mode).unwrap_or_else(|| FailureSnapshot {
         message: format!("seed {seed} failed before shrinking but not after deterministic replay"),
         event_index: 0,
         event: Event::Quiesce,
@@ -141,8 +167,8 @@ fn minimize_failure(
     (minimized, failure)
 }
 
-fn run_failure(events: &[Event], with_supervisor: bool) -> Option<FailureSnapshot> {
-    match StateMachineHarness::new(with_supervisor) {
+fn run_failure(events: &[Event], mode: ExecutionMode) -> Option<FailureSnapshot> {
+    match StateMachineHarness::new(mode.uses_supervisor()) {
         Ok(harness) => harness.run(events).err(),
         Err(message) => Some(FailureSnapshot {
             message,

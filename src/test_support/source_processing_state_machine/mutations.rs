@@ -120,11 +120,19 @@ impl StateMachineHarness {
 
     pub(super) fn shutdown_restart(&mut self) -> Result<(), String> {
         if let Some(mut supervisor) = self.supervisor.take() {
+            let lifecycle_generation = supervisor
+                .lifecycle_generations()
+                .get(self.source.id.as_str())
+                .copied();
             let report = supervisor.shutdown();
             if report["joined"] != true {
                 return Err(String::from(
                     "supervisor failed to join during replayable restart",
                 ));
+            }
+            self.collect_publications_from(&supervisor)?;
+            if let Some(lifecycle_generation) = lifecycle_generation {
+                self.mark_outstanding_publications_stale(lifecycle_generation);
             }
             self.supervisor = Some(SourceProcessingSupervisor::start(vec![self.source.clone()]));
         }
@@ -139,8 +147,20 @@ impl StateMachineHarness {
             return Ok(());
         }
         self.model.source_configured = false;
+        let lifecycle_generation = self.supervisor.as_ref().and_then(|supervisor| {
+            supervisor
+                .lifecycle_generations()
+                .get(self.source.id.as_str())
+                .copied()
+        });
         if let Some(supervisor) = &self.supervisor {
             supervisor.replace_sources(Vec::new())?;
+        }
+        self.collect_actual_publications()?;
+        if let Some(lifecycle_generation) = lifecycle_generation {
+            self.mark_outstanding_publications_stale(lifecycle_generation);
+        }
+        if let Some(supervisor) = &self.supervisor {
             supervisor.replace_sources(vec![self.source.clone()])?;
         }
         self.model.source_configured = true;
@@ -193,6 +213,12 @@ impl StateMachineHarness {
         self.model.files = filesystem_inventory(&self.source.root)?;
         self.model.lifecycle_generation = self.model.lifecycle_generation.saturating_add(1);
         self.source.open_db().map_err(|error| error.to_string())?;
+        let previous_lifecycle = self.supervisor.as_ref().and_then(|supervisor| {
+            supervisor
+                .lifecycle_generations()
+                .get(self.source.id.as_str())
+                .copied()
+        });
         if let Some(supervisor) = &self.supervisor {
             supervisor.replace_sources(vec![self.source.clone()])?;
             supervisor.wake_source_for_full_reconciliation(
@@ -200,6 +226,11 @@ impl StateMachineHarness {
                 "state_machine_root_replacement",
             );
         }
+        self.collect_actual_publications()?;
+        if let Some(previous_lifecycle) = previous_lifecycle {
+            self.mark_outstanding_publications_stale(previous_lifecycle);
+        }
+        self.pending_publication_retries.clear();
         self.last_revision = 0;
         self.model.queue(ScanCause::Lifecycle);
         Ok(())

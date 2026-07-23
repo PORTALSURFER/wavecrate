@@ -328,9 +328,13 @@ restart, source removal/re-add, root loss/replacement, and deterministic
 transaction/publication/watcher/hash/lifecycle failure boundaries. Every
 observable commit checks the reference manifest and browser projection,
 monotonic accepted revisions, at-most-once revision/cause publication, bounded
-cause coalescing, and controlled-quiescence liveness. Failures are greedily
+cause coalescing, and controlled-quiescence liveness. The integrated lane
+submits duplicate deltas through the real supervisor queue and observes the
+durable readiness publication/fallback output. Failures are greedily
 minimized without removing lifecycle transitions and written below
-`target/source-state-machine-failures/` (or the active `CARGO_TARGET_DIR`).
+`target/source-state-machine-failures/` (or the active `CARGO_TARGET_DIR`);
+artifacts preserve scanner-only versus integrated execution mode and reject
+fixture-version drift during replay.
 
 Timeouts and invariant failures emit a JSON snapshot containing source and
 readiness generations, availability, activity, per-stage deficits and

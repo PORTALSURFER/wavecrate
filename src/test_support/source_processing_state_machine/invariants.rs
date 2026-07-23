@@ -13,7 +13,7 @@ use super::{
     Event, FailureBoundary, FailureSnapshot, ScanCause, StateMachineHarness, generated_path,
 };
 
-const MAX_COALESCED_CAUSES: usize = 7;
+const MAX_PENDING_WATCHER_PATHS: usize = 16;
 
 impl StateMachineHarness {
     pub(super) fn assert_runtime_liveness(
@@ -127,10 +127,10 @@ impl StateMachineHarness {
     }
 
     pub(super) fn assert_queue_bound(&self) -> Result<(), String> {
-        if self.model.queued_causes.len() > MAX_COALESCED_CAUSES {
+        if self.model.watcher_paths.len() > MAX_PENDING_WATCHER_PATHS {
             return Err(format!(
-                "coalesced scan cause count {} exceeded {MAX_COALESCED_CAUSES}",
-                self.model.queued_causes.len()
+                "coalesced watcher path count {} exceeded generated fixture bound {MAX_PENDING_WATCHER_PATHS}",
+                self.model.watcher_paths.len()
             ));
         }
         Ok(())

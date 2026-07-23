@@ -1,12 +1,13 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use wavecrate_scan::{
-    ScanError, ScanMode, complete_deferred_hashes, scan_with_progress, sync_paths,
+    CommittedSourceDelta, ScanError, ScanMode, complete_deferred_hashes, scan_with_progress,
+    sync_paths,
 };
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
     sample_sources::{SampleSource, SourceId},
 };
 
-use super::super::{SourceAuditLifecycleCause, SourceProcessingSupervisor};
+use super::super::{DatabasePhase, SourceAuditLifecycleCause, SourceProcessingSupervisor};
 use super::{
     Event, FailureBoundary, FailureSnapshot, ReferenceModel, ScanCause,
     invariants::filesystem_inventory,
@@ -33,6 +34,13 @@ pub(super) struct StateMachineHarness {
     pub(super) next_failure: Option<FailureBoundary>,
     pub(super) retired_roots: Vec<PathBuf>,
     pub(super) observable_commits: u64,
+    pub(super) pending_publication_retries: Vec<(CommittedSourceDelta, ScanCause)>,
+    pub(super) expected_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
+    pub(super) observed_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
+    pub(super) stale_supervisor_publications: BTreeSet<(u64, u64, ScanCause)>,
+    pub(super) last_actual_output_revisions: BTreeMap<u64, (i64, i64)>,
+    pub(super) actual_queue_admissions: u64,
+    pub(super) max_actual_pending_scopes: usize,
 }
 
 impl StateMachineHarness {
@@ -81,10 +89,20 @@ impl StateMachineHarness {
             next_failure: None,
             retired_roots: Vec::new(),
             observable_commits: 0,
+            pending_publication_retries: Vec::new(),
+            expected_supervisor_publications: BTreeSet::new(),
+            observed_supervisor_publications: BTreeSet::new(),
+            stale_supervisor_publications: BTreeSet::new(),
+            last_actual_output_revisions: BTreeMap::new(),
+            actual_queue_admissions: 0,
+            max_actual_pending_scopes: 0,
         })
     }
 
     pub(super) fn run(mut self, events: &[Event]) -> Result<(), FailureSnapshot> {
+        if let Err(message) = self.initialize() {
+            return Err(self.failure(0, &Event::Quiesce, message));
+        }
         for (event_index, event) in events.iter().enumerate() {
             if let Err(message) = self.apply(event) {
                 return Err(self.failure(event_index, event, message));
@@ -102,8 +120,56 @@ impl StateMachineHarness {
                     String::from("source-processing supervisor did not join"),
                 ));
             }
+            if let Err(message) = self.collect_publications_from(&supervisor) {
+                return Err(self.failure(events.len(), &Event::Quiesce, message));
+            }
+            if let Err(message) = self.assert_actual_publications() {
+                return Err(self.failure(events.len(), &Event::Quiesce, message));
+            }
         }
         Ok(())
+    }
+
+    fn initialize(&mut self) -> Result<(), String> {
+        if self.supervisor.is_none() {
+            return self.quiesce();
+        }
+        self.next_failure = None;
+        self.model.queue(ScanCause::Retry);
+        self.flush(ScanCause::Retry)?;
+        self.wait_for_integrated_settle()?;
+        self.create(6, false)?;
+        self.flush(ScanCause::Foreground)?;
+        self.wait_for_integrated_settle()?;
+        self.assert_actual_publications()
+    }
+
+    fn wait_for_integrated_settle(&self) -> Result<(), String> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            let supervisor = self
+                .supervisor
+                .as_ref()
+                .expect("integrated initialization keeps its supervisor");
+            let runtime = super::super::liveness_tests::runtime_observation(
+                supervisor,
+                self.source.id.as_str(),
+            );
+            if super::super::liveness_tests::readiness_snapshot(&self.source).is_some()
+                && runtime.queue_depth == 0
+                && runtime.readiness_queue_depth == 0
+                && runtime.in_flight == 0
+                && !runtime.source_dirty
+            {
+                return Ok(());
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(format!(
+                    "integrated state-machine baseline did not settle: {runtime:?}"
+                ));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 
     fn apply(&mut self, event: &Event) -> Result<(), String> {
@@ -173,6 +239,15 @@ impl StateMachineHarness {
             self.model.queue(ScanCause::Retry);
             return Ok(());
         }
+        let scan_permit = self.supervisor.as_ref().and_then(|supervisor| {
+            supervisor
+                .budget_handle()
+                .acquire_scan(self.source.id.as_str())
+        });
+        let scan_writer = scan_permit.as_ref().map(|permit| permit.scan_writer());
+        let _scan_writer_guard = scan_writer
+            .as_ref()
+            .map(|writer| writer.lock(DatabasePhase::SerialCompatibility));
         let database = self.database()?;
         let pending_paths = self
             .model
@@ -209,6 +284,15 @@ impl StateMachineHarness {
             .map_err(|error| format!("complete deferred hashes: {error}"))?;
         let publication_lost = self.take_failure(FailureBoundary::Publication);
         self.accept_commit(effective_cause, &stats.committed_delta, publication_lost)?;
+        self.admit_pending_publication_retries()?;
+        if publication_lost {
+            if !stats.committed_delta.is_empty() {
+                self.pending_publication_retries
+                    .push((stats.committed_delta.clone(), effective_cause));
+            }
+        } else {
+            self.admit_supervisor_delta(&stats.committed_delta, effective_cause)?;
+        }
         self.model.watcher_paths.clear();
         if effective_cause == ScanCause::Watcher {
             self.model.queued_causes.remove(&ScanCause::Watcher);
@@ -223,12 +307,6 @@ impl StateMachineHarness {
             if stats.committed_delta.is_empty() {
                 supervisor
                     .request_source_processing(self.source.id.as_str(), "state_machine_scan_noop");
-            } else {
-                supervisor.request_source_delta(
-                    self.source.id.as_str(),
-                    &stats.committed_delta,
-                    "state_machine_scan_commit",
-                );
             }
         }
         self.assert_committed_manifest(&database)
@@ -258,12 +336,11 @@ impl StateMachineHarness {
         let database = self.database()?;
         self.assert_committed_manifest(&database)?;
         if let Some(supervisor) = &self.supervisor {
-            supervisor.wake_source_for_full_reconciliation(
-                self.source.id.as_str(),
-                "state_machine_quiescence",
-            );
+            supervisor
+                .request_source_processing(self.source.id.as_str(), "state_machine_quiescence");
             self.assert_runtime_liveness(supervisor)?;
         }
+        self.assert_actual_publications()?;
         Ok(())
     }
 }

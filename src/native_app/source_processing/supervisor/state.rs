@@ -1,5 +1,7 @@
 #[cfg(test)]
 use super::AtomicUsize;
+#[cfg(test)]
+use super::StateMachinePublicationObservation;
 #[cfg(not(test))]
 use super::recovered_source_retirements;
 use super::{
@@ -77,6 +79,8 @@ pub(super) struct Shared {
     pub(super) synthetic_test_execution: AtomicBool,
     pub(super) event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
     pub(super) published_source_health: Mutex<BTreeMap<String, SourceProcessingHealthEvent>>,
+    #[cfg(test)]
+    pub(super) state_machine_publications: Mutex<Vec<StateMachinePublicationObservation>>,
     #[cfg(test)]
     pub(super) retirement_cleanup_blocked: AtomicBool,
     #[cfg(test)]
@@ -168,6 +172,8 @@ impl Shared {
             synthetic_test_execution: AtomicBool::new(false),
             event_sink,
             published_source_health: Mutex::new(BTreeMap::new()),
+            #[cfg(test)]
+            state_machine_publications: Mutex::new(Vec::new()),
             #[cfg(test)]
             retirement_cleanup_blocked: AtomicBool::new(false),
             #[cfg(test)]
