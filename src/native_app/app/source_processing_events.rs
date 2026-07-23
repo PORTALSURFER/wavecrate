@@ -162,8 +162,8 @@ fn discovery_copy(
             String::from("Reading eligible files"),
         ),
         SourceDiscoveryPhase::PreparingTargets => (
-            String::from("Inspecting source manifest"),
-            determinate("files inspected"),
+            String::from("Preparing readiness targets"),
+            determinate("files prepared"),
         ),
         SourceDiscoveryPhase::ComparingReadiness => (
             String::from("Comparing source readiness"),
@@ -276,6 +276,12 @@ mod tests {
 
     #[test]
     fn maps_truthful_discovery_audit_and_completion_copy() {
+        let target_preparation = mapped_progress(SourceProcessingActivity::Discovering {
+            phase: crate::native_app::source_processing::SourceDiscoveryPhase::PreparingTargets,
+        });
+        assert_eq!(target_preparation.stage, "Preparing readiness targets");
+        assert_eq!(target_preparation.detail, "3 / 5 files prepared");
+
         let discovery = mapped_progress(SourceProcessingActivity::Discovering {
             phase: crate::native_app::source_processing::SourceDiscoveryPhase::ComparingReadiness,
         });

@@ -233,6 +233,11 @@ fn discovery_progress_publisher_rejects_phase_and_count_regressions() {
         8,
     ));
     publisher.advance(DiscoveryProgressUpdate::determinate(
+        SourceDiscoveryPhase::QueueingWork,
+        4,
+        6,
+    ));
+    publisher.advance(DiscoveryProgressUpdate::determinate(
         SourceDiscoveryPhase::ComparingReadiness,
         8,
         8,

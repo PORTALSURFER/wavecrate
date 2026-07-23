@@ -58,8 +58,8 @@ impl DiscoveryProgressPublisher<'_> {
             discovery_phase_rank(progress.phase) < discovery_phase_rank(previous.phase)
                 || (previous.phase == progress.phase
                     && previous.total > 0
-                    && progress.total > 0
-                    && progress.completed < previous.completed)
+                    && (progress.total != previous.total
+                        || progress.completed < previous.completed))
         });
         let event_due = self.started_at.elapsed() >= DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL
             && !regressed

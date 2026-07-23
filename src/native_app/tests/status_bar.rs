@@ -474,14 +474,25 @@ fn source_processing_job_details_use_truthful_discovery_units() {
         .selected_source_id()
         .to_string();
 
-    for (stage, detail, expected) in [
+    for (stage, completed, total, detail, expected) in [
+        (
+            "Preparing readiness targets",
+            7_232,
+            7_232,
+            "7232 / 7232 files prepared",
+            "Progress: 7232/7232 files prepared",
+        ),
         (
             "Comparing source readiness",
+            17_435,
+            21_697,
             "17435 / 21697 readiness targets compared",
             "Progress: 17435/21697 readiness targets compared",
         ),
         (
             "Queueing unfinished work",
+            14_460,
+            21_697,
             "14460 / 21697 readiness targets checked",
             "Progress: 14460/21697 readiness targets checked",
         ),
@@ -492,12 +503,8 @@ fn source_processing_job_details_use_truthful_discovery_units() {
                 lifecycle_generation: 0,
                 active: true,
                 source_row_active: true,
-                completed: if stage.starts_with("Comparing") {
-                    17_435
-                } else {
-                    14_460
-                },
-                total: 21_697,
+                completed,
+                total,
                 stage: String::from(stage),
                 detail: String::from(detail),
             },

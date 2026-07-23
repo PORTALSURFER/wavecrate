@@ -357,6 +357,7 @@ impl JobDetailsViewModel {
 fn source_processing_progress_unit(stage: &str) -> Option<&'static str> {
     match stage {
         "Inspecting source manifest" => Some("files inspected"),
+        "Preparing readiness targets" => Some("files prepared"),
         "Comparing source readiness" | "Comparing changed readiness" => {
             Some("readiness targets compared")
         }
