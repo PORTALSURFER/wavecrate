@@ -2,9 +2,9 @@ use std::{fs, sync::atomic::AtomicBool};
 
 use wavecrate_scan::{ScanError, ScanMode, scan_with_progress};
 
-use super::super::SourceProcessingSupervisor;
 use super::{
     FailureBoundary, ScanCause, StateMachineHarness, generated_path,
+    harness::start_observed_supervisor,
     invariants::{filesystem_inventory, perturb},
 };
 
@@ -134,7 +134,9 @@ impl StateMachineHarness {
             if let Some(lifecycle_generation) = lifecycle_generation {
                 self.mark_outstanding_publications_stale(lifecycle_generation);
             }
-            self.supervisor = Some(SourceProcessingSupervisor::start(vec![self.source.clone()]));
+            let (supervisor, events) = start_observed_supervisor(&self.source);
+            self.supervisor = Some(supervisor);
+            self.supervisor_events = Some(events);
         }
         self.model.restart_count = self.model.restart_count.saturating_add(1);
         self.model.queue(ScanCause::Restart);
@@ -182,15 +184,30 @@ impl StateMachineHarness {
         fs::rename(&self.source.root, &offline)
             .map_err(|error| format!("take source root offline: {error}"))?;
         self.model.root_online = false;
-        if !self.take_failure(FailureBoundary::Lifecycle) {
-            fs::rename(&offline, &self.source.root)
-                .map_err(|error| format!("restore source root: {error}"))?;
-            self.model.root_online = true;
-        } else {
-            fs::rename(&offline, &self.source.root)
-                .map_err(|error| format!("recover injected offline lifecycle failure: {error}"))?;
-            self.model.root_online = true;
+        let injected_failure = self.take_failure(FailureBoundary::Lifecycle);
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.wake_source_for_full_reconciliation(
+                self.source.id.as_str(),
+                "state_machine_root_offline",
+            );
+            self.wait_for_supervisor_offline()?;
+        }
+        fs::rename(&offline, &self.source.root)
+            .map_err(|error| format!("restore source root: {error}"))?;
+        self.model.root_online = true;
+        if injected_failure {
             self.model.retry_count = self.model.retry_count.saturating_add(1);
+        }
+        if let Some(supervisor) = &self.supervisor {
+            supervisor.wake_source_for_full_reconciliation(
+                self.source.id.as_str(),
+                if injected_failure {
+                    "state_machine_root_online_retry"
+                } else {
+                    "state_machine_root_online"
+                },
+            );
+            self.wait_for_supervisor_online_terminal()?;
         }
         self.model.queue(ScanCause::Lifecycle);
         Ok(())

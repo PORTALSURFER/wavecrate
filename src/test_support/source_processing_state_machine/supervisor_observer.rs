@@ -1,8 +1,15 @@
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    sync::mpsc::{Receiver, RecvTimeoutError},
+    time::{Duration, Instant},
+};
 
 use wavecrate_scan::CommittedSourceDelta;
 
-use super::super::{SourceProcessingSupervisor, StateMachinePublicationObservation};
+use super::super::{
+    SourceProcessingEvent, SourceProcessingHealthEvent, SourceProcessingHealthState,
+    SourceProcessingSupervisor, StateMachinePublicationObservation,
+};
 use super::{ScanCause, StateMachineHarness};
 
 const DUPLICATE_ADMISSION_COUNT: usize = 3;
@@ -123,7 +130,6 @@ impl StateMachineHarness {
 
     pub(super) fn assert_actual_publications(&mut self) -> Result<(), String> {
         self.collect_actual_publications()?;
-        self.account_durable_publication();
         if self.supervisor.is_some()
             && self.actual_queue_admissions > 0
             && self.observed_supervisor_publications.is_empty()
@@ -151,33 +157,35 @@ impl StateMachineHarness {
         Ok(())
     }
 
-    fn account_durable_publication(&mut self) {
-        let Some(supervisor) = &self.supervisor else {
-            return;
-        };
-        let Some(lifecycle_generation) = supervisor
-            .lifecycle_generations()
-            .get(self.source.id.as_str())
-            .copied()
-        else {
-            return;
-        };
-        let Some(snapshot) = super::super::liveness_tests::readiness_snapshot(&self.source) else {
-            return;
-        };
-        if snapshot.readiness_revision <= 0 || snapshot.source_generation < 0 {
-            return;
+    pub(super) fn wait_for_supervisor_offline(&self) -> Result<(), String> {
+        let health = wait_for_health(
+            self.supervisor_events.as_ref(),
+            self.source.id.as_str(),
+            |health| health.state == SourceProcessingHealthState::Offline,
+            "offline",
+        )?;
+        if health.retry_at.is_some() {
+            return Err(String::from(
+                "offline supervisor observation unexpectedly scheduled a retry",
+            ));
         }
-        self.observed_supervisor_publications.extend(
-            self.expected_supervisor_publications
-                .iter()
-                .filter(|(lifecycle, revision, _)| {
-                    *lifecycle == lifecycle_generation
-                        && *revision as i64 <= snapshot.source_generation
-                })
-                .filter(|key| !self.stale_supervisor_publications.contains(key))
-                .copied(),
-        );
+        Ok(())
+    }
+
+    pub(super) fn wait_for_supervisor_online_terminal(&self) -> Result<(), String> {
+        wait_for_health(
+            self.supervisor_events.as_ref(),
+            self.source.id.as_str(),
+            |health| {
+                matches!(
+                    health.state,
+                    SourceProcessingHealthState::Ready
+                        | SourceProcessingHealthState::DegradedTerminal
+                )
+            },
+            "terminal online",
+        )
+        .map(|_| ())
     }
 
     fn accept_actual_publication(
@@ -233,6 +241,38 @@ impl StateMachineHarness {
             }
         }
         Ok(())
+    }
+}
+
+fn wait_for_health(
+    events: Option<&Receiver<SourceProcessingEvent>>,
+    source_id: &str,
+    predicate: impl Fn(&SourceProcessingHealthEvent) -> bool,
+    expected: &str,
+) -> Result<SourceProcessingHealthEvent, String> {
+    let events =
+        events.ok_or_else(|| String::from("integrated state-machine event receiver is missing"))?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match events.recv_timeout(remaining) {
+            Ok(SourceProcessingEvent::Health(health))
+                if health.lifecycle.source_id == source_id && predicate(&health) =>
+            {
+                return Ok(health);
+            }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Timeout) => {
+                return Err(format!(
+                    "supervisor did not publish {expected} health for {source_id}"
+                ));
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(String::from(
+                    "integrated state-machine event receiver disconnected",
+                ));
+            }
+        }
     }
 }
 

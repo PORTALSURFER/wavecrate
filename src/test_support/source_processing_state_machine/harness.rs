@@ -2,7 +2,10 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::PathBuf,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver},
+    },
 };
 
 use wavecrate_scan::{
@@ -15,7 +18,9 @@ use crate::{
     sample_sources::{SampleSource, SourceId},
 };
 
-use super::super::{DatabasePhase, SourceAuditLifecycleCause, SourceProcessingSupervisor};
+use super::super::{
+    DatabasePhase, SourceAuditLifecycleCause, SourceProcessingEvent, SourceProcessingSupervisor,
+};
 use super::{
     Event, FailureBoundary, FailureSnapshot, ReferenceModel, ScanCause,
     invariants::filesystem_inventory,
@@ -27,6 +32,7 @@ pub(super) struct StateMachineHarness {
     pub(super) escape_target: PathBuf,
     pub(super) model: ReferenceModel,
     pub(super) supervisor: Option<SourceProcessingSupervisor>,
+    pub(super) supervisor_events: Option<Receiver<SourceProcessingEvent>>,
     pub(super) template: Vec<u8>,
     pub(super) last_revision: u64,
     pub(super) accepted_publications: BTreeSet<(u64, u64, ScanCause)>,
@@ -74,14 +80,19 @@ impl StateMachineHarness {
         let last_revision = database
             .get_wav_paths_revision()
             .map_err(|error| error.to_string())?;
-        let supervisor =
-            with_supervisor.then(|| SourceProcessingSupervisor::start(vec![source.clone()]));
+        let (supervisor, supervisor_events) = if with_supervisor {
+            let (supervisor, events) = start_observed_supervisor(&source);
+            (Some(supervisor), Some(events))
+        } else {
+            (None, None)
+        };
         Ok(Self {
             _config_base: config_base,
             source,
             escape_target,
             model: ReferenceModel::new(files),
             supervisor,
+            supervisor_events,
             template,
             last_revision,
             accepted_publications: BTreeSet::new(),
@@ -343,4 +354,14 @@ impl StateMachineHarness {
         self.assert_actual_publications()?;
         Ok(())
     }
+}
+
+pub(super) fn start_observed_supervisor(
+    source: &SampleSource,
+) -> (SourceProcessingSupervisor, Receiver<SourceProcessingEvent>) {
+    let (event_sender, event_receiver) = mpsc::channel();
+    (
+        SourceProcessingSupervisor::start_with_event_sink(vec![source.clone()], event_sender),
+        event_receiver,
+    )
 }
