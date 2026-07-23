@@ -10,6 +10,7 @@ pub mod db;
 pub mod library;
 /// Durable source-readiness and convergence coordination contracts.
 pub mod readiness;
+mod source_entry;
 
 pub use audio_support::{
     is_apple_double_sidecar, is_supported_audio, supported_audio_where_clause,
@@ -25,6 +26,10 @@ pub use library::{
     HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity, HarvestFileKey,
     HarvestFileRecord, HarvestMetadataSnapshot, HarvestSourceRange, HarvestState,
     LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, NewHarvestDerivation,
+};
+pub use source_entry::{
+    SourceEntryClassification, SourceEntryFileType, SourceEntryKind, SourceEntryProbeError,
+    SourceEntryRejection, classify_path_without_following, classify_source_entry,
 };
 
 /// Identifier for a configured sample source.

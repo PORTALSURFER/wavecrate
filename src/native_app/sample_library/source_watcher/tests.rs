@@ -9,7 +9,8 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use wavecrate::sample_sources::{SampleSource, SourceId};
+use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceId};
+use wavecrate_scan::sample_sources::scanner::{scan_once, sync_paths};
 
 use crate::native_app::app::GuiMessage;
 
@@ -94,6 +95,39 @@ fn apple_double_sidecars_do_not_trigger_source_refresh() {
         &root.join("drums").join("._snare.wav"),
         EventKind::Create(notify::event::CreateKind::File),
     ));
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_replacement_stays_a_watcher_candidate_until_targeted_sync_retires_it() {
+    use std::os::unix::fs as unix_fs;
+
+    let root = tempfile::tempdir().expect("create source watcher fixture");
+    let outside = tempfile::tempdir().expect("create outside fixture");
+    let tracked = root.path().join("kick.wav");
+    let target = outside.path().join("outside.wav");
+    fs::write(&tracked, b"indexed").expect("write indexed source file");
+    fs::write(&target, b"outside").expect("write outside file");
+    let database = SourceDatabase::open_for_source_write(root.path()).expect("open source db");
+    scan_once(&database).expect("index tracked file");
+
+    fs::remove_file(&tracked).expect("remove indexed source file");
+    unix_fs::symlink(&target, &tracked).expect("replace source file with link");
+    assert!(path_is_source_refresh_candidate(
+        &tracked,
+        EventKind::Modify(notify::event::ModifyKind::Data(
+            notify::event::DataChange::Any,
+        )),
+    ));
+    let stats = sync_paths(&database, &[PathBuf::from("kick.wav")])
+        .expect("reconcile link replacement without following it");
+    assert_eq!(stats.missing, 1);
+    assert!(
+        database
+            .entry_for_path(Path::new("kick.wav"))
+            .expect("read indexed entry")
+            .is_none()
+    );
 }
 
 #[test]

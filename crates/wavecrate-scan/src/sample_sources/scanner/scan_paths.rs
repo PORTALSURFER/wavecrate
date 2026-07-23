@@ -7,8 +7,11 @@ use std::{
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
 use cap_std::fs::{Dir, OpenOptions};
+use wavecrate_library::sample_sources::{
+    SourceEntryClassification, SourceEntryFileType, classify_source_entry,
+};
 
-use crate::sample_sources::{SourceDatabase, WavEntry, is_supported_audio};
+use crate::sample_sources::{SourceDatabase, WavEntry};
 
 use super::{
     scan::{ScanContext, ScanError, ScanMode, ScanStats},
@@ -221,40 +224,43 @@ fn collect_current_files(
         }
     };
     let file_type = metadata.file_type();
-    if file_type.is_symlink() {
-        return Ok(());
-    }
-    if file_type.is_dir() {
-        let dir = match parent.open_dir_nofollow(name_path) {
-            Ok(dir) => dir,
-            Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
-            Err(source) => {
-                tracing::warn!(
-                    path = %root.join(relative_path).display(),
-                    error = %source,
-                    "Failed to open targeted sync directory without following links"
-                );
-                uncertain_prefixes.insert(relative_path.to_path_buf());
-                return Ok(());
-            }
-        };
-        collect_current_files_in_dir(
-            dir,
-            root,
-            relative_path,
-            cancel,
-            current_files,
-            uncertain_prefixes,
-        )?;
-    } else if file_type.is_file() {
-        collect_current_file(
-            &parent,
-            Path::new(&name),
-            root,
-            relative_path,
-            current_files,
-            uncertain_prefixes,
-        )?;
+    match classify_source_entry(relative_path, targeted_source_entry_file_type(&file_type)) {
+        SourceEntryClassification::Directory { .. } => {
+            let dir = match parent.open_dir_nofollow(name_path) {
+                Ok(dir) => dir,
+                Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
+                Err(source) => {
+                    tracing::warn!(
+                        path = %root.join(relative_path).display(),
+                        error = %source,
+                        "Failed to open targeted sync directory without following links"
+                    );
+                    uncertain_prefixes.insert(relative_path.to_path_buf());
+                    return Ok(());
+                }
+            };
+            collect_current_files_in_dir(
+                dir,
+                root,
+                relative_path,
+                cancel,
+                current_files,
+                uncertain_prefixes,
+            )?;
+        }
+        classification @ SourceEntryClassification::File { .. }
+            if classification.indexes_audio() =>
+        {
+            collect_current_file(
+                &parent,
+                Path::new(&name),
+                root,
+                relative_path,
+                current_files,
+                uncertain_prefixes,
+            )?;
+        }
+        SourceEntryClassification::File { .. } | SourceEntryClassification::Rejected(_) => {}
     }
     Ok(())
 }
@@ -361,39 +367,44 @@ fn collect_current_files_in_dir(
                     continue;
                 }
             };
-            if file_type.is_symlink() {
-                continue;
-            }
-            if file_type.is_dir() {
-                let child_dir = match dir.open_dir_nofollow(name_path) {
-                    Ok(child_dir) => child_dir,
-                    Err(source) if source.kind() == io::ErrorKind::NotFound => continue,
-                    Err(source) => {
-                        tracing::warn!(
-                            path = %path.display(),
-                            error = %source,
-                            "Failed to open targeted sync directory without following links"
-                        );
-                        if !dir
-                            .symlink_metadata(name_path)
-                            .is_ok_and(|metadata| metadata.is_symlink())
-                        {
-                            uncertain_prefixes.insert(relative_dir.join(name_path));
+            let relative_path = relative_dir.join(name_path);
+            match classify_source_entry(&relative_path, targeted_source_entry_file_type(&file_type))
+            {
+                SourceEntryClassification::Directory { .. } => {
+                    let child_dir = match dir.open_dir_nofollow(name_path) {
+                        Ok(child_dir) => child_dir,
+                        Err(source) if source.kind() == io::ErrorKind::NotFound => continue,
+                        Err(source) => {
+                            tracing::warn!(
+                                path = %path.display(),
+                                error = %source,
+                                "Failed to open targeted sync directory without following links"
+                            );
+                            if !dir
+                                .symlink_metadata(name_path)
+                                .is_ok_and(|metadata| metadata.is_symlink())
+                            {
+                                uncertain_prefixes.insert(relative_dir.join(name_path));
+                            }
+                            continue;
                         }
-                        continue;
-                    }
-                };
-                stack.push((child_dir, relative_dir.join(name_path)));
-            } else if file_type.is_file() {
-                let relative_path = relative_dir.join(name_path);
-                collect_current_file(
-                    &dir,
-                    name_path,
-                    root,
-                    &relative_path,
-                    current_files,
-                    uncertain_prefixes,
-                )?;
+                    };
+                    stack.push((child_dir, relative_path));
+                }
+                classification @ SourceEntryClassification::File { .. }
+                    if classification.indexes_audio() =>
+                {
+                    collect_current_file(
+                        &dir,
+                        name_path,
+                        root,
+                        &relative_path,
+                        current_files,
+                        uncertain_prefixes,
+                    )?;
+                }
+                SourceEntryClassification::File { .. } | SourceEntryClassification::Rejected(_) => {
+                }
             }
         }
     }
@@ -409,7 +420,7 @@ fn collect_current_file(
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
     let absolute_path = root.join(relative_path);
-    if !is_supported_audio(&absolute_path) || has_hidden_ancestor(relative_path) {
+    if !classify_source_entry(relative_path, SourceEntryFileType::File).indexes_audio() {
         return Ok(());
     }
     let mut options = OpenOptions::new();
@@ -478,13 +489,10 @@ fn read_targeted_dir_entry(
     entry
 }
 
-fn has_hidden_ancestor(relative_path: &Path) -> bool {
-    relative_path.parent().is_some_and(|parent| {
-        parent.components().any(|component| {
-            let Component::Normal(name) = component else {
-                return false;
-            };
-            name.to_str().is_some_and(|name| name.starts_with('.'))
-        })
-    })
+fn targeted_source_entry_file_type(file_type: &cap_std::fs::FileType) -> SourceEntryFileType {
+    SourceEntryFileType::from_no_followed_type(
+        file_type.is_dir(),
+        file_type.is_file(),
+        file_type.is_symlink(),
+    )
 }
