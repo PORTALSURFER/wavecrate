@@ -10,6 +10,7 @@ use crate::sample_sources::db::SourceManifestEntry;
 
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
+use super::super::scan_hash::ContentAuditBudget;
 use super::super::scan_walk::walk_phase;
 use super::super::scan_writer::{ScanWriter, UncoordinatedScanWriter};
 use super::{ScanContext, ScanError, ScanStats};
@@ -48,15 +49,29 @@ pub fn audit_source(
     let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
     merge_audit_verification(
         &mut stats,
-        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None),
+        super::super::scan_hash::verify_content_batch(
+            db,
+            cancel,
+            ContentAuditBudget::entry_limited(max_hashes),
+            now_epoch_seconds(),
+        ),
     )
 }
 
-/// Reconcile a source audit and, after successful content verification, durably record completion
-/// in the same final revision.
-///
-/// A manifest repair committed before verification fails is still returned for publication. In
-/// that case the completion timestamp remains unchanged so the unfinished audit stays due.
+/// Reconcile a source and verify content under explicit time, byte, and entry ceilings.
+pub fn audit_source_with_budget(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+) -> Result<ScanStats, ScanError> {
+    let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
+    merge_audit_verification(
+        &mut stats,
+        super::super::scan_hash::verify_content_batch(db, cancel, budget, now_epoch_seconds()),
+    )
+}
+
+/// Reconcile a source audit and durably record manifest completion before content verification.
 pub fn audit_source_and_record(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -77,9 +92,48 @@ pub fn audit_source_and_record_with_progress(
     audit_source_and_record_after_scan(
         db,
         cancel,
-        max_hashes,
+        ContentAuditBudget::entry_limited(max_hashes),
         completed_at,
         Some(on_progress),
+        &UncoordinatedScanWriter,
+        || {},
+    )
+}
+
+/// Reconcile and durably record manifest completion independently from a bounded content slice.
+pub fn audit_source_and_record_with_budget_and_progress(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    completed_at: i64,
+    on_progress: &mut impl FnMut(usize, &Path),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_with_budget_and_progress_and_writer(
+        db,
+        cancel,
+        budget,
+        completed_at,
+        on_progress,
+        &UncoordinatedScanWriter,
+    )
+}
+
+/// Run a bounded audit while acquiring the owning runtime's writer only for short mutations.
+pub fn audit_source_and_record_with_budget_and_progress_and_writer(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    completed_at: i64,
+    on_progress: &mut impl FnMut(usize, &Path),
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(
+        db,
+        cancel,
+        budget,
+        completed_at,
+        Some(on_progress),
+        writer,
         || {},
     )
 }
@@ -87,17 +141,64 @@ pub fn audit_source_and_record_with_progress(
 fn audit_source_and_record_after_scan(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
-    max_hashes: usize,
+    budget: ContentAuditBudget,
     completed_at: i64,
     on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    writer: &impl ScanWriter,
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, on_progress, Some(completed_at))?;
+    let mut stats = scan_with_writer(
+        db,
+        ScanMode::Quick,
+        cancel,
+        on_progress,
+        Some(completed_at),
+        writer,
+    )?;
+    record_manifest_audit_completion(db, &mut stats, completed_at, writer)?;
     after_scan();
     merge_audit_verification(
         &mut stats,
-        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, Some(completed_at)),
+        super::super::scan_hash::verify_content_batch_with_writer(
+            db,
+            cancel,
+            budget,
+            completed_at,
+            writer,
+        ),
     )
+}
+
+fn record_manifest_audit_completion(
+    db: &SourceDatabase,
+    stats: &mut ScanStats,
+    completed_at: i64,
+    writer: &impl ScanWriter,
+) -> Result<(), ScanError> {
+    let before = stats.manifest_before.clone();
+    let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
+    let mut batch = db.write_batch()?;
+    if !batch.matches_revision(stats.committed_delta.revision)? {
+        drop(batch);
+        let (current_revision, current_manifest) = db.manifest_snapshot_with_revision()?;
+        if current_manifest != stats.manifest_after {
+            return Err(ScanError::StaleRevision {
+                expected: stats.committed_delta.revision,
+                actual: current_revision,
+            });
+        }
+        batch = db.write_batch()?;
+        if !batch.matches_revision(current_revision)? {
+            return Err(ScanError::StaleRevision {
+                expected: current_revision,
+                actual: db.get_revision()?,
+            });
+        }
+    }
+    batch.complete_manifest_audit(completed_at)?;
+    let committed = batch.commit_with_manifest_snapshot()?;
+    super::super::manifest::publish_committed_delta(stats, before, committed);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -108,7 +209,15 @@ pub(crate) fn audit_source_and_record_with_post_scan_hook(
     completed_at: i64,
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
-    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, None, after_scan)
+    audit_source_and_record_after_scan(
+        db,
+        cancel,
+        ContentAuditBudget::entry_limited(max_hashes),
+        completed_at,
+        None,
+        &UncoordinatedScanWriter,
+        after_scan,
+    )
 }
 
 fn merge_audit_verification(
@@ -117,6 +226,13 @@ fn merge_audit_verification(
 ) -> Result<ScanStats, ScanError> {
     match verification {
         Ok(verified) => stats.merge_deferred_hashes(verified),
+        Err(ScanError::Incomplete { committed, error }) => {
+            stats.merge_deferred_hashes(*committed);
+            return Err(ScanError::Incomplete {
+                committed: Box::new(std::mem::take(stats)),
+                error,
+            });
+        }
         Err(error) if stats.committed_delta.revision > 0 => {
             tracing::warn!(
                 %error,
@@ -131,6 +247,14 @@ fn merge_audit_verification(
         Err(error) => return Err(error),
     }
     Ok(std::mem::take(stats))
+}
+
+fn now_epoch_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .min(i64::MAX as u64) as i64
 }
 
 /// Scan with a progress callback, optionally honoring a cancel flag.

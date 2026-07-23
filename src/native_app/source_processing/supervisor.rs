@@ -29,7 +29,8 @@ use wavecrate::sample_sources::{
         SourceAvailability,
     },
     scanner::{
-        CommittedSourceDelta, ScanError, audit_source_and_record_with_progress,
+        CommittedSourceDelta, ContentAuditActivity, ContentAuditBudget, ContentAuditStorage,
+        ScanError, audit_source_and_record_with_budget_and_progress_and_writer,
         complete_pending_deep_hash_for_path, sync_paths_with_progress,
     },
 };
@@ -127,7 +128,6 @@ const DISCOVERY_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250)
 const DISCOVERY_PROGRESS_LOG_INTERVAL: Duration = Duration::from_secs(2);
 const SIMILARITY_SCORE_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 const MANIFEST_AUDIT_INTERVAL_SECONDS: i64 = 24 * 60 * 60;
-const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;

@@ -15,6 +15,17 @@ pub enum ScanError {
     /// Scan was canceled by the caller.
     #[error("Scan canceled")]
     Canceled,
+    /// A newer source manifest revision invalidated work planned from an older snapshot.
+    #[error(
+        "Source manifest changed while the scan checkpoint was being finalized \
+         (expected revision {expected}, found {actual})"
+    )]
+    StaleRevision {
+        /// Manifest revision from which the work was planned.
+        expected: u64,
+        /// Current manifest revision observed before commit.
+        actual: u64,
+    },
     /// A source revision committed before later work stopped.
     #[error("Scan incomplete after committed checkpoint: {error}")]
     Incomplete {

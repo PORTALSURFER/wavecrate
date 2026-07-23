@@ -7,6 +7,7 @@ use std::{
 use rusqlite::{Connection, Transaction};
 use std::fmt;
 
+mod content_audit;
 mod error;
 /// Persistent file operation journal for crash recovery.
 pub mod file_ops_journal;
@@ -34,6 +35,9 @@ mod rating_tests;
 #[cfg(test)]
 mod role_contract_tests;
 
+pub use content_audit::{
+    ContentAuditCheckpoint, ContentAuditEntryState, ContentAuditReport, ContentAuditSkipReason,
+};
 pub use error::SourceDbError;
 pub(crate) use open::SourceDatabaseOpenMode;
 #[cfg(test)]

@@ -828,12 +828,16 @@ fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled()
         stats.committed_delta.created[0].relative_path,
         Path::new("missed.wav")
     );
-    assert!(
+    assert_eq!(
         db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
             .unwrap()
-            .is_none(),
-        "incomplete verification must remain due for retry"
+            .as_deref(),
+        Some("1234"),
+        "manifest traversal completion is independent from content coverage"
     );
+    let coverage = db.content_audit_report(1_234).unwrap();
+    assert_eq!(coverage.remaining_entries, 1);
+    assert_eq!(coverage.verified_entries, 0);
 }
 
 #[test]
