@@ -152,6 +152,19 @@ impl SourceProcessingSupervisor {
         self.shared.wake.notify_one();
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn pending_source_delta_contains_identity_for_tests(
+        &self,
+        source_id: &str,
+        identity: &str,
+    ) -> bool {
+        self.shared
+            .control()
+            .pending_readiness_deltas
+            .get(source_id)
+            .is_some_and(|delta| delta.scope_ids.contains(identity))
+    }
+
     /// Requeue exact current feature, embedding, and similarity targets after
     /// an explicit user request.
     pub(in crate::native_app) fn request_source_reanalysis(
@@ -184,12 +197,17 @@ impl SourceProcessingSupervisor {
         if !control.source_is_active(source_id) {
             return;
         }
-        control
+        let was_awaiting = control
             .awaiting_foreground_refresh_sources
             .remove(source_id);
-        control.mark_source_dirty(source_id, reason);
+        let bounded_delta_pending = control.pending_readiness_deltas.contains_key(source_id);
+        if was_awaiting || bounded_delta_pending {
+            control.mark_source_dirty(source_id, reason);
+        }
         drop(control);
-        self.shared.wake.notify_one();
+        if was_awaiting || bounded_delta_pending {
+            self.shared.wake.notify_one();
+        }
     }
 
     pub(in crate::native_app) fn set_selected_source(&self, source_id: Option<&str>) {

@@ -173,6 +173,30 @@ impl LibraryAppState {
         self.source_scan.next_pending_refresh_context_if_idle()
     }
 
+    pub(in crate::native_app) fn next_pending_targeted_source_sync(
+        &mut self,
+    ) -> Option<super::PendingTargetedSourceSync> {
+        self.source_scan.next_pending_targeted_sync()
+    }
+
+    pub(in crate::native_app) fn mark_targeted_source_sync_started(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+    ) -> bool {
+        self.source_scan
+            .mark_targeted_sync_started(source_id, lifecycle_generation)
+    }
+
+    pub(in crate::native_app) fn mark_targeted_source_sync_finished(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+    ) {
+        self.source_scan
+            .mark_targeted_sync_finished(source_id, lifecycle_generation);
+    }
+
     pub(in crate::native_app) fn retire_source_workflow(&mut self, source_id: &str) -> bool {
         self.source_scan.retire_source(source_id)
     }

@@ -27,7 +27,7 @@ use super::maintenance::{
 
 pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_INTENTS: SourcePrepIntents =
     SourcePrepIntents {
-        readiness: ReadinessIntent::RequestConvergence,
+        readiness: ReadinessIntent::Preserve,
         priority: SourcePriorityIntent::PromoteIfSelected,
         metadata_refresh: MetadataRefreshIntent::Force,
         refresh_waveform_cache_projection_if_selected: true,
@@ -365,6 +365,7 @@ impl NativeAppState {
                 folder_count,
                 source_db_error,
                 metadata_hydration_error,
+                committed_delta,
                 source_root_available,
             } => {
                 if let Some(progress) = applying_progress {
@@ -397,6 +398,7 @@ impl NativeAppState {
                         folder_count,
                         source_db_error,
                         metadata_hydration_error,
+                        committed_delta,
                         source_root_available,
                     },
                     started_at,
@@ -587,7 +589,10 @@ impl NativeAppState {
         if let Some(error) = scan.source_db_error {
             self.background
                 .source_processing
-                .wake_source(&scan.source_id, "folder_scan_index_incomplete");
+                .wake_source_for_full_reconciliation(
+                    &scan.source_id,
+                    "folder_scan_index_incomplete",
+                );
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders, but indexing failed: {error}",
                 scan.label, scan.file_count, scan.folder_count
@@ -603,7 +608,10 @@ impl NativeAppState {
         } else if let Some(error) = scan.metadata_hydration_error {
             self.background
                 .source_processing
-                .wake_source(&scan.source_id, "folder_scan_metadata_hydration_failed");
+                .wake_source_for_full_reconciliation(
+                    &scan.source_id,
+                    "folder_scan_metadata_hydration_failed",
+                );
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders; metadata refresh failed and the previous metadata was preserved: {error}",
                 scan.label, scan.file_count, scan.folder_count
@@ -621,6 +629,24 @@ impl NativeAppState {
                 Some(&error),
             );
         } else {
+            if let Some(committed_delta) = scan.committed_delta.as_ref() {
+                self.background.source_processing.request_source_delta(
+                    &scan.source_id,
+                    committed_delta,
+                    "foreground_scan_committed_delta",
+                );
+            } else {
+                self.background
+                    .source_processing
+                    .wake_source_for_full_reconciliation(
+                        &scan.source_id,
+                        "folder_scan_committed_delta_missing",
+                    );
+                tracing::warn!(
+                    source_id = scan.source_id,
+                    "Foreground scan completed without an authoritative committed delta"
+                );
+            }
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders",
                 scan.label, scan.file_count, scan.folder_count
@@ -724,6 +750,7 @@ struct AppliedFolderScan {
     folder_count: usize,
     source_db_error: Option<String>,
     metadata_hydration_error: Option<String>,
+    committed_delta: Option<wavecrate::sample_sources::scanner::CommittedSourceDelta>,
     source_root_available: bool,
 }
 

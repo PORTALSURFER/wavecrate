@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 #[test]
 fn adding_source_after_startup_registers_it_before_scan_admission_and_finish() {
@@ -37,6 +38,47 @@ fn adding_source_after_startup_registers_it_before_scan_admission_and_finish() {
 
     assert!(state.library.folder_browser.selected_source_loaded());
     assert!(state.library.folder_progress().is_none());
+}
+
+#[test]
+fn foreground_scan_hands_exact_committed_identities_to_readiness() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("foreground.wav");
+    fs::write(&sample_path, [0_u8; 8]).expect("write sample");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 104)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let mut context = ui::UiUpdateContext::default();
+    state.launch_folder_scan(request.clone(), &mut context);
+    let result = crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+        request,
+        |_| {},
+        |_| {},
+    );
+    let committed_delta = result
+        .committed_delta
+        .as_ref()
+        .expect("successful full scan must carry its committed delta");
+    let created = committed_delta
+        .created
+        .iter()
+        .find(|entry| entry.relative_path == Path::new("foreground.wav"))
+        .expect("created sample must be present in the committed delta");
+    let created_identity = created.identity.clone();
+
+    state.finish_folder_scan(result, &mut context);
+
+    assert!(
+        state
+            .background
+            .source_processing
+            .pending_source_delta_contains_identity_for_tests(&source_id, &created_identity),
+        "foreground scan must publish the exact committed identity instead of generic discovery"
+    );
 }
 
 #[test]

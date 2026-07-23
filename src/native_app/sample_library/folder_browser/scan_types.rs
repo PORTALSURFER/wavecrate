@@ -5,7 +5,9 @@ use std::{
 
 use super::source_scan_cache::FolderScanCacheUpdate;
 use super::{FileEntry, FolderEntry, collections::MissingCollectionSnapshot};
-use wavecrate::sample_sources::config::DEFAULT_RATING_DECAY_WEEKS;
+use wavecrate::sample_sources::{
+    config::DEFAULT_RATING_DECAY_WEEKS, scanner::CommittedSourceDelta,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderScanRequest {
@@ -192,6 +194,7 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) folder_count: usize,
     pub(in crate::native_app) source_db_error: Option<String>,
     pub(in crate::native_app) metadata_hydration: MetadataHydrationStatus,
+    pub(in crate::native_app) committed_delta: Option<CommittedSourceDelta>,
     pub(in crate::native_app) source_root_available: bool,
     pub(in crate::native_app) cancelled: bool,
 }

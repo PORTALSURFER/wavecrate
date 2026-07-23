@@ -6,7 +6,9 @@ use crate::native_app::app::{
     GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncResult,
     SourceRefreshCause, SourceRefreshRequest, emit_gui_action,
 };
-use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths_with_writer;
+use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::{
+    recover_source_filesystem_sync, sync_source_database_paths_with_writer,
+};
 use crate::native_app::sample_library::source_prep::{
     CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
     SourcePrepIntents, SourcePriorityIntent,
@@ -108,6 +110,8 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let source_id = result.source_id;
+        self.library
+            .mark_targeted_source_sync_finished(&source_id, result.lifecycle_generation);
         if self.background.source_lifecycle_generations.get(&source_id)
             != Some(&result.lifecycle_generation)
         {
@@ -116,6 +120,7 @@ impl NativeAppState {
                 lifecycle_generation = result.lifecycle_generation,
                 "Ignoring filesystem sync completion from an inactive source generation"
             );
+            self.maybe_run_pending_source_refresh(context);
             return;
         }
         let changed_count = result.changed_count;
@@ -124,6 +129,7 @@ impl NativeAppState {
                 source_id = %source_id,
                 "Ignoring stale filesystem sync completion for removed source"
             );
+            self.maybe_run_pending_source_refresh(context);
             return;
         }
         match result.result {
@@ -210,6 +216,7 @@ impl NativeAppState {
                 );
             }
         }
+        self.maybe_run_pending_source_refresh(context);
     }
 
     pub(in crate::native_app) fn finish_source_manifest_audit(
@@ -295,6 +302,44 @@ impl NativeAppState {
                 pending.cause,
                 pending.lifecycle_generation,
                 pending.enqueued_at,
+                context,
+            );
+            break;
+        }
+        while let Some(pending) = self.library.next_pending_targeted_source_sync() {
+            let current_generation = self
+                .background
+                .source_lifecycle_generations
+                .get(&pending.source_id)
+                .copied();
+            if pending.lifecycle_generation.is_some()
+                && pending.lifecycle_generation != current_generation
+            {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id = pending.source_id,
+                    queued_generation = ?pending.lifecycle_generation,
+                    current_generation = ?current_generation,
+                    queue_age_ms = pending.enqueued_at.elapsed().as_millis(),
+                    outcome = "stale_lifecycle",
+                    "Suppressing stale targeted source sync"
+                );
+                continue;
+            }
+            let changed_count = pending.paths.len();
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                source_id = pending.source_id,
+                path_count = changed_count,
+                lifecycle_generation = ?pending.lifecycle_generation,
+                queue_age_ms = pending.enqueued_at.elapsed().as_millis(),
+                outcome = "targeted_sync_admitted",
+                "Source discovery causal plan admitted queued watcher paths"
+            );
+            self.queue_source_filesystem_sync(
+                pending.source_id,
+                pending.paths,
+                changed_count,
                 context,
             );
             break;
@@ -413,9 +458,34 @@ impl NativeAppState {
                         error,
                         "Source filesystem sync was not admitted"
                     );
+                    let lifecycle_generation = self
+                        .background
+                        .source_lifecycle_generations
+                        .get(&source_id)
+                        .copied();
+                    self.queue_filesystem_source_refresh(
+                        source_id,
+                        SourceRefreshCause::FilesystemSyncFailed,
+                        lifecycle_generation,
+                        Instant::now(),
+                        context,
+                    );
                     return;
                 }
             };
+        if !self
+            .library
+            .mark_targeted_source_sync_started(&source_id, expected_lifecycle_generation)
+        {
+            self.library.plan_filesystem_change(
+                source_id.clone(),
+                &paths,
+                false,
+                true,
+                Some(expected_lifecycle_generation),
+            );
+            return;
+        }
         let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-source-db-sync").run(
             move |_| {
@@ -433,16 +503,23 @@ impl NativeAppState {
                 let lifecycle_generation = permit.lifecycle_generation();
                 let cancel = permit.cancel_token();
                 let scan_writer = permit.scan_writer();
-                let mut result = sync_source_database_paths_with_writer(
-                    source_id,
-                    root,
-                    database_root,
-                    paths,
+                let recovery_source_id = source_id.clone();
+                let result = recover_source_filesystem_sync(
+                    recovery_source_id,
+                    lifecycle_generation,
                     changed_count,
-                    cancel.as_ref(),
-                    &scan_writer,
+                    || {
+                        sync_source_database_paths_with_writer(
+                            source_id,
+                            root,
+                            database_root,
+                            paths,
+                            changed_count,
+                            cancel.as_ref(),
+                            &scan_writer,
+                        )
+                    },
                 );
-                result.lifecycle_generation = lifecycle_generation;
                 drop(permit);
                 result
             },

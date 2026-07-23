@@ -25,11 +25,11 @@ use wavecrate::sample_sources::{BrowserMetadataSnapshot, Rating, SourceDatabase}
 use wavecrate_scan::sample_sources::scanner::UncoordinatedScanWriter;
 use wavecrate_scan::{
     ScanStats, SourceTreeSnapshot,
-    sample_sources::scanner::{self, ScanWritePhase, ScanWriter},
+    sample_sources::scanner::{self, CommittedSourceDelta, ScanWritePhase, ScanWriter},
 };
 
 struct CommittedSourceTreeSnapshot {
-    revision: u64,
+    delta: CommittedSourceDelta,
     layout: SourceTreeSnapshot,
 }
 
@@ -70,21 +70,26 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
     } else {
         Err(String::from("source projection was not attempted"))
     };
-    let (folder, ratings, metadata_hydration) = match projection {
-        Ok((folder, ratings, revision)) => (
+    let (folder, ratings, metadata_hydration, committed_delta) = match projection {
+        Ok((folder, ratings, committed_delta)) => (
             folder,
             ratings,
-            MetadataHydrationStatus::Complete { revision },
+            MetadataHydrationStatus::Complete {
+                revision: committed_delta.revision,
+            },
+            Some(committed_delta),
         ),
         Err(error) if source_root_available && !cancel.load(Ordering::Acquire) => (
             placeholder_folder(&request.root),
             SourceMetadataMap::new(),
             MetadataHydrationStatus::Failed { error },
+            None,
         ),
         Err(_) => (
             placeholder_folder(&request.root),
             SourceMetadataMap::new(),
             MetadataHydrationStatus::NotAttempted,
+            None,
         ),
     };
     let publish_discoveries = metadata_hydration.error().is_none();
@@ -118,6 +123,7 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
         folder_count,
         source_db_error,
         metadata_hydration,
+        committed_delta,
         source_root_available,
         cancelled: cancel.load(Ordering::Acquire),
     }
@@ -173,7 +179,7 @@ fn sync_source_database(
             .source_tree_snapshot
             .clone()
             .map(|layout| CommittedSourceTreeSnapshot {
-                revision: stats.committed_delta.revision,
+                delta: stats.committed_delta.clone(),
                 layout,
             });
     match scanner::complete_deferred_rename_candidates_with_cancel_and_writer(
@@ -189,7 +195,7 @@ fn sync_source_database(
         }) => (
             None,
             source_tree_snapshot.map(|layout| CommittedSourceTreeSnapshot {
-                revision: committed_delta.revision,
+                delta: committed_delta,
                 layout,
             }),
         ),
@@ -209,7 +215,7 @@ struct ProjectionFolder {
 fn build_committed_projection(
     request: &FolderScanRequest,
     source_tree_snapshot: Option<CommittedSourceTreeSnapshot>,
-) -> Result<(FolderEntry, SourceMetadataMap, u64), String> {
+) -> Result<(FolderEntry, SourceMetadataMap, CommittedSourceDelta), String> {
     let started_at = Instant::now();
     let committed = source_tree_snapshot
         .ok_or_else(|| String::from("authoritative source traversal did not produce a layout"))?;
@@ -223,10 +229,10 @@ fn build_committed_projection(
     let BrowserMetadataSnapshot { revision, files } =
         source_browser_snapshot(&request.root, &request.database_root)
             .map_err(|error| error.to_string())?;
-    if revision != committed.revision {
+    if revision != committed.delta.revision {
         return Err(format!(
             "browser snapshot revision {revision} did not match authoritative traversal revision {}",
-            committed.revision
+            committed.delta.revision
         ));
     }
     let ratings = files
@@ -334,7 +340,7 @@ fn build_committed_projection(
         elapsed_ms = started_at.elapsed().as_millis(),
         "Built browser projection from committed source snapshot"
     );
-    Ok((folder, ratings, revision))
+    Ok((folder, ratings, committed.delta))
 }
 
 fn materialize_projection_folder(
