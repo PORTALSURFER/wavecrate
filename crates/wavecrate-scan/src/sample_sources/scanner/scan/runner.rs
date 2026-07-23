@@ -217,9 +217,6 @@ pub(crate) fn reconcile_scan_renames(
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
-    if context.mode == ScanMode::Hard {
-        return Ok(committed_snapshot);
-    }
     let candidates = context
         .stats
         .rename_candidate_paths
@@ -232,7 +229,7 @@ pub(crate) fn reconcile_scan_renames(
         cancel,
         writer,
     )?;
-    if renamed.is_empty() {
+    if renamed.is_empty() && context.mode != ScanMode::Hard {
         return Ok(committed_snapshot);
     }
 
@@ -267,6 +264,13 @@ pub(crate) fn reconcile_scan_renames(
     context.stats.updated += renamed.len();
     context.stats.renames_reconciled += renamed.len();
     context.stats.renamed_samples.extend(renamed);
+    if context.mode == ScanMode::Hard {
+        let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
+        let mut batch = db.write_batch()?;
+        batch.clear_all_pending_renames()?;
+        batch.clear_all_pending_rename_destinations()?;
+        batch.commit()?;
+    }
     Ok(db.manifest_snapshot_with_revision()?)
 }
 

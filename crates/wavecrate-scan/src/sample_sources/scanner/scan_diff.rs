@@ -165,7 +165,6 @@ pub(super) fn mark_missing(
     batch: &mut SourceWriteBatch<'_>,
     existing: impl IntoIterator<Item = WavEntry>,
     stats: &mut ScanStats,
-    mode: ScanMode,
 ) -> Result<(), ScanError> {
     for stale in existing {
         if is_supported_scannable_audio_file(db.root(), &stale.relative_path) {
@@ -174,9 +173,7 @@ pub(super) fn mark_missing(
         let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {
             continue;
         };
-        if matches!(mode, ScanMode::Targeted | ScanMode::Quick) {
-            batch.stage_pending_rename(&leftover)?;
-        }
+        batch.stage_pending_rename(&leftover)?;
         batch.remove_file(&leftover.relative_path)?;
         stats.missing += 1;
     }

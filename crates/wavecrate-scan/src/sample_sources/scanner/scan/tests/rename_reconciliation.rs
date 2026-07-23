@@ -102,6 +102,44 @@ fn scan_detected_rename_preserves_unset_curation_timestamp() {
 }
 
 #[test]
+fn hard_rescan_preserves_genuine_rename_metadata_and_analysis_identity() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let renamed = dir.path().join("renamed.wav");
+    std::fs::write(&old, b"same sample").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.set_user_tag(Path::new("old.wav"), Some("Hard rename"))
+        .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+    std::fs::rename(&old, &renamed).unwrap();
+    let stats = hard_rescan(&db).unwrap();
+
+    assert_eq!(stats.renames_reconciled, 1);
+    let entry = db
+        .entry_for_path(Path::new("renamed.wav"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(entry.tag, Rating::KEEP_1);
+    assert_eq!(entry.user_tag.as_deref(), Some("Hard rename"));
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        0
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::renamed.wav"),
+        1
+    );
+    assert_eq!(
+        analysis_job_relative_path(dir.path(), "source::renamed.wav"),
+        "renamed.wav"
+    );
+}
+
+#[test]
 fn rename_apply_refreshes_metadata_changed_during_discovery() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");
