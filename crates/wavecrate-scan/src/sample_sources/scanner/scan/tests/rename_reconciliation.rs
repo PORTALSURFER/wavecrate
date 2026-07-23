@@ -140,6 +140,46 @@ fn hard_rescan_preserves_genuine_rename_metadata_and_analysis_identity() {
 }
 
 #[test]
+fn hard_rescan_retains_metadata_for_ambiguous_same_content_destinations() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let first = dir.path().join("first-copy.wav");
+    let second = dir.path().join("second-copy.wav");
+    std::fs::write(&old, b"same sample").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.set_user_tag(Path::new("old.wav"), Some("Ambiguous hard rename"))
+        .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+    std::fs::copy(&old, &first).unwrap();
+    std::fs::copy(&old, &second).unwrap();
+    std::fs::remove_file(&old).unwrap();
+    let stats = hard_rescan(&db).unwrap();
+
+    assert_eq!(stats.renames_reconciled, 0);
+    for path in ["first-copy.wav", "second-copy.wav"] {
+        let entry = db.entry_for_path(Path::new(path)).unwrap().unwrap();
+        assert_eq!(entry.tag, Rating::NEUTRAL);
+        assert_eq!(entry.user_tag, None);
+        assert_eq!(
+            sample_id_count(dir.path(), "features", &format!("source::{path}")),
+            0
+        );
+    }
+    assert!(db.list_pending_renames().unwrap().iter().any(|entry| {
+        entry.relative_path == Path::new("old.wav")
+            && entry.metadata.tag == Rating::KEEP_1
+            && entry.metadata.user_tag.as_deref() == Some("Ambiguous hard rename")
+    }));
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        1
+    );
+}
+
+#[test]
 fn rename_apply_refreshes_metadata_changed_during_discovery() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");

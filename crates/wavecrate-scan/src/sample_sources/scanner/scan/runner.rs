@@ -22,8 +22,8 @@ pub enum ScanMode {
     /// Update the database with new/modified files and mark missing entries.
     /// Full hashing is staged for large files to keep quick scans responsive.
     Quick,
-    /// Force a full rescan, pruning missing rows and unmatched pending renames
-    /// to rebuild state from disk.
+    /// Force a full rescan, pruning missing rows and pending renames without
+    /// matching current destinations to rebuild state from disk.
     Hard,
 }
 
@@ -34,7 +34,7 @@ pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
 }
 
 /// Rescan the entire source, pruning rows for files that no longer exist and
-/// clearing any unmatched pending rename rows left over from prior quick scans.
+/// clearing pending rename rows that have no matching current destinations.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
     scan(db, ScanMode::Hard, None, None, None)
 }
@@ -265,9 +265,28 @@ pub(crate) fn reconcile_scan_renames(
     context.stats.renames_reconciled += renamed.len();
     context.stats.renamed_samples.extend(renamed);
     if context.mode == ScanMode::Hard {
+        let candidate_hashes = db
+            .list_manifest_entries()?
+            .into_iter()
+            .filter(|entry| candidates.contains(&entry.relative_path))
+            .filter_map(|entry| entry.content_hash)
+            .collect::<HashSet<_>>();
+        let pending_to_clear = db
+            .list_pending_renames()?
+            .into_iter()
+            .filter(|entry| {
+                entry
+                    .content_hash
+                    .as_ref()
+                    .is_none_or(|hash| !candidate_hashes.contains(hash))
+            })
+            .map(|entry| entry.relative_path)
+            .collect::<Vec<_>>();
         let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
         let mut batch = db.write_batch()?;
-        batch.clear_all_pending_renames()?;
+        for path in pending_to_clear {
+            batch.clear_pending_rename(&path)?;
+        }
         batch.clear_all_pending_rename_destinations()?;
         batch.commit()?;
     }
