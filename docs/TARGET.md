@@ -2804,6 +2804,17 @@ Updater behavior is intentionally conservative:
 * Windows release installs are manual by design
 * development-only overrides belong behind explicit env vars
 * updater failures should preserve the installed app rather than forcing risky writes
+* a staged update is not committed until every destination swap succeeds; failures
+  before that boundary must roll back and remain fatal
+* once every swap succeeds, failure to remove disposable `.old` or `.new` siblings is
+  a warning-bearing committed outcome and must not prevent the relaunch attempt
+* post-commit cleanup diagnostics retain each affected path and error, while a later
+  cleanup attempt may act only on `.old` or `.new` siblings reconstructed from
+  manifest destinations under a newly validated install root
+* transaction-remnant cleanup removes symlinks rather than following them, and the
+  next update run retries safe remnant cleanup before staging the same destination
+* relaunch failure remains independent and fatal even when the committed update also
+  carries cleanup warnings
 
 See `docs/TROUBLESHOOTING.md` and `docs/ENV_VARS.md` for diagnostics and overrides.
 
