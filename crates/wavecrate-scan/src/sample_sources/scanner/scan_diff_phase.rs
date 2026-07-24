@@ -20,6 +20,7 @@ pub(super) fn prepare_diff(
 
 pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -> PreparedFile {
     let existing = context.existing.get(&facts.relative);
+    let revalidate_checkpoint = context.manifest_audit_revalidates_path(&facts.relative);
     let persisted_identity = context
         .committed_file_identity(&facts.relative)
         .map(str::trim)
@@ -36,10 +37,12 @@ pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -
         .is_some_and(|(previous, current)| previous != current);
     let force_targeted_verification = context.mode == ScanMode::Targeted;
     let hash_required = should_compute_full_hash(context.mode, facts.size)
-        || (force_targeted_verification && existing.is_some());
+        || (force_targeted_verification && existing.is_some())
+        || revalidate_checkpoint;
     let needs_hash = hash_required
         && existing.is_none_or(|entry| {
             force_targeted_verification
+                || revalidate_checkpoint
                 || entry.file_size != facts.size
                 || entry.modified_ns != facts.modified_ns
                 || entry.content_hash.is_none()
@@ -47,6 +50,7 @@ pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -
         });
     let requires_apply = existing.is_none_or(|entry| {
         force_targeted_verification
+            || revalidate_checkpoint
             || entry.file_size != facts.size
             || entry.modified_ns != facts.modified_ns
             || entry.missing
@@ -58,6 +62,7 @@ pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -
         hash_required,
         needs_hash,
         requires_apply,
+        revalidate_checkpoint,
         identity_replaced,
         content_hash: None,
         source_file: None,

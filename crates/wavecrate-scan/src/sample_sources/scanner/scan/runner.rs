@@ -496,6 +496,12 @@ pub(crate) fn finish_scan_result(
                     error,
                 });
             }
+            if context.manifest_audit_revalidation_pending() {
+                return Err(ScanError::Incomplete {
+                    committed: Box::new(context.stats),
+                    error: String::from("manifest audit checkpoint revalidation remains due"),
+                });
+            }
             Ok(context.stats)
         }
         Err(error) => {

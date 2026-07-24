@@ -25,7 +25,9 @@ pub(crate) struct ScanContext {
 }
 
 struct ManifestAuditCheckpoint {
-    previously_checked: HashSet<PathBuf>,
+    revalidation_pending: HashSet<PathBuf>,
+    revalidated_pending: Vec<PathBuf>,
+    revalidation_remaining: usize,
     pending: Vec<PathBuf>,
     expected_total: usize,
 }
@@ -158,14 +160,15 @@ impl ScanContext {
         db: &SourceDatabase,
         started_at: i64,
     ) -> Result<(), ScanError> {
-        let previously_checked = db
-            .begin_or_resume_manifest_audit(started_at)?
-            .into_iter()
-            .collect::<HashSet<_>>();
-        self.stats.total_files = previously_checked.len();
+        let (paths, checked_files) =
+            db.begin_or_resume_manifest_audit_batch(started_at, MANIFEST_AUDIT_CHECKPOINT_SIZE)?;
+        let revalidation_pending = paths.into_iter().collect::<HashSet<_>>();
+        self.stats.total_files = checked_files;
         self.manifest_audit = Some(ManifestAuditCheckpoint {
-            expected_total: self.committed_manifest.len().max(previously_checked.len()),
-            previously_checked,
+            expected_total: self.committed_manifest.len().max(checked_files),
+            revalidation_remaining: checked_files,
+            revalidation_pending,
+            revalidated_pending: Vec::new(),
             pending: Vec::new(),
         });
         Ok(())
@@ -182,18 +185,13 @@ impl ScanContext {
         })
     }
 
-    pub(in crate::sample_sources::scanner) fn skip_previously_audited_path(
-        &mut self,
+    pub(in crate::sample_sources::scanner) fn manifest_audit_revalidates_path(
+        &self,
         relative_path: &std::path::Path,
     ) -> bool {
-        let already_checked = self
-            .manifest_audit
+        self.manifest_audit
             .as_ref()
-            .is_some_and(|audit| audit.previously_checked.contains(relative_path));
-        if already_checked {
-            self.existing.remove(relative_path);
-        }
-        already_checked
+            .is_some_and(|audit| audit.revalidation_pending.contains(relative_path))
     }
 
     pub(in crate::sample_sources::scanner) fn record_manifest_audit_paths(
@@ -204,9 +202,10 @@ impl ScanContext {
             return;
         };
         for path in paths {
-            if audit.previously_checked.insert(path.clone()) {
+            if audit.revalidation_pending.remove(&path) {
+                audit.revalidated_pending.push(path);
+            } else {
                 audit.pending.push(path);
-                self.stats.total_files = self.stats.total_files.saturating_add(1);
             }
         }
     }
@@ -225,17 +224,17 @@ impl ScanContext {
             return;
         };
         let paths = paths.into_iter().collect::<HashSet<_>>();
-        let mut discarded = 0_usize;
-        audit.pending.retain(|path| {
-            if paths.contains(path) {
-                audit.previously_checked.remove(path);
-                discarded += 1;
-                false
+        audit
+            .pending
+            .retain(|path| if paths.contains(path) { false } else { true });
+        let revalidated = std::mem::take(&mut audit.revalidated_pending);
+        for path in revalidated {
+            if paths.contains(&path) {
+                audit.revalidation_pending.insert(path);
             } else {
-                true
+                audit.revalidated_pending.push(path);
             }
-        });
-        self.stats.total_files = self.stats.total_files.saturating_sub(discarded);
+        }
     }
 
     pub(in crate::sample_sources::scanner) fn flush_manifest_audit_checkpoint(
@@ -245,9 +244,39 @@ impl ScanContext {
         let Some(audit) = self.manifest_audit.as_mut() else {
             return Ok(());
         };
-        db.checkpoint_manifest_audit_paths(&audit.pending)?;
-        audit.pending.clear();
+        let pending = std::mem::take(&mut audit.pending);
+        let revalidated = std::mem::take(&mut audit.revalidated_pending);
+        let inserted = db.checkpoint_manifest_audit_paths_with_count(&pending)?;
+        db.clear_manifest_audit_paths(&revalidated)?;
+        audit.revalidation_remaining = audit
+            .revalidation_remaining
+            .saturating_sub(revalidated.len());
+        self.stats.total_files = self.stats.total_files.saturating_add(inserted);
         Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn complete_missing_manifest_audit_paths(&mut self) {
+        let Some(missing) = self.manifest_audit.as_ref().map(|audit| {
+            audit
+                .revalidation_pending
+                .iter()
+                .filter(|path| self.existing.contains_key(*path))
+                .cloned()
+                .collect::<Vec<_>>()
+        }) else {
+            return;
+        };
+        let audit = self.manifest_audit.as_mut().expect("audit exists");
+        for path in missing {
+            audit.revalidation_pending.remove(&path);
+            audit.revalidated_pending.push(path);
+        }
+    }
+
+    pub(in crate::sample_sources::scanner) fn manifest_audit_revalidation_pending(&self) -> bool {
+        self.manifest_audit.as_ref().is_some_and(|audit| {
+            audit.revalidation_remaining > 0 || !audit.revalidation_pending.is_empty()
+        })
     }
 
     pub(in crate::sample_sources::scanner) fn resumable_manifest_audit_active(&self) -> bool {
