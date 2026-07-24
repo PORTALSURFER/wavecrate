@@ -1,6 +1,7 @@
 use super::*;
-use std::sync::{Mutex, Once, OnceLock};
+use std::sync::Once;
 use tempfile::tempdir;
+use wavecrate_library::test_runtime::TestRuntimeGuard;
 
 mod cleanup_failures;
 /// Strict env-toggle parsing tests.
@@ -12,7 +13,6 @@ mod payload_validation;
 mod warning_state;
 
 static MOCK_KEYRING_INIT: Once = Once::new();
-static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn enable_mock_keyring() {
     MOCK_KEYRING_INIT.call_once(|| {
@@ -20,37 +20,26 @@ fn enable_mock_keyring() {
     });
 }
 
-fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-    ENV_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+fn env_lock() -> TestRuntimeGuard {
+    TestRuntimeGuard::acquire()
 }
 
-fn allow_fallback() {
-    unsafe {
-        std::env::set_var(FALLBACK_ALLOW_ENV, "1");
-    }
+fn allow_fallback(runtime: &mut TestRuntimeGuard) {
+    runtime.set_var(FALLBACK_ALLOW_ENV, "1");
 }
 
-fn disallow_fallback() {
-    unsafe {
-        std::env::remove_var(FALLBACK_ALLOW_ENV);
-    }
+fn disallow_fallback(runtime: &mut TestRuntimeGuard) {
+    runtime.remove_var(FALLBACK_ALLOW_ENV);
 }
 
-fn set_env_key() -> String {
+fn set_env_key(runtime: &mut TestRuntimeGuard) -> String {
     let env_key = "A".repeat(64);
-    unsafe {
-        std::env::set_var(FALLBACK_KEY_ENV_VAR, &env_key);
-    }
+    runtime.set_var(FALLBACK_KEY_ENV_VAR, &env_key);
     env_key
 }
 
-fn clear_env_key() {
-    unsafe {
-        std::env::remove_var(FALLBACK_KEY_ENV_VAR);
-    }
+fn clear_env_key(runtime: &mut TestRuntimeGuard) {
+    runtime.remove_var(FALLBACK_KEY_ENV_VAR);
 }
 
 fn reset_cache() {

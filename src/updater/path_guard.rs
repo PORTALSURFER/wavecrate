@@ -180,38 +180,7 @@ mod tests {
     use super::*;
     use std::io;
     use tempfile::tempdir;
-
-    struct EnvVarGuard {
-        key: String,
-        previous: Option<String>,
-    }
-
-    impl EnvVarGuard {
-        fn set(key: &str, value: &str) -> Self {
-            let previous = std::env::var(key).ok();
-            unsafe {
-                std::env::set_var(key, value);
-            }
-            Self {
-                key: key.to_string(),
-                previous,
-            }
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            if let Some(value) = self.previous.take() {
-                unsafe {
-                    std::env::set_var(&self.key, value);
-                }
-            } else {
-                unsafe {
-                    std::env::remove_var(&self.key);
-                }
-            }
-        }
-    }
+    use wavecrate_library::test_runtime::TestRuntimeGuard;
 
     #[test]
     fn ensure_child_path_rejects_parent_dir() {
@@ -243,10 +212,11 @@ mod tests {
 
     #[test]
     fn ensure_child_path_allows_relative_path() {
+        let mut runtime = TestRuntimeGuard::acquire();
+        runtime.set_var("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let _lock = updater_path_guard_test_lock()
             .lock()
             .expect("updater test lock");
-        let _guard = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().expect("tempdir");
         let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
         let path = root.child_path("./ok/file.txt").expect("relative path");
@@ -280,6 +250,8 @@ mod tests {
 
     #[test]
     fn ensure_child_path_fails_on_symlink_metadata_error() {
+        let mut runtime = TestRuntimeGuard::acquire();
+        runtime.set_var("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
         let _lock = updater_path_guard_test_lock()
             .lock()
             .expect("updater test lock");
@@ -290,7 +262,6 @@ mod tests {
             ))
         }
 
-        let _env = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
         let _guard = SymlinkMetadataHookGuard::new(Some(fail_metadata));
         let dir = tempdir().expect("tempdir");
         let root = ValidatedInstallRoot::new(dir.path()).expect("install root");
