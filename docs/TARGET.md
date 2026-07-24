@@ -177,6 +177,8 @@ Wavecrate should optimize for:
 
 The GUI thread is for UI work: input handling, selection state, lightweight view-model updates, rendering coordination, and applying completed results. It should remain non-blocking at all times. Any loading, decoding, file I/O, cache hydration, waveform preparation, audio analysis, edit rendering, database/index work, metadata writing, cleanup, logging flush, or other operation that can take noticeable time must be offloaded to background work with clear state handoff back to the UI. Blocking the GUI thread is acceptable only for operations that are proven trivial, bounded, and not practically offloadable. File-operation commands may derive lightweight intent from current UI state, but destination collision probing, file creation/copy/delete/metadata reads, and source database writes should happen behind a background or typed file-operation boundary.
 
+Audio host/device/sample-rate discovery and output-stream reconfiguration follow the same rule: UI handlers record the requested configuration and show pending state, while cancellable background work performs driver discovery and stream construction. Only the latest typed completion may update options, activate output, restart playback, or persist the confirmed configuration.
+
 Perceived stalls are product bugs. If a source scan, decode, rename, edit render, waveform update, BPM/grid metadata calculation, transient analysis, similarity analysis job, database/index update, logging flush, or metadata update can take noticeable time, it belongs off the GUI thread with clear state handoff back to the UI.
 
 Playback command submission and runtime event delivery are bounded,
