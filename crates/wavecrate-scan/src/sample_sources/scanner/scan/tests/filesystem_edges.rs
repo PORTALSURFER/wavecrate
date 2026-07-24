@@ -118,6 +118,20 @@ fn full_scan_stops_an_injected_directory_identity_cycle() {
 }
 
 #[test]
+fn full_scan_preserves_manifest_when_root_identity_is_unavailable() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("keep.wav"), b"keep").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    let _root_identity = force_directory_identity(dir.path(), None);
+    let ScanError::Incomplete { .. } = scan_once(&db).unwrap_err() else {
+        panic!("an unavailable root identity must return an incomplete scan");
+    };
+    assert_eq!(db.count_files().unwrap(), 1);
+}
+
+#[test]
 fn scan_skips_symlink_files() {
     use std::os::unix::fs as unix_fs;
 

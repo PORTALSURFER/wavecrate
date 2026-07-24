@@ -312,6 +312,7 @@ pub(super) fn visit_dir_with_cancel_check(
         visited.observe(&root_dir, root, Path::new("")),
         DirectoryVisit::New
     ) {
+        record_uncertain_prefix(&mut snapshot, root, root);
         snapshot
             .diagnostics
             .extend_from_slice(visited.diagnostics());

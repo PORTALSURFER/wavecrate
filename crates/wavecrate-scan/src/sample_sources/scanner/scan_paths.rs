@@ -174,6 +174,7 @@ fn collect_targets(
         visited.observe(&source_root_dir, root, Path::new("")),
         DirectoryVisit::New
     ) {
+        uncertain_prefixes.insert(PathBuf::new());
         return Ok(TargetedScanTargets {
             current_files: Vec::new(),
             existing,
@@ -268,8 +269,13 @@ fn collect_current_files(
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
     visited: &mut VisitedDirectories,
 ) -> Result<(), ScanError> {
-    let Some((parent, name)) =
-        open_target_parent(source_root, root, relative_path, uncertain_prefixes)?
+    let Some((parent, name)) = open_target_parent(
+        source_root,
+        root,
+        relative_path,
+        uncertain_prefixes,
+        visited,
+    )?
     else {
         return Ok(());
     };
@@ -371,6 +377,7 @@ fn open_target_parent(
     root: &Path,
     relative_path: &Path,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
+    visited: &mut VisitedDirectories,
 ) -> Result<Option<(Dir, std::ffi::OsString)>, ScanError> {
     let Some(name) = relative_path.file_name() else {
         return Ok(None);
@@ -390,7 +397,13 @@ fn open_target_parent(
         };
         traversed.push(part);
         dir = match dir.open_dir_nofollow(part) {
-            Ok(dir) => dir,
+            Ok(next_dir) => match visited.observe(&next_dir, &root.join(&traversed), &traversed) {
+                DirectoryVisit::New => next_dir,
+                DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
+                    uncertain_prefixes.insert(relative_path.to_path_buf());
+                    return Ok(None);
+                }
+            },
             Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(source) => {
                 let path = root.join(&traversed);

@@ -409,6 +409,27 @@ fn targeted_sync_reconciles_each_directory_identity_once() {
     );
 }
 
+#[test]
+fn targeted_sync_rejects_a_file_below_a_repeated_ancestor() {
+    let source = tempdir().unwrap();
+    let alias = source.path().join("alias");
+    std::fs::create_dir(&alias).unwrap();
+    let target = alias.join("keep.wav");
+    std::fs::write(&target, b"keep").unwrap();
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    let _root_identity = force_directory_identity(source.path(), Some("root-identity"));
+    let _alias_identity = force_directory_identity(&alias, Some("root-identity"));
+    let ScanError::Incomplete { .. } =
+        sync_paths(&db, &[PathBuf::from("alias/keep.wav")]).unwrap_err()
+    else {
+        panic!("a repeated targeted ancestor must return an incomplete scan");
+    };
+
+    assert_eq!(db.count_files().unwrap(), 1);
+}
+
 #[cfg(unix)]
 #[test]
 fn targeted_sync_skips_directory_symlink_targets() {
