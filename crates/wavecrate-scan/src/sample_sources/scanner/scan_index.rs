@@ -8,6 +8,7 @@ use wavecrate_library::sample_sources::{
 use crate::sample_sources::SourceDatabase;
 
 use super::scan::{ScanContext, ScanError};
+use super::scan_capability::SourceRootCapability;
 use super::scan_writer::{ScanWritePhase, ScanWriter};
 
 pub(super) fn index_entry_from_file_facts(
@@ -58,6 +59,7 @@ pub(super) fn inaccessible_index_entry(
 
 pub(super) fn reconcile_index_entries(
     database: &SourceDatabase,
+    source_root: &SourceRootCapability,
     context: &mut ScanContext,
     writer: &impl ScanWriter,
 ) -> Result<(), ScanError> {
@@ -95,6 +97,7 @@ pub(super) fn reconcile_index_entries(
     if removals.is_empty() && upserts.is_empty() && unavailable_manifest_paths.is_empty() {
         return Ok(());
     }
+    source_root.ensure_current_generation()?;
     let _writer = writer.lock(ScanWritePhase::Manifest);
     let mut batch = database.write_batch()?;
     for path in &unavailable_manifest_paths {
@@ -107,9 +110,11 @@ pub(super) fn reconcile_index_entries(
     for entry in upserts {
         batch.upsert_source_index_entry(&entry)?;
     }
+    source_root.ensure_current_generation()?;
     if unavailable_manifest_paths.is_empty() {
         batch.commit_auxiliary_state()?;
     } else {
+        source_root.ensure_current_generation()?;
         context.commit_batch(batch)?;
     }
     Ok(())

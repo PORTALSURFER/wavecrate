@@ -9,6 +9,8 @@ use std::{
 #[cfg(test)]
 use std::{cell::RefCell, collections::BTreeSet};
 
+use cap_fs_ext::{DirExt, OpenOptionsFollowExt};
+use cap_std::fs::{Dir, OpenOptions};
 use tracing::warn;
 use wavecrate_library::filesystem_identity::{
     filesystem_change_marker, stable_filesystem_identity,
@@ -23,6 +25,7 @@ use crate::sample_sources::SourceDatabase;
 
 use super::scan::ScanError;
 use super::scan::{SourceTreeFile, SourceTreeSnapshot};
+use super::scan_capability::SourceRootCapability;
 use super::scan_index::{inaccessible_index_entry, index_entry_from_file_facts};
 
 const MAX_LAYOUT_DIAGNOSTICS: usize = 16;
@@ -193,6 +196,7 @@ pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError>
 }
 
 pub(super) fn visit_dir_with_cancel_check(
+    source_root: &SourceRootCapability,
     root: &Path,
     policy: SourceTraversalPolicy,
     should_cancel: &mut impl FnMut() -> bool,
@@ -202,39 +206,43 @@ pub(super) fn visit_dir_with_cancel_check(
         directories: vec![PathBuf::new()],
         ..SourceTreeSnapshot::default()
     };
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
+    let mut stack = vec![(source_root.clone_root_dir()?, PathBuf::new())];
+    while let Some((dir, relative_dir)) = stack.pop() {
         if should_cancel() {
             return Err(ScanError::Canceled);
         }
-        let entries = match read_dir(&dir) {
+        let absolute_dir = root.join(&relative_dir);
+        let entries = match read_dir(&dir, &absolute_dir) {
             Ok(entries) => entries,
-            Err(source) if dir != root => {
+            Err(source) if !relative_dir.as_os_str().is_empty() => {
                 warn!(
-                    dir = %dir.display(),
+                    dir = %absolute_dir.display(),
                     error = %source,
                     "Failed to read directory during scan"
                 );
                 record_layout_diagnostic(
                     &mut snapshot,
-                    format!("read directory {}: {source}", display_relative(root, &dir)),
+                    format!(
+                        "read directory {}: {source}",
+                        display_relative(root, &absolute_dir)
+                    ),
                 );
-                record_uncertain_prefix(&mut snapshot, root, &dir);
+                record_uncertain_prefix(&mut snapshot, root, &absolute_dir);
                 continue;
             }
             Err(source) => {
                 return Err(ScanError::Io {
-                    path: dir.clone(),
+                    path: absolute_dir,
                     source,
                 });
             }
         };
         for entry_result in entries {
-            let entry = match read_dir_entry(entry_result, &dir) {
+            let entry = match read_dir_entry(entry_result, &absolute_dir) {
                 Ok(entry) => entry,
                 Err(err) => {
                     warn!(
-                        dir = %dir.display(),
+                        dir = %absolute_dir.display(),
                         error = %err,
                         "Failed to read directory entry during scan"
                     );
@@ -242,19 +250,17 @@ pub(super) fn visit_dir_with_cancel_check(
                         &mut snapshot,
                         format!(
                             "read directory entry {}: {err}",
-                            display_relative(root, &dir)
+                            display_relative(root, &absolute_dir)
                         ),
                     );
-                    record_uncertain_prefix(&mut snapshot, root, &dir);
+                    record_uncertain_prefix(&mut snapshot, root, &absolute_dir);
                     continue;
                 }
             };
 
-            let path = entry.path();
-            let relative = path
-                .strip_prefix(root)
-                .map(Path::to_path_buf)
-                .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
+            let name = entry.file_name();
+            let relative = relative_dir.join(&name);
+            let path = root.join(&relative);
             let file_type = match read_file_type(&entry, &path) {
                 Ok(file_type) => file_type,
                 Err(err) => {
@@ -281,12 +287,35 @@ pub(super) fn visit_dir_with_cancel_check(
             };
             match classify_source_entry_with_policy(
                 &relative,
-                source_entry_file_type(&file_type),
+                cap_source_entry_file_type(&file_type),
                 policy,
             ) {
                 SourceEntryClassification::Directory { .. } => {
-                    snapshot.directories.push(relative);
-                    stack.push(path);
+                    snapshot.directories.push(relative.clone());
+                    match dir.open_dir_nofollow(Path::new(&name)) {
+                        Ok(child) => stack.push((child, relative)),
+                        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(source) => {
+                            warn!(
+                                path = %path.display(),
+                                error = %source,
+                                "Failed to open directory during scan"
+                            );
+                            record_layout_diagnostic(
+                                &mut snapshot,
+                                format!(
+                                    "open directory {}: {source}",
+                                    display_relative(root, &path)
+                                ),
+                            );
+                            if !dir
+                                .symlink_metadata(Path::new(&name))
+                                .is_ok_and(|metadata| metadata.is_symlink())
+                            {
+                                record_uncertain_prefix(&mut snapshot, root, &path);
+                            }
+                        }
+                    }
                 }
                 classification @ SourceEntryClassification::File { .. } => {
                     if classification.indexes_audio() {
@@ -294,7 +323,13 @@ pub(super) fn visit_dir_with_cancel_check(
                     } else if let Some(file_classification) = classification.file_classification()
                         && file_classification != SourceFileClassification::SupportedAudio
                     {
-                        match source_index_entry(root, &path, file_classification) {
+                        match source_index_entry(
+                            &dir,
+                            Path::new(&name),
+                            root,
+                            &relative,
+                            file_classification,
+                        ) {
                             Ok(index_entry) => {
                                 if let Some(file_size) = index_entry.file_size {
                                     snapshot.other_files.push(SourceTreeFile {
@@ -337,15 +372,20 @@ pub(super) fn visit_dir_with_cancel_check(
 }
 
 fn source_index_entry(
+    parent: &Dir,
+    name: &Path,
     root: &Path,
-    path: &Path,
+    relative_path: &Path,
     classification: SourceFileClassification,
 ) -> Result<SourceIndexEntry, std::io::Error> {
+    let path = root.join(relative_path);
     #[cfg(test)]
-    if let Some(error) = forced_file_metadata_error(path) {
+    if let Some(error) = forced_file_metadata_error(&path) {
         return Err(error);
     }
-    let metadata = fs::symlink_metadata(path)?;
+    let mut options = OpenOptions::new();
+    options.read(true).follow(cap_fs_ext::FollowSymlinks::No);
+    let metadata = parent.open_with(name, &options)?.into_std().metadata()?;
     if !metadata.file_type().is_file() {
         return Err(std::io::Error::other(
             "entry changed type during metadata inspection",
@@ -357,16 +397,12 @@ fn source_index_entry(
         .unwrap_or_default()
         .as_nanos()
         .min(i64::MAX as u128) as i64;
-    let relative_path = path
-        .strip_prefix(root)
-        .map(Path::to_path_buf)
-        .map_err(|_| std::io::Error::other("entry is outside the source root"))?;
     index_entry_from_file_facts(
-        relative_path,
+        relative_path.to_path_buf(),
         classification,
         metadata.len(),
         modified_ns,
-        stable_filesystem_identity(path, &metadata),
+        stable_filesystem_identity(&path, &metadata),
     )
     .ok_or_else(|| std::io::Error::other("supported audio is not an index-only entry"))
 }
@@ -381,15 +417,20 @@ fn record_uncertain_prefix(snapshot: &mut SourceTreeSnapshot, root: &Path, path:
     }
 }
 
-fn read_dir(path: &Path) -> Result<fs::ReadDir, std::io::Error> {
+fn read_dir(dir: &Dir, path: &Path) -> Result<cap_std::fs::ReadDir, std::io::Error> {
     #[cfg(test)]
     if let Some(error) = forced_directory_read_error(path) {
         return Err(error);
     }
-    fs::read_dir(path)
+    #[cfg(not(test))]
+    let _ = path;
+    dir.entries()
 }
 
-fn read_file_type(entry: &fs::DirEntry, _path: &Path) -> Result<fs::FileType, std::io::Error> {
+fn read_file_type(
+    entry: &cap_std::fs::DirEntry,
+    _path: &Path,
+) -> Result<cap_std::fs::FileType, std::io::Error> {
     #[cfg(test)]
     if let Some(error) = forced_file_type_error(_path) {
         return Err(error);
@@ -398,9 +439,9 @@ fn read_file_type(entry: &fs::DirEntry, _path: &Path) -> Result<fs::FileType, st
 }
 
 fn read_dir_entry(
-    entry: Result<fs::DirEntry, std::io::Error>,
+    entry: Result<cap_std::fs::DirEntry, std::io::Error>,
     _directory: &Path,
-) -> Result<fs::DirEntry, std::io::Error> {
+) -> Result<cap_std::fs::DirEntry, std::io::Error> {
     #[cfg(test)]
     if let Some(error) = forced_directory_entry_error(_directory) {
         return Err(error);
@@ -562,6 +603,14 @@ pub(super) fn is_supported_scannable_audio_file(
 }
 
 fn source_entry_file_type(file_type: &fs::FileType) -> SourceEntryFileType {
+    SourceEntryFileType::from_no_followed_type(
+        file_type.is_dir(),
+        file_type.is_file(),
+        file_type.is_symlink(),
+    )
+}
+
+fn cap_source_entry_file_type(file_type: &cap_std::fs::FileType) -> SourceEntryFileType {
     SourceEntryFileType::from_no_followed_type(
         file_type.is_dir(),
         file_type.is_file(),

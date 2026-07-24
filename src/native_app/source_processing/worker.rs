@@ -244,6 +244,13 @@ impl From<wavecrate_scan::ScanError> for SourceProcessingFailure {
                     "Source changed while completing deferred deep hash (expected revision {expected}, found {actual})"
                 ),
             ),
+            wavecrate_scan::ScanError::StaleRootGeneration { root } => {
+                Self::retryable_with_source_error(
+                    SourceProcessingFailureCode::ScannerIncomplete,
+                    "Source root changed while scanning",
+                    root.display().to_string(),
+                )
+            }
             wavecrate_scan::ScanError::TraversalPolicyChanged => Self::retryable(
                 SourceProcessingFailureCode::ScannerStaleRevision,
                 "Source traversal policy changed while scanning",

@@ -8,6 +8,7 @@ use std::thread;
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::SourceManifestEntry;
 
+use super::super::scan_capability::SourceRootCapability;
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
 use super::super::scan_hash::ContentAuditBudget;
@@ -56,7 +57,13 @@ pub fn audit_source(
             now_epoch_seconds(),
         ),
     )?;
-    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, &UncoordinatedScanWriter)?;
+    finalize_pending_rename_completion(
+        db,
+        &mut stats,
+        ScanMode::Quick,
+        &UncoordinatedScanWriter,
+        None,
+    )?;
     Ok(stats)
 }
 
@@ -71,7 +78,13 @@ pub fn audit_source_with_budget(
         &mut stats,
         super::super::scan_hash::verify_content_batch(db, cancel, budget, now_epoch_seconds()),
     )?;
-    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, &UncoordinatedScanWriter)?;
+    finalize_pending_rename_completion(
+        db,
+        &mut stats,
+        ScanMode::Quick,
+        &UncoordinatedScanWriter,
+        None,
+    )?;
     Ok(stats)
 }
 
@@ -172,7 +185,7 @@ fn audit_source_and_record_after_scan(
             writer,
         ),
     )?;
-    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, writer)?;
+    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, writer, None)?;
     Ok(stats)
 }
 
@@ -318,6 +331,8 @@ fn scan_with_writer(
     let (manifest_revision, manifest_before) =
         super::super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
     let traversal_policy = db.source_traversal_policy()?;
     let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
     context.set_traversal_policy(traversal_policy);
@@ -333,16 +348,18 @@ fn scan_with_writer(
     let result = walk_phase(
         db,
         &root,
+        &source_root,
         traversal_policy,
         cancel,
         &mut on_progress,
         &mut context,
         writer,
     )
-    .and_then(|()| db_sync_phase(db, &mut context, cancel, writer))
+    .and_then(|()| db_sync_phase(db, &source_root, &mut context, cancel, writer))
     .and_then(|committed_snapshot| {
         reconcile_scan_renames(
             db,
+            &source_root,
             &mut context,
             &manifest_before,
             committed_snapshot,
@@ -352,7 +369,13 @@ fn scan_with_writer(
     })
     .and_then(|committed_snapshot| {
         if finalize_pending_renames && !context.has_uncertain_prefixes() {
-            finalize_pending_rename_completion(db, &mut context.stats, mode, writer)?;
+            finalize_pending_rename_completion(
+                db,
+                &mut context.stats,
+                mode,
+                writer,
+                Some(&source_root),
+            )?;
         }
         Ok(committed_snapshot)
     });
@@ -361,12 +384,14 @@ fn scan_with_writer(
 
 pub(crate) fn reconcile_scan_renames(
     db: &SourceDatabase,
+    source_root: &SourceRootCapability,
     context: &mut ScanContext,
     manifest_before: &[SourceManifestEntry],
     committed_snapshot: (u64, Vec<SourceManifestEntry>),
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+    source_root.ensure_current_generation()?;
     // A partial traversal cannot safely consume pending rename state: a
     // retained source beneath an uncertain prefix may otherwise be claimed as
     // a move by an observed destination elsewhere. This also keeps hard
@@ -415,6 +440,7 @@ pub(crate) fn reconcile_scan_renames(
             writer,
         )?
     };
+    source_root.ensure_current_generation()?;
     if renamed.is_empty() && context.mode != ScanMode::Hard {
         return Ok(committed_snapshot);
     }
@@ -452,8 +478,12 @@ fn finalize_pending_rename_completion(
     stats: &mut ScanStats,
     mode: ScanMode,
     writer: &impl ScanWriter,
+    source_root: Option<&SourceRootCapability>,
 ) -> Result<(), ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
+    if let Some(source_root) = source_root {
+        source_root.ensure_current_generation()?;
+    }
     let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
     let mut batch = db.write_batch()?;
     if mode == ScanMode::Hard {
@@ -462,6 +492,9 @@ fn finalize_pending_rename_completion(
     let report = batch.complete_pending_rename_authoritative_scan(mode == ScanMode::Hard)?;
     if mode == ScanMode::Hard && report.diagnostics.candidate_count == 0 {
         batch.clear_unretained_pending_rename_destinations()?;
+    }
+    if let Some(source_root) = source_root {
+        source_root.ensure_current_generation()?;
     }
     batch.commit_auxiliary_state()?;
     stats.pending_renames_pruned = stats

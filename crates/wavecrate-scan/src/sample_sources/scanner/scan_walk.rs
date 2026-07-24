@@ -26,6 +26,7 @@ const APPLY_BATCH_SIZE: usize = 64;
 pub(super) fn walk_phase(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     policy: SourceTraversalPolicy,
     cancel: Option<&AtomicBool>,
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
@@ -38,8 +39,8 @@ pub(super) fn walk_phase(
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
     let mut pending_noops = Vec::with_capacity(APPLY_BATCH_SIZE);
-    let source_root = SourceRootCapability::open(root)?;
     let source_tree_snapshot = visit_dir_with_cancel_check(
+        source_root,
         root,
         policy,
         &mut || cancel_requested(cancel),
@@ -116,8 +117,16 @@ pub(super) fn walk_phase(
             pending.push(prepared);
             if pending.len() == APPLY_BATCH_SIZE {
                 let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-                let outcome =
-                    apply_batch(db, root, cancel, context, files, committed.get(), writer)?;
+                let outcome = apply_batch_with_source_root(
+                    db,
+                    root,
+                    source_root,
+                    cancel,
+                    context,
+                    files,
+                    committed.get(),
+                    writer,
+                )?;
                 if outcome.committed {
                     committed.set(true);
                 }
@@ -145,7 +154,16 @@ pub(super) fn walk_phase(
         },
     )?;
     if !pending.is_empty() {
-        let outcome = apply_batch(db, root, cancel, context, pending, committed.get(), writer)?;
+        let outcome = apply_batch_with_source_root(
+            db,
+            root,
+            source_root,
+            cancel,
+            context,
+            pending,
+            committed.get(),
+            writer,
+        )?;
         if outcome.committed {
             committed.set(true);
         }
@@ -241,6 +259,7 @@ fn flush_manifest_audit_checkpoint_with_noops_hook(
         context.mark_source_tree_incomplete();
     }
     context.discard_manifest_audit_paths(invalid_paths);
+    source_root.ensure_current_generation()?;
     context.flush_manifest_audit_checkpoint(db)?;
     drop(valid);
     Ok(())
@@ -318,13 +337,13 @@ fn record_inaccessible_preparation(
 pub(super) fn apply_prepared_chunk(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     cancel: Option<&AtomicBool>,
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
 ) -> Result<bool, ScanError> {
-    let source_root = SourceRootCapability::open(root)?;
     let mut pending = Vec::with_capacity(prepared.len());
     for mut file in prepared {
         if !file.requires_apply {
@@ -350,9 +369,10 @@ pub(super) fn apply_prepared_chunk(
     if pending.is_empty() {
         return Ok(false);
     }
-    apply_batch(
+    apply_batch_with_source_root(
         db,
         root,
+        source_root,
         cancel,
         context,
         pending,
@@ -465,6 +485,7 @@ pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {
     let _ = context.existing.remove(&prepared.facts.relative);
 }
 
+#[cfg(test)]
 fn apply_batch(
     db: &SourceDatabase,
     root: &Path,
@@ -474,9 +495,33 @@ fn apply_batch(
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
 ) -> Result<ApplyBatchOutcome, ScanError> {
-    apply_batch_with_precommit_hook(
+    let source_root = SourceRootCapability::open(root)?;
+    apply_batch_with_source_root(
         db,
         root,
+        &source_root,
+        cancel,
+        context,
+        prepared,
+        tolerate_file_errors,
+        writer,
+    )
+}
+
+fn apply_batch_with_source_root(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    cancel: Option<&AtomicBool>,
+    context: &mut ScanContext,
+    prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
+    writer: &impl ScanWriter,
+) -> Result<ApplyBatchOutcome, ScanError> {
+    apply_batch_with_source_root_and_precommit_hook(
+        db,
+        root,
+        source_root,
         cancel,
         context,
         prepared,
@@ -487,6 +532,7 @@ fn apply_batch(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn apply_batch_with_precommit_hook(
     db: &SourceDatabase,
     root: &Path,
@@ -495,9 +541,34 @@ fn apply_batch_with_precommit_hook(
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
-    mut precommit: impl FnMut(&Path),
+    precommit: impl FnMut(&Path),
 ) -> Result<ApplyBatchOutcome, ScanError> {
     let source_root = SourceRootCapability::open(root)?;
+    apply_batch_with_source_root_and_precommit_hook(
+        db,
+        root,
+        &source_root,
+        cancel,
+        context,
+        prepared,
+        tolerate_file_errors,
+        writer,
+        precommit,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_batch_with_source_root_and_precommit_hook(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    cancel: Option<&AtomicBool>,
+    context: &mut ScanContext,
+    prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
+    writer: &impl ScanWriter,
+    mut precommit: impl FnMut(&Path),
+) -> Result<ApplyBatchOutcome, ScanError> {
     let mut ready = Vec::with_capacity(prepared.len());
     let mut post_hash = |_: &Path| {};
     for file in prepared {
@@ -649,6 +720,7 @@ fn apply_batch_with_precommit_hook(
         context.mark_source_tree_incomplete();
         return Ok(ApplyBatchOutcome::default());
     }
+    source_root.ensure_current_generation()?;
     context.commit_batch(batch)?;
     Ok(ApplyBatchOutcome {
         committed: true,

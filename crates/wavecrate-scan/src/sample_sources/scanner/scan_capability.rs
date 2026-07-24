@@ -5,6 +5,7 @@ use std::{
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
 use cap_std::fs::{Dir, OpenOptions};
+use wavecrate_library::filesystem_identity::stable_filesystem_identity;
 
 use super::scan::ScanError;
 
@@ -12,6 +13,7 @@ use super::scan::ScanError;
 pub(super) struct SourceRootCapability {
     root: PathBuf,
     dir: Dir,
+    generation: String,
 }
 
 /// The current relationship between a manifest path and a retained file descriptor.
@@ -24,15 +26,58 @@ pub(super) enum SourcePathBinding {
 
 impl SourceRootCapability {
     pub(super) fn open(root: &Path) -> Result<Self, ScanError> {
+        let metadata = fs::symlink_metadata(root).map_err(|source| ScanError::Io {
+            path: root.to_path_buf(),
+            source,
+        })?;
+        if !metadata.file_type().is_dir() {
+            return Err(ScanError::InvalidRoot(root.to_path_buf()));
+        }
         let dir =
             Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
                 path: root.to_path_buf(),
                 source,
             })?;
+        let retained_metadata = dir
+            .try_clone()
+            .and_then(|dir| dir.into_std_file().metadata())
+            .map_err(|source| ScanError::Io {
+                path: root.to_path_buf(),
+                source,
+            })?;
+        let Some(generation) = stable_filesystem_identity(root, &retained_metadata) else {
+            return Err(ScanError::StaleRootGeneration {
+                root: root.to_path_buf(),
+            });
+        };
         Ok(Self {
             root: root.to_path_buf(),
             dir,
+            generation,
         })
+    }
+
+    pub(super) fn clone_root_dir(&self) -> Result<Dir, ScanError> {
+        self.dir.try_clone().map_err(|source| ScanError::Io {
+            path: self.root.clone(),
+            source,
+        })
+    }
+
+    /// Revalidate that the configured ambient path still names this retained root.
+    pub(super) fn ensure_current_generation(&self) -> Result<(), ScanError> {
+        let Ok(metadata) = fs::symlink_metadata(&self.root) else {
+            return Err(ScanError::StaleRootGeneration {
+                root: self.root.clone(),
+            });
+        };
+        let current = stable_filesystem_identity(&self.root, &metadata);
+        if current.as_deref() != Some(self.generation.as_str()) {
+            return Err(ScanError::StaleRootGeneration {
+                root: self.root.clone(),
+            });
+        }
+        Ok(())
     }
 
     /// Open a regular file beneath the source root without following any path component.
