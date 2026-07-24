@@ -9,7 +9,7 @@ use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority
 use cap_std::fs::{Dir, OpenOptions};
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
-    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry,
+    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry, is_rejected_source_file_path,
 };
 
 use crate::sample_sources::{SourceDatabase, WavEntry};
@@ -238,10 +238,13 @@ fn collect_current_files(
     };
     let absolute_path = root.join(relative_path);
     let name_path = Path::new(&name);
-    let metadata = match parent.symlink_metadata(name_path) {
+    let metadata = match read_targeted_metadata(&parent, name_path, &absolute_path) {
         Ok(metadata) => metadata,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(source) => {
+            if is_rejected_source_file_path(relative_path) {
+                return Ok(());
+            }
             tracing::warn!(
                 path = %absolute_path.display(),
                 error = %source,
@@ -407,13 +410,16 @@ fn collect_current_files_in_dir(
             let file_type = match read_targeted_file_type(&entry, &path) {
                 Ok(file_type) => file_type,
                 Err(err) => {
+                    let relative_path = relative_dir.join(name_path);
+                    if is_rejected_source_file_path(&relative_path) {
+                        continue;
+                    }
                     tracing::warn!(
                         path = %path.display(),
                         error = %err,
                         "Failed to read targeted sync file type"
                     );
-                    uncertain_prefixes.insert(relative_dir.join(name_path));
-                    let relative_path = relative_dir.join(name_path);
+                    uncertain_prefixes.insert(relative_path.clone());
                     current_index_entries.insert(
                         relative_path.clone(),
                         inaccessible_index_entry(
@@ -634,6 +640,18 @@ fn read_targeted_dir_entries(
         return Err(error);
     }
     dir.entries()
+}
+
+fn read_targeted_metadata(
+    parent: &Dir,
+    name: &Path,
+    _absolute_path: &Path,
+) -> Result<cap_std::fs::Metadata, io::Error> {
+    #[cfg(test)]
+    if let Some(error) = super::scan_fs::forced_file_type_error(_absolute_path) {
+        return Err(error);
+    }
+    parent.symlink_metadata(name)
 }
 
 fn read_targeted_file_type(

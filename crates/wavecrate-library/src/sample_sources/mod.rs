@@ -31,7 +31,7 @@ pub use library::{
 pub use source_entry::{
     SOURCE_FORMAT_POLICY_VERSION, SourceEntryClassification, SourceEntryFileType, SourceEntryKind,
     SourceEntryProbeError, SourceEntryRejection, SourceFileClassification,
-    classify_path_without_following, classify_source_entry,
+    classify_path_without_following, classify_source_entry, is_rejected_source_file_path,
 };
 
 /// Identifier for a configured sample source.

@@ -15,7 +15,7 @@ use wavecrate_library::filesystem_identity::{
 };
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
-    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry,
+    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry, is_rejected_source_file_path,
 };
 
 use crate::sample_sources::SourceDatabase;
@@ -249,9 +249,16 @@ pub(super) fn visit_dir_with_cancel_check(
             };
 
             let path = entry.path();
+            let relative = path
+                .strip_prefix(root)
+                .map(Path::to_path_buf)
+                .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
             let file_type = match read_file_type(&entry, &path) {
                 Ok(file_type) => file_type,
                 Err(err) => {
+                    if is_rejected_source_file_path(&relative) {
+                        continue;
+                    }
                     warn!(
                         path = %path.display(),
                         error = %err,
@@ -262,19 +269,13 @@ pub(super) fn visit_dir_with_cancel_check(
                         format!("read file type {}: {err}", display_relative(root, &path)),
                     );
                     record_uncertain_prefix(&mut snapshot, root, &path);
-                    if let Ok(relative_path) = path.strip_prefix(root) {
-                        snapshot.index_entries.push(inaccessible_index_entry(
-                            relative_path.to_path_buf(),
-                            SourceIndexDiagnostic::EntryTypeUnavailable,
-                        ));
-                    }
+                    snapshot.index_entries.push(inaccessible_index_entry(
+                        relative,
+                        SourceIndexDiagnostic::EntryTypeUnavailable,
+                    ));
                     continue;
                 }
             };
-            let relative = path
-                .strip_prefix(root)
-                .map(Path::to_path_buf)
-                .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
             match classify_source_entry(&relative, source_entry_file_type(&file_type)) {
                 SourceEntryClassification::Directory { .. } => {
                     snapshot.directories.push(relative);

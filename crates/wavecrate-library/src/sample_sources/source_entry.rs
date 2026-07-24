@@ -174,6 +174,14 @@ pub fn classify_source_entry(
     }
 }
 
+/// Return whether a regular-file path is excluded by name from source indexing.
+///
+/// This predicate is usable when entry-type inspection fails, before callers
+/// can construct a complete [`SourceEntryClassification`].
+pub fn is_rejected_source_file_path(relative_path: &Path) -> bool {
+    is_apple_double_sidecar(relative_path) || is_source_database_artifact(relative_path)
+}
+
 fn is_source_database_artifact(relative_path: &Path) -> bool {
     let Some(name) = relative_path.file_name().and_then(|name| name.to_str()) else {
         return false;
@@ -306,5 +314,18 @@ mod tests {
                 .file_classification(),
             Some(SourceFileClassification::UnsupportedNonAudio)
         );
+    }
+
+    #[test]
+    fn path_only_rejections_cover_internal_database_and_apple_double_names() {
+        for path in [
+            ".wavecrate.db",
+            ".wavecrate.db-wal",
+            ".wavecrate_samples.db-shm",
+            "nested/._loop.flac",
+        ] {
+            assert!(is_rejected_source_file_path(Path::new(path)), "{path}");
+        }
+        assert!(!is_rejected_source_file_path(Path::new("nested/loop.flac")));
     }
 }
