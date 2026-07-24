@@ -20,7 +20,7 @@ use super::{
     scan_capability::SourceRootCapability,
     scan_db_sync::{complete_scan_generation, db_sync_phase},
     scan_diff_phase::prepare_diff_from_facts,
-    scan_fs::ensure_root_dir,
+    scan_fs::{DirectoryVisit, VisitedDirectories, ensure_root_dir},
     scan_index::{inaccessible_index_entry, index_entry_from_file_facts},
     scan_walk::apply_prepared_chunk,
     scan_writer::{ScanWriter, UncoordinatedScanWriter},
@@ -67,6 +67,7 @@ pub fn sync_paths_with_progress_and_writer(
         current_index_entries,
         existing_index_entries,
         uncertain_prefixes,
+        diagnostics,
     } = targets;
     let mut context = ScanContext::from_existing(
         existing,
@@ -80,6 +81,7 @@ pub fn sync_paths_with_progress_and_writer(
         current_index_entries.into_values(),
     );
     context.mark_uncertain_prefixes(uncertain_prefixes);
+    context.stats.traversal_diagnostics = diagnostics;
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
     let result = (|| {
@@ -144,6 +146,7 @@ struct TargetedScanTargets {
     current_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
     existing_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: BTreeSet<PathBuf>,
+    diagnostics: Vec<super::scan::SourceTreeDiagnostic>,
 }
 
 struct TargetedFile {
@@ -166,6 +169,20 @@ fn collect_targets(
     let mut current_index_entries = BTreeMap::new();
     let mut existing_index_entries = BTreeMap::new();
     let mut uncertain_prefixes = BTreeSet::new();
+    let mut visited = VisitedDirectories::default();
+    if !matches!(
+        visited.observe(&source_root_dir, root, Path::new("")),
+        DirectoryVisit::New
+    ) {
+        return Ok(TargetedScanTargets {
+            current_files: Vec::new(),
+            existing,
+            current_index_entries,
+            existing_index_entries,
+            uncertain_prefixes,
+            diagnostics: visited.diagnostics().to_vec(),
+        });
+    }
     for relative_path in normalized_targets(paths) {
         if let Some(cancel) = cancel
             && cancel.load(Ordering::Relaxed)
@@ -183,6 +200,7 @@ fn collect_targets(
             &mut current_files,
             &mut current_index_entries,
             &mut uncertain_prefixes,
+            &mut visited,
         )?;
     }
     Ok(TargetedScanTargets {
@@ -191,6 +209,7 @@ fn collect_targets(
         current_index_entries,
         existing_index_entries,
         uncertain_prefixes,
+        diagnostics: visited.diagnostics().to_vec(),
     })
 }
 
@@ -247,6 +266,7 @@ fn collect_current_files(
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
     current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
+    visited: &mut VisitedDirectories,
 ) -> Result<(), ScanError> {
     let Some((parent, name)) =
         open_target_parent(source_root, root, relative_path, uncertain_prefixes)?
@@ -299,16 +319,22 @@ fn collect_current_files(
                     return Ok(());
                 }
             };
-            collect_current_files_in_dir(
-                dir,
-                root,
-                relative_path,
-                cancel,
-                policy,
-                current_files,
-                current_index_entries,
-                uncertain_prefixes,
-            )?;
+            match visited.observe(&dir, &absolute_path, relative_path) {
+                DirectoryVisit::New => collect_current_files_in_dir(
+                    dir,
+                    root,
+                    relative_path,
+                    cancel,
+                    policy,
+                    current_files,
+                    current_index_entries,
+                    uncertain_prefixes,
+                    visited,
+                )?,
+                DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
+                    uncertain_prefixes.insert(relative_path.to_path_buf());
+                }
+            }
         }
         classification @ SourceEntryClassification::File { .. }
             if classification.indexes_audio() =>
@@ -396,6 +422,7 @@ fn collect_current_files_in_dir(
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
     current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
+    visited: &mut VisitedDirectories,
 ) -> Result<(), ScanError> {
     let mut stack = vec![(start_dir, start_relative.to_path_buf())];
     while let Some((dir, relative_dir)) = stack.pop() {
@@ -481,7 +508,12 @@ fn collect_current_files_in_dir(
                             continue;
                         }
                     };
-                    stack.push((child_dir, relative_path));
+                    match visited.observe(&child_dir, &path, &relative_path) {
+                        DirectoryVisit::New => stack.push((child_dir, relative_path)),
+                        DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
+                            uncertain_prefixes.insert(relative_path);
+                        }
+                    }
                 }
                 classification @ SourceEntryClassification::File { .. }
                     if classification.indexes_audio() =>

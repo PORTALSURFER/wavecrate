@@ -1,7 +1,113 @@
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 use wavecrate_library::sample_sources::db::{ContentAuditReport, PendingRenameDiagnostics};
 use wavecrate_library::sample_sources::{SourceIndexEntry, SourceManifestEntry};
+
+/// Why a directory was not fully represented by a source traversal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceTreeDiagnostic {
+    /// A directory could not be read or opened.
+    DirectoryUnavailable {
+        /// Relative path of the unavailable directory.
+        path: PathBuf,
+        /// Underlying failure text.
+        error: String,
+    },
+    /// A directory entry could not be read.
+    DirectoryEntryUnavailable {
+        /// Relative path of the directory whose entry was unavailable.
+        path: PathBuf,
+        /// Underlying failure text.
+        error: String,
+    },
+    /// An entry's type could not be classified.
+    EntryTypeUnavailable {
+        /// Relative path of the unclassifiable entry.
+        path: PathBuf,
+        /// Underlying failure text.
+        error: String,
+    },
+    /// File metadata could not be read.
+    FileMetadataUnavailable {
+        /// Relative path of the file whose metadata was unavailable.
+        path: PathBuf,
+        /// Underlying failure text.
+        error: String,
+    },
+    /// A directory descriptor could not produce a stable identity.
+    DirectoryIdentityUnavailable {
+        /// Relative path of the directory without a stable identity.
+        path: PathBuf,
+        /// Identity failure text, or `None` when the platform is unsupported.
+        error: Option<String>,
+    },
+    /// A directory identity was already visited during this traversal generation.
+    RepeatedDirectory {
+        /// Relative path whose identity was already visited.
+        path: PathBuf,
+        /// First relative path at which the identity was visited.
+        first_path: PathBuf,
+        /// Whether the repeated identity is an ancestor cycle or another target.
+        kind: DirectoryRepeatKind,
+    },
+    /// The source changed after an earlier scan checkpoint was committed.
+    TraversalChanged,
+}
+
+impl fmt::Display for SourceTreeDiagnostic {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DirectoryUnavailable { path, error } => {
+                write!(formatter, "directory unavailable {}: {error}", path.display())
+            }
+            Self::DirectoryEntryUnavailable { path, error } => write!(
+                formatter,
+                "directory entry unavailable {}: {error}",
+                path.display()
+            ),
+            Self::EntryTypeUnavailable { path, error } => {
+                write!(formatter, "entry type unavailable {}: {error}", path.display())
+            }
+            Self::FileMetadataUnavailable { path, error } => {
+                write!(formatter, "file metadata unavailable {}: {error}", path.display())
+            }
+            Self::DirectoryIdentityUnavailable { path, error } => match error {
+                Some(error) => write!(
+                    formatter,
+                    "directory identity unavailable {}: {error}",
+                    path.display()
+                ),
+                None => write!(
+                    formatter,
+                    "directory identity unavailable {}: unsupported platform",
+                    path.display()
+                ),
+            },
+            Self::RepeatedDirectory {
+                path,
+                first_path,
+                kind,
+            } => write!(
+                formatter,
+                "repeated directory identity ({kind:?}) at {} (first visited at {})",
+                path.display(),
+                first_path.display()
+            ),
+            Self::TraversalChanged => formatter.write_str(
+                "supported audio changed or became unavailable after an earlier scan batch committed",
+            ),
+        }
+    }
+}
+
+/// Whether a repeated directory identity points back into the current ancestor path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectoryRepeatKind {
+    /// The identity points back to an ancestor in this traversal.
+    Cycle,
+    /// The identity was reached through another non-ancestor path.
+    RepeatedTarget,
+}
 
 /// One non-audio regular file observed during the authoritative source traversal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +129,7 @@ pub struct SourceTreeSnapshot {
     #[doc(hidden)]
     pub index_entries: Vec<SourceIndexEntry>,
     /// Bounded diagnostics for entries that could not be classified or enumerated.
-    pub diagnostics: Vec<String>,
+    pub diagnostics: Vec<SourceTreeDiagnostic>,
     /// Relative directory or entry prefixes whose descendants were not
     /// authoritatively observed during this traversal.
     ///
@@ -89,6 +195,8 @@ pub struct ScanStats {
     /// Filesystem layout captured by the authoritative full traversal.
     #[doc(hidden)]
     pub source_tree_snapshot: Option<SourceTreeSnapshot>,
+    /// Bounded diagnostics from targeted traversal, which has no full browser-layout snapshot.
+    pub traversal_diagnostics: Vec<SourceTreeDiagnostic>,
 }
 
 impl ScanStats {

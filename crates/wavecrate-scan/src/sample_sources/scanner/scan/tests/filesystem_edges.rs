@@ -1,4 +1,6 @@
 use super::*;
+use crate::sample_sources::scanner::scan_fs::force_directory_identity;
+use crate::sample_sources::scanner::{DirectoryRepeatKind, SourceTreeDiagnostic};
 use std::path::PathBuf;
 
 #[test]
@@ -83,6 +85,36 @@ fn scan_skips_symlink_directories() {
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.total_files, 2);
     assert_eq!(stats.added, 2);
+}
+
+#[test]
+fn full_scan_stops_an_injected_directory_identity_cycle() {
+    let dir = tempdir().unwrap();
+    let cycle = dir.path().join("cycle");
+    std::fs::create_dir(&cycle).unwrap();
+    std::fs::write(dir.path().join("root.wav"), b"root").unwrap();
+    std::fs::write(cycle.join("never-reached.wav"), b"cycle").unwrap();
+
+    let _root_identity = force_directory_identity(dir.path(), Some("root-identity"));
+    let _cycle_identity = force_directory_identity(&cycle, Some("root-identity"));
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let ScanError::Incomplete { committed, .. } = scan_once(&db).unwrap_err() else {
+        panic!("an injected repeated subtree must return the committed partial result");
+    };
+    let stats = *committed;
+    let snapshot = stats.source_tree_snapshot.expect("source tree snapshot");
+
+    assert_eq!(stats.total_files, 1);
+    assert!(!snapshot.is_complete());
+    assert!(!snapshot.directories.contains(&PathBuf::from("cycle")));
+    assert!(snapshot.diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        SourceTreeDiagnostic::RepeatedDirectory {
+            kind: DirectoryRepeatKind::Cycle,
+            path,
+            ..
+        } if path == std::path::Path::new("cycle")
+    )));
 }
 
 #[test]

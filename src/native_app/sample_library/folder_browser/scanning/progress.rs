@@ -223,7 +223,12 @@ fn build_committed_projection(
     if !layout.is_complete() {
         return Err(format!(
             "authoritative source traversal was incomplete: {}",
-            layout.diagnostics.join("; ")
+            layout
+                .diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; ")
         ));
     }
     let BrowserMetadataSnapshot { revision, files } =

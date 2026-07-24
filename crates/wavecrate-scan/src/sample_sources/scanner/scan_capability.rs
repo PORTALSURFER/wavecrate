@@ -5,7 +5,9 @@ use std::{
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
 use cap_std::fs::{Dir, OpenOptions};
-use wavecrate_library::filesystem_identity::stable_filesystem_identity;
+use wavecrate_library::filesystem_identity::{
+    stable_filesystem_identity, stable_filesystem_identity_from_open_file,
+};
 
 use super::scan::ScanError;
 
@@ -38,14 +40,14 @@ impl SourceRootCapability {
                 path: root.to_path_buf(),
                 source,
             })?;
-        let retained_metadata = dir
+        let retained_file = dir
             .try_clone()
-            .and_then(|dir| dir.into_std_file().metadata())
+            .map(|dir| dir.into_std_file())
             .map_err(|source| ScanError::Io {
                 path: root.to_path_buf(),
                 source,
             })?;
-        let Some(generation) = stable_filesystem_identity(root, &retained_metadata) else {
+        let Some(generation) = stable_filesystem_identity_from_open_file(&retained_file) else {
             return Err(ScanError::StaleRootGeneration {
                 root: root.to_path_buf(),
             });

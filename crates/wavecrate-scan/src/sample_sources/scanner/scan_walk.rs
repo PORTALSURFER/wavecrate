@@ -195,9 +195,9 @@ fn finalize_source_tree_snapshot(
     mut source_tree_snapshot: super::scan::SourceTreeSnapshot,
 ) -> super::scan::SourceTreeSnapshot {
     if context.source_tree_incomplete() {
-        source_tree_snapshot.diagnostics.push(String::from(
-            "supported audio changed or became unavailable after an earlier scan batch committed",
-        ));
+        source_tree_snapshot
+            .diagnostics
+            .push(super::scan::SourceTreeDiagnostic::TraversalChanged);
     }
     source_tree_snapshot
 }
