@@ -158,6 +158,7 @@ fn run_headless_with_passes_args_through_to_apply() {
             relaunch: true,
             copied_files: Vec::new(),
             replaced_dirs: Vec::new(),
+            post_commit_cleanup_failures: Vec::new(),
             stale_removal_failures: Vec::new(),
         })
     })
@@ -177,6 +178,30 @@ fn run_headless_with_passes_args_through_to_apply() {
     assert_eq!(received.requested_tag, args.requested_tag);
     assert_eq!(plan.release_tag, "v1.2.3");
     assert_eq!(plan.install_dir, sample_install_dir());
+}
+
+#[test]
+fn cleanup_warning_messages_include_committed_remnant_path_and_error() {
+    let remnant = sample_install_dir().join("wavecrate.exe.old");
+    let plan = ApplyPlan {
+        release_tag: "v1.2.3".to_string(),
+        install_dir: sample_install_dir(),
+        relaunch: true,
+        copied_files: Vec::new(),
+        replaced_dirs: Vec::new(),
+        post_commit_cleanup_failures: vec![wavecrate::updater::PostCommitCleanupFailure {
+            path: remnant.clone(),
+            error: "file is locked".to_string(),
+        }],
+        stale_removal_failures: Vec::new(),
+    };
+
+    let messages = cleanup_warning_messages(&plan);
+
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].contains(&remnant.display().to_string()));
+    assert!(messages[0].contains("file is locked"));
+    assert!(messages[0].contains("update committed"));
 }
 
 #[test]

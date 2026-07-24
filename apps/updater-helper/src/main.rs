@@ -27,6 +27,9 @@ fn try_main() -> Result<(), String> {
 
 fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
     let plan = run_headless_with(args, apply_update)?;
+    for warning in cleanup_warning_messages(&plan) {
+        eprintln!("{warning}");
+    }
     eprintln!(
         "Updated {} from {} into {}",
         APP_NAME,
@@ -34,6 +37,24 @@ fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
         plan.install_dir.display()
     );
     Ok(())
+}
+
+fn cleanup_warning_messages(plan: &ApplyPlan) -> Vec<String> {
+    let committed_cleanup = plan.post_commit_cleanup_failures.iter().map(|failure| {
+        format!(
+            "Warning: update committed but cleanup left {}: {}",
+            failure.path.display(),
+            failure.error
+        )
+    });
+    let stale_cleanup = plan.stale_removal_failures.iter().map(|failure| {
+        format!(
+            "Warning: failed to remove stale path {}: {}",
+            failure.path.display(),
+            failure.error
+        )
+    });
+    committed_cleanup.chain(stale_cleanup).collect()
 }
 
 fn run_headless_with(
