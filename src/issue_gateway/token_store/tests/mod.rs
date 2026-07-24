@@ -20,8 +20,38 @@ fn enable_mock_keyring() {
     });
 }
 
-fn env_lock() -> TestRuntimeGuard {
-    TestRuntimeGuard::acquire()
+struct TokenStoreTestRuntime {
+    runtime: TestRuntimeGuard,
+    previous_fallback_key: Option<[u8; 32]>,
+}
+
+impl std::ops::Deref for TokenStoreTestRuntime {
+    type Target = TestRuntimeGuard;
+
+    fn deref(&self) -> &Self::Target {
+        &self.runtime
+    }
+}
+
+impl std::ops::DerefMut for TokenStoreTestRuntime {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.runtime
+    }
+}
+
+impl Drop for TokenStoreTestRuntime {
+    fn drop(&mut self) {
+        *fallback_key::lock_fallback_key_cache() = self.previous_fallback_key.take();
+    }
+}
+
+fn env_lock() -> TokenStoreTestRuntime {
+    let runtime = TestRuntimeGuard::acquire();
+    let previous_fallback_key = fallback_key::lock_fallback_key_cache().take();
+    TokenStoreTestRuntime {
+        runtime,
+        previous_fallback_key,
+    }
 }
 
 fn allow_fallback(runtime: &mut TestRuntimeGuard) {
