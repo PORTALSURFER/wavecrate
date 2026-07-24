@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 
 use wavecrate::updater::{
-    APP_NAME, ApplyPlan, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdateError, UpdaterRunArgs,
-    apply_update, supported_release_target_for_platform_arch,
+    APP_NAME, ApplyPlan, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdateError, UpdateProgress,
+    UpdaterRunArgs, apply_update_with_progress, supported_release_target_for_platform_arch,
 };
 
 #[cfg(test)]
@@ -26,10 +26,11 @@ fn try_main() -> Result<(), String> {
 }
 
 fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
-    let plan = run_headless_with(args, apply_update)?;
-    for warning in cleanup_warning_messages(&plan) {
-        eprintln!("{warning}");
-    }
+    let plan = run_headless_with(
+        args,
+        |args, progress| apply_update_with_progress(args, progress),
+        |warning| eprintln!("{warning}"),
+    )?;
     eprintln!(
         "Updated {} from {} into {}",
         APP_NAME,
@@ -39,29 +40,17 @@ fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
     Ok(())
 }
 
-fn cleanup_warning_messages(plan: &ApplyPlan) -> Vec<String> {
-    let committed_cleanup = plan.post_commit_cleanup_failures.iter().map(|failure| {
-        format!(
-            "Warning: update committed but cleanup left {}: {}",
-            failure.path.display(),
-            failure.error
-        )
-    });
-    let stale_cleanup = plan.stale_removal_failures.iter().map(|failure| {
-        format!(
-            "Warning: failed to remove stale path {}: {}",
-            failure.path.display(),
-            failure.error
-        )
-    });
-    committed_cleanup.chain(stale_cleanup).collect()
-}
-
 fn run_headless_with(
     args: UpdaterRunArgs,
-    apply: impl FnOnce(UpdaterRunArgs) -> Result<ApplyPlan, UpdateError>,
+    apply: impl FnOnce(UpdaterRunArgs, &mut dyn FnMut(UpdateProgress)) -> Result<ApplyPlan, UpdateError>,
+    mut warning: impl FnMut(String),
 ) -> Result<ApplyPlan, String> {
-    apply(args).map_err(|err| err.to_string())
+    let mut progress = |progress: UpdateProgress| {
+        if progress.message.starts_with("Warning:") {
+            warning(progress.message);
+        }
+    };
+    apply(args, &mut progress).map_err(|err| err.to_string())
 }
 
 fn parse_args(args: Vec<String>) -> Result<(UpdaterRunArgs, bool), String> {

@@ -240,12 +240,13 @@ fn finish_applied_update(
             ),
         );
     }
-    if !applied.stale_removal_failures.is_empty() {
+    for failure in &applied.stale_removal_failures {
         report(
             progress,
             format!(
-                "Warning: failed to remove {} stale paths",
-                applied.stale_removal_failures.len()
+                "Warning: failed to remove stale path {}: {}",
+                failure.path.display(),
+                failure.error
             ),
         );
     }

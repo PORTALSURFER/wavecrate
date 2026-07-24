@@ -156,6 +156,58 @@ fn committed_cleanup_failure_warns_and_still_attempts_relaunch() {
 }
 
 #[test]
+fn committed_cleanup_warning_is_reported_before_fatal_relaunch_failure() {
+    let tmp = tempdir().unwrap();
+    let install_dir = tmp.path().join("install");
+    fs::create_dir_all(&install_dir).unwrap();
+    let remnant = install_dir.join("wavecrate.old");
+    let args = UpdaterRunArgs {
+        repo: "owner/repo".to_string(),
+        identity: identity(UpdateChannel::Stable),
+        install_dir,
+        relaunch: true,
+        requested_tag: Some("v1.2.3".to_string()),
+    };
+    let applied = AppliedFilesPlan {
+        copied_files: vec!["wavecrate".to_string()],
+        replaced_dirs: Vec::new(),
+        post_commit_cleanup_failures: vec![PostCommitCleanupFailure {
+            path: remnant.clone(),
+            error: "file is locked".to_string(),
+        }],
+        stale_removal_failures: Vec::new(),
+    };
+    let mut messages = Vec::new();
+
+    let err = finish_applied_update(
+        &args,
+        "v1.2.3".to_string(),
+        &manifest("stable"),
+        applied,
+        &mut |progress| messages.push(progress.message),
+        |_install_dir, _app, _manifest| Err(UpdateError::Invalid("relaunch blocked".to_string())),
+    )
+    .expect_err("relaunch failure must remain fatal");
+
+    let expected_warning = format!(
+        "Warning: update committed but cleanup left {}: file is locked",
+        remnant.display()
+    );
+    assert!(err.to_string().contains("relaunch blocked"));
+    assert_eq!(messages.first(), Some(&expected_warning));
+    assert!(
+        messages
+            .iter()
+            .any(|message| message == "Relaunching app...")
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("Relaunch failed"))
+    );
+}
+
+#[test]
 fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
     let tmp = tempdir().unwrap();
     let install_dir = tmp.path().join("install");
