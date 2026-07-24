@@ -32,6 +32,13 @@ struct HashBackfill {
 }
 
 #[derive(Debug)]
+struct RetainedRenameCandidate {
+    relative_path: PathBuf,
+    facts: FileFacts,
+    file: std::fs::File,
+}
+
+#[derive(Debug)]
 struct VerifiedContentAudit {
     previous: SourceManifestEntry,
     facts: FileFacts,
@@ -690,6 +697,16 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<Vec<RenamedSample>, ScanError> {
+    reconcile_hashed_rename_candidates_with_hook(db, rename_candidates, cancel, writer, |_| {})
+}
+
+fn reconcile_hashed_rename_candidates_with_hook(
+    db: &SourceDatabase,
+    rename_candidates: &HashSet<PathBuf>,
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+    mut precommit: impl FnMut(&std::path::Path),
+) -> Result<Vec<RenamedSample>, ScanError> {
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
@@ -701,27 +718,49 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
     }
 
     let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
-    let entries_by_path = db
-        .list_files()?
+    let persisted_identities = manifest_before
         .into_iter()
-        .filter(|entry| {
-            !entry.missing
-                && source_root
-                    .open_regular_file(&entry.relative_path)
-                    .is_ok_and(|file| file.is_some())
-        })
-        .map(|entry| (entry.relative_path.clone(), entry))
-        .collect::<HashMap<_, _>>();
-    if !db.has_pending_renames()? {
-        return Ok(Vec::new());
-    }
-    let candidate_identities = manifest_before
-        .into_iter()
-        .filter(|entry| rename_candidates.contains(&entry.relative_path))
         .filter_map(|entry| {
             entry
                 .file_identity
                 .map(|identity| (entry.relative_path, identity))
+        })
+        .collect::<HashMap<_, _>>();
+    let mut entries_by_path = HashMap::new();
+    let mut retained = Vec::new();
+    for entry in db.list_files()? {
+        if entry.missing || !rename_candidates.contains(&entry.relative_path) {
+            continue;
+        }
+        let Some(file) = source_root.open_regular_file(&entry.relative_path)? else {
+            continue;
+        };
+        let absolute = root.join(&entry.relative_path);
+        let facts = read_facts_from_open_file(&root, &absolute, &file)?;
+        if entry.file_size != facts.size
+            || entry.modified_ns != facts.modified_ns
+            || persisted_identities.get(&entry.relative_path) != facts.file_identity.as_ref()
+        {
+            continue;
+        }
+        entries_by_path.insert(entry.relative_path.clone(), entry);
+        retained.push(RetainedRenameCandidate {
+            relative_path: facts.relative.clone(),
+            facts,
+            file,
+        });
+    }
+    if !db.has_pending_renames()? {
+        return Ok(Vec::new());
+    }
+    let candidate_identities = retained
+        .iter()
+        .filter_map(|candidate| {
+            candidate
+                .facts
+                .file_identity
+                .clone()
+                .map(|identity| (candidate.relative_path.clone(), identity))
         })
         .collect::<HashMap<_, _>>();
 
@@ -748,6 +787,23 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
     )?;
     if renamed_samples.is_empty() && retained_candidates == 0 {
         return Ok(renamed_samples);
+    }
+    for candidate in &retained {
+        precommit(&candidate.relative_path);
+    }
+    let final_bindings_match = retained.iter().all(|candidate| {
+        let absolute = root.join(&candidate.relative_path);
+        let descriptor_matches = read_facts_from_open_file(&root, &absolute, &candidate.file)
+            .is_ok_and(|facts| candidate.facts.same_content_snapshot(&facts));
+        descriptor_matches
+            && matches!(
+                source_root.path_binding(&candidate.relative_path, &candidate.file),
+                Ok(SourcePathBinding::Matches)
+            )
+    });
+    if !final_bindings_match {
+        drop(batch);
+        return Ok(Vec::new());
     }
     batch.commit()?;
     Ok(renamed_samples)
@@ -929,12 +985,17 @@ fn deep_hash_scan_with_hooks(
         }
         accepted_backfills.push(backfill);
     }
+    let admitted_rename_candidates = accepted_backfills
+        .iter()
+        .filter(|backfill| rename_candidates.contains(&backfill.relative_path))
+        .map(|backfill| backfill.relative_path.clone())
+        .collect::<HashSet<_>>();
     let (renamed_samples, _) = reconcile_indexed_rename_candidates(
         &mut batch,
         &root,
         &entries_by_path,
         &candidate_identities,
-        &rename_candidates,
+        &admitted_rename_candidates,
     )?;
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
@@ -1126,6 +1187,93 @@ mod tests {
     struct InterleavedManifestWriter {
         root: PathBuf,
         committed: AtomicBool,
+    }
+
+    struct HashedRenameFixture {
+        _directory: tempfile::TempDir,
+        database: SourceDatabase,
+        old_relative: PathBuf,
+        new_relative: PathBuf,
+    }
+
+    fn hashed_rename_fixture(new_relative: &Path) -> HashedRenameFixture {
+        let directory = tempfile::tempdir().expect("temp source");
+        let old_relative = PathBuf::from("old.wav");
+        let old_absolute = directory.path().join(&old_relative);
+        let new_relative = new_relative.to_path_buf();
+        let new_absolute = directory.path().join(&new_relative);
+        if let Some(parent) = new_absolute.parent() {
+            std::fs::create_dir_all(parent).expect("create destination parent");
+        }
+        std::fs::write(&old_absolute, [5_u8; 32]).expect("write original wav");
+        let facts = read_facts(directory.path(), &old_absolute).expect("read original facts");
+        let database = SourceDatabase::open_for_source_write(directory.path()).expect("source db");
+        let mut batch = database.write_batch().expect("seed source batch");
+        batch
+            .upsert_file_with_hash(&old_relative, facts.size, facts.modified_ns, "shared-hash")
+            .expect("insert original row");
+        batch
+            .set_file_identity(&old_relative, facts.file_identity.as_deref())
+            .expect("store original identity");
+        batch
+            .set_tag(
+                &old_relative,
+                wavecrate_library::sample_sources::Rating::KEEP_1,
+            )
+            .expect("curate original row");
+        batch.commit().expect("commit original row");
+
+        let original = database
+            .entry_for_path(&old_relative)
+            .expect("read original row")
+            .expect("original row");
+        let mut batch = database.write_batch().expect("stage rename batch");
+        batch
+            .stage_pending_rename(&original)
+            .expect("stage pending rename");
+        batch
+            .remove_file(&old_relative)
+            .expect("remove original row");
+        batch.commit().expect("commit pending rename");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename wav");
+
+        let mut batch = database.write_batch().expect("seed destination batch");
+        batch
+            .upsert_file_with_hash(&new_relative, facts.size, facts.modified_ns, "shared-hash")
+            .expect("insert destination row");
+        batch
+            .set_file_identity(&new_relative, facts.file_identity.as_deref())
+            .expect("store destination identity");
+        batch.commit().expect("commit destination row");
+
+        HashedRenameFixture {
+            _directory: directory,
+            database,
+            old_relative,
+            new_relative,
+        }
+    }
+
+    fn assert_hashed_rename_remains_pending(fixture: &HashedRenameFixture) {
+        assert!(
+            fixture
+                .database
+                .list_pending_renames()
+                .expect("read pending renames")
+                .iter()
+                .any(|entry| entry.relative_path == fixture.old_relative),
+            "rejected reconciliation must preserve pending rename state"
+        );
+        assert_eq!(
+            fixture
+                .database
+                .entry_for_path(&fixture.new_relative)
+                .expect("read destination row")
+                .expect("destination row")
+                .tag,
+            wavecrate_library::sample_sources::Rating::NEUTRAL,
+            "rejected reconciliation must not transfer source metadata"
+        );
     }
 
     impl Drop for ObservedWriterGuard {
@@ -2010,6 +2158,149 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn deferred_rename_excludes_an_outside_link_before_admission() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = hashed_rename_fixture(Path::new("new.wav"));
+        let destination = fixture._directory.path().join(&fixture.new_relative);
+        let outside = tempfile::tempdir().expect("outside directory");
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&outside_file, b"outside").expect("write outside file");
+        std::fs::remove_file(&destination).expect("remove destination");
+        symlink(&outside_file, &destination).expect("replace destination with outside link");
+
+        let stats = deep_hash_scan(
+            &fixture.database,
+            None,
+            &HashSet::from([fixture.new_relative.clone()]),
+            DeferredHashScope::RenameCandidates,
+            None,
+            Some(&fixture.new_relative),
+        )
+        .expect("defer linked rename candidate");
+
+        assert_eq!(stats.renames_reconciled, 0);
+        assert_hashed_rename_remains_pending(&fixture);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deferred_rename_rejects_a_final_link_replacement_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = hashed_rename_fixture(Path::new("new.wav"));
+        let outside = tempfile::tempdir().expect("outside directory");
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&outside_file, b"outside").expect("write outside file");
+
+        let stats = deep_hash_scan_with_hooks(
+            &fixture.database,
+            None,
+            &HashSet::from([fixture.new_relative.clone()]),
+            DeferredHashScope::RenameCandidates,
+            None,
+            Some(&fixture.new_relative),
+            &UncoordinatedScanWriter,
+            |_| {},
+            |path| {
+                let destination = fixture._directory.path().join(path);
+                std::fs::remove_file(&destination).expect("remove destination");
+                symlink(&outside_file, destination).expect("replace destination with outside link");
+            },
+        )
+        .expect("reject late linked rename candidate");
+
+        assert_eq!(stats.renames_reconciled, 0);
+        assert_hashed_rename_remains_pending(&fixture);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deferred_rename_rejects_a_link_ancestor_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = hashed_rename_fixture(Path::new("nested/new.wav"));
+        let outside = tempfile::tempdir().expect("outside directory");
+        std::fs::write(outside.path().join("new.wav"), b"outside").expect("write outside file");
+
+        let stats = deep_hash_scan_with_hooks(
+            &fixture.database,
+            None,
+            &HashSet::from([fixture.new_relative.clone()]),
+            DeferredHashScope::RenameCandidates,
+            None,
+            Some(&fixture.new_relative),
+            &UncoordinatedScanWriter,
+            |_| {},
+            |_| {
+                let nested = fixture._directory.path().join("nested");
+                std::fs::rename(&nested, fixture._directory.path().join("moved"))
+                    .expect("move destination ancestor");
+                symlink(outside.path(), nested).expect("replace ancestor with outside link");
+            },
+        )
+        .expect("reject late linked rename ancestor");
+
+        assert_eq!(stats.renames_reconciled, 0);
+        assert_hashed_rename_remains_pending(&fixture);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fast_hashed_rename_rejects_a_final_link_replacement_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = hashed_rename_fixture(Path::new("new.wav"));
+        let outside = tempfile::tempdir().expect("outside directory");
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&outside_file, b"outside").expect("write outside file");
+
+        let reconciled = reconcile_hashed_rename_candidates_with_hook(
+            &fixture.database,
+            &HashSet::from([fixture.new_relative.clone()]),
+            None,
+            &UncoordinatedScanWriter,
+            |path| {
+                let destination = fixture._directory.path().join(path);
+                std::fs::remove_file(&destination).expect("remove destination");
+                symlink(&outside_file, destination).expect("replace destination with outside link");
+            },
+        )
+        .expect("reject late linked fast candidate");
+
+        assert!(reconciled.is_empty());
+        assert_hashed_rename_remains_pending(&fixture);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fast_hashed_rename_rejects_a_link_ancestor_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = hashed_rename_fixture(Path::new("nested/new.wav"));
+        let outside = tempfile::tempdir().expect("outside directory");
+        std::fs::write(outside.path().join("new.wav"), b"outside").expect("write outside file");
+
+        let reconciled = reconcile_hashed_rename_candidates_with_hook(
+            &fixture.database,
+            &HashSet::from([fixture.new_relative.clone()]),
+            None,
+            &UncoordinatedScanWriter,
+            |_| {
+                let nested = fixture._directory.path().join("nested");
+                std::fs::rename(&nested, fixture._directory.path().join("moved"))
+                    .expect("move destination ancestor");
+                symlink(outside.path(), nested).expect("replace ancestor with outside link");
+            },
+        )
+        .expect("reject late linked fast ancestor");
+
+        assert!(reconciled.is_empty());
+        assert_hashed_rename_remains_pending(&fixture);
+    }
+
     #[test]
     fn hashed_rename_reconciliation_rejects_a_stale_manifest_revision() {
         let dir = tempfile::tempdir().expect("temp source");
@@ -2018,11 +2309,20 @@ mod tests {
         let old_absolute = dir.path().join(old_relative);
         let new_absolute = dir.path().join(new_relative);
         std::fs::write(&old_absolute, [5_u8; 32]).expect("write original wav");
+        let original_facts = read_facts(dir.path(), &old_absolute).expect("read original facts");
         let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
         let mut batch = db.write_batch().expect("seed source batch");
         batch
-            .upsert_file_with_hash(old_relative, 32, 1, "shared-hash")
+            .upsert_file_with_hash(
+                old_relative,
+                original_facts.size,
+                original_facts.modified_ns,
+                "shared-hash",
+            )
             .expect("insert original row");
+        batch
+            .set_file_identity(old_relative, original_facts.file_identity.as_deref())
+            .expect("store original identity");
         batch
             .set_tag(
                 old_relative,
@@ -2046,8 +2346,16 @@ mod tests {
         std::fs::rename(&old_absolute, &new_absolute).expect("rename wav");
         let mut batch = db.write_batch().expect("seed destination batch");
         batch
-            .upsert_file_with_hash(new_relative, 32, 1, "shared-hash")
+            .upsert_file_with_hash(
+                new_relative,
+                original_facts.size,
+                original_facts.modified_ns,
+                "shared-hash",
+            )
             .expect("insert destination row");
+        batch
+            .set_file_identity(new_relative, original_facts.file_identity.as_deref())
+            .expect("store destination identity");
         batch.commit().expect("commit destination row");
 
         let writer = InterleavedManifestWriter {
