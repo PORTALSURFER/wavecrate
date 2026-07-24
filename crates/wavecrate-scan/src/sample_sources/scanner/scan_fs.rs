@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -13,7 +14,7 @@ use cap_fs_ext::{DirExt, OpenOptionsFollowExt};
 use cap_std::fs::{Dir, OpenOptions};
 use tracing::warn;
 use wavecrate_library::filesystem_identity::{
-    filesystem_change_marker, stable_filesystem_identity,
+    filesystem_change_marker, stable_filesystem_identity, stable_filesystem_identity_from_open_file,
 };
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
@@ -24,7 +25,7 @@ use wavecrate_library::sample_sources::{
 use crate::sample_sources::SourceDatabase;
 
 use super::scan::ScanError;
-use super::scan::{SourceTreeFile, SourceTreeSnapshot};
+use super::scan::{DirectoryRepeatKind, SourceTreeDiagnostic, SourceTreeFile, SourceTreeSnapshot};
 use super::scan_capability::SourceRootCapability;
 use super::scan_index::{inaccessible_index_entry, index_entry_from_file_facts};
 
@@ -36,6 +37,78 @@ thread_local! {
     static FORCED_DIRECTORY_ENTRY_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
     static FORCED_FILE_TYPE_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
     static FORCED_FILE_METADATA_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+    static FORCED_DIRECTORY_IDENTITIES: RefCell<BTreeMap<PathBuf, Option<String>>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+/// A per-traversal directory identity set shared by full and targeted scans.
+#[derive(Default)]
+pub(super) struct VisitedDirectories {
+    identities: BTreeMap<String, PathBuf>,
+    diagnostics: Vec<SourceTreeDiagnostic>,
+}
+
+pub(super) enum DirectoryVisit {
+    New,
+    AlreadyVisited,
+    Repeated,
+    IdentityUnavailable,
+}
+
+impl VisitedDirectories {
+    pub(super) fn observe(
+        &mut self,
+        dir: &Dir,
+        absolute_path: &Path,
+        relative_path: &Path,
+    ) -> DirectoryVisit {
+        let identity = match directory_identity(dir, absolute_path) {
+            Ok(Some(identity)) => identity,
+            Ok(None) => {
+                self.record(SourceTreeDiagnostic::DirectoryIdentityUnavailable {
+                    path: relative_path.to_path_buf(),
+                    error: None,
+                });
+                return DirectoryVisit::IdentityUnavailable;
+            }
+            Err(error) => {
+                self.record(SourceTreeDiagnostic::DirectoryIdentityUnavailable {
+                    path: relative_path.to_path_buf(),
+                    error: Some(error.to_string()),
+                });
+                return DirectoryVisit::IdentityUnavailable;
+            }
+        };
+        if let Some(first_path) = self.identities.get(&identity) {
+            if first_path == relative_path {
+                return DirectoryVisit::AlreadyVisited;
+            }
+            let kind = if first_path.as_os_str().is_empty() || relative_path.starts_with(first_path)
+            {
+                DirectoryRepeatKind::Cycle
+            } else {
+                DirectoryRepeatKind::RepeatedTarget
+            };
+            self.record(SourceTreeDiagnostic::RepeatedDirectory {
+                path: relative_path.to_path_buf(),
+                first_path: first_path.clone(),
+                kind,
+            });
+            return DirectoryVisit::Repeated;
+        }
+        self.identities
+            .insert(identity, relative_path.to_path_buf());
+        DirectoryVisit::New
+    }
+
+    pub(super) fn record(&mut self, diagnostic: SourceTreeDiagnostic) {
+        if self.diagnostics.len() < MAX_LAYOUT_DIAGNOSTICS {
+            self.diagnostics.push(diagnostic);
+        }
+    }
+
+    pub(super) fn diagnostics(&self) -> &[SourceTreeDiagnostic] {
+        &self.diagnostics
+    }
 }
 
 /// Deterministically emulate an unreadable directory for scanner regression
@@ -65,13 +138,29 @@ pub(crate) fn force_file_metadata_failure(path: &Path) -> ForcedTraversalFailure
     ForcedTraversalFailure::new(path, ForcedFailureKind::FileMetadata)
 }
 
+/// Deterministically inject a directory identity for traversal regression tests.
 #[cfg(test)]
-#[derive(Clone, Copy)]
+pub(crate) fn force_directory_identity(
+    path: &Path,
+    identity: Option<&str>,
+) -> ForcedTraversalFailure {
+    let path = path.to_path_buf();
+    FORCED_DIRECTORY_IDENTITIES.with(|identities| {
+        identities
+            .borrow_mut()
+            .insert(path.clone(), identity.map(str::to_owned));
+    });
+    ForcedTraversalFailure::new_directory_identity(path)
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ForcedFailureKind {
     DirectoryRead,
     DirectoryEntry,
     FileType,
     FileMetadata,
+    DirectoryIdentity,
 }
 
 #[cfg(test)]
@@ -89,11 +178,25 @@ impl ForcedTraversalFailure {
         });
         Self { path, kind }
     }
+
+    #[cfg(test)]
+    fn new_directory_identity(path: PathBuf) -> Self {
+        Self {
+            path,
+            kind: ForcedFailureKind::DirectoryIdentity,
+        }
+    }
 }
 
 #[cfg(test)]
 impl Drop for ForcedTraversalFailure {
     fn drop(&mut self) {
+        if self.kind == ForcedFailureKind::DirectoryIdentity {
+            FORCED_DIRECTORY_IDENTITIES.with(|identities| {
+                identities.borrow_mut().remove(&self.path);
+            });
+            return;
+        }
         forced_failures(self.kind).with(|failures| {
             failures.borrow_mut().remove(&self.path);
         });
@@ -109,6 +212,7 @@ fn forced_failures(
         ForcedFailureKind::DirectoryEntry => &FORCED_DIRECTORY_ENTRY_FAILURES,
         ForcedFailureKind::FileType => &FORCED_FILE_TYPE_FAILURES,
         ForcedFailureKind::FileMetadata => &FORCED_FILE_METADATA_FAILURES,
+        ForcedFailureKind::DirectoryIdentity => &FORCED_DIRECTORY_READ_FAILURES,
     }
 }
 
@@ -206,7 +310,19 @@ pub(super) fn visit_dir_with_cancel_check(
         directories: vec![PathBuf::new()],
         ..SourceTreeSnapshot::default()
     };
-    let mut stack = vec![(source_root.clone_root_dir()?, PathBuf::new())];
+    let root_dir = source_root.clone_root_dir()?;
+    let mut visited = VisitedDirectories::default();
+    if !matches!(
+        visited.observe(&root_dir, root, Path::new("")),
+        DirectoryVisit::New
+    ) {
+        record_uncertain_prefix(&mut snapshot, root, root);
+        snapshot
+            .diagnostics
+            .extend_from_slice(visited.diagnostics());
+        return Ok(snapshot);
+    }
+    let mut stack = vec![(root_dir, PathBuf::new())];
     while let Some((dir, relative_dir)) = stack.pop() {
         if should_cancel() {
             return Err(ScanError::Canceled);
@@ -222,10 +338,10 @@ pub(super) fn visit_dir_with_cancel_check(
                 );
                 record_layout_diagnostic(
                     &mut snapshot,
-                    format!(
-                        "read directory {}: {source}",
-                        display_relative(root, &absolute_dir)
-                    ),
+                    SourceTreeDiagnostic::DirectoryUnavailable {
+                        path: relative_dir.clone(),
+                        error: source.to_string(),
+                    },
                 );
                 record_uncertain_prefix(&mut snapshot, root, &absolute_dir);
                 continue;
@@ -248,10 +364,10 @@ pub(super) fn visit_dir_with_cancel_check(
                     );
                     record_layout_diagnostic(
                         &mut snapshot,
-                        format!(
-                            "read directory entry {}: {err}",
-                            display_relative(root, &absolute_dir)
-                        ),
+                        SourceTreeDiagnostic::DirectoryEntryUnavailable {
+                            path: relative_dir.clone(),
+                            error: err.to_string(),
+                        },
                     );
                     record_uncertain_prefix(&mut snapshot, root, &absolute_dir);
                     continue;
@@ -275,7 +391,10 @@ pub(super) fn visit_dir_with_cancel_check(
                     );
                     record_layout_diagnostic(
                         &mut snapshot,
-                        format!("read file type {}: {err}", display_relative(root, &path)),
+                        SourceTreeDiagnostic::EntryTypeUnavailable {
+                            path: relative.clone(),
+                            error: err.to_string(),
+                        },
                     );
                     record_uncertain_prefix(&mut snapshot, root, &path);
                     snapshot.index_entries.push(inaccessible_index_entry(
@@ -291,9 +410,17 @@ pub(super) fn visit_dir_with_cancel_check(
                 policy,
             ) {
                 SourceEntryClassification::Directory { .. } => {
-                    snapshot.directories.push(relative.clone());
                     match dir.open_dir_nofollow(Path::new(&name)) {
-                        Ok(child) => stack.push((child, relative)),
+                        Ok(child) => match visited.observe(&child, &path, &relative) {
+                            DirectoryVisit::New => {
+                                snapshot.directories.push(relative.clone());
+                                stack.push((child, relative));
+                            }
+                            DirectoryVisit::AlreadyVisited => {}
+                            DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
+                                record_uncertain_prefix(&mut snapshot, root, &path);
+                            }
+                        },
                         Err(source) => {
                             warn!(
                                 path = %path.display(),
@@ -302,10 +429,10 @@ pub(super) fn visit_dir_with_cancel_check(
                             );
                             record_layout_diagnostic(
                                 &mut snapshot,
-                                format!(
-                                    "open directory {}: {source}",
-                                    display_relative(root, &path)
-                                ),
+                                SourceTreeDiagnostic::DirectoryUnavailable {
+                                    path: relative.clone(),
+                                    error: source.to_string(),
+                                },
                             );
                             if !dir
                                 .symlink_metadata(Path::new(&name))
@@ -341,10 +468,10 @@ pub(super) fn visit_dir_with_cancel_check(
                             Err(err) => {
                                 record_layout_diagnostic(
                                     &mut snapshot,
-                                    format!(
-                                        "read file metadata {}: {err}",
-                                        display_relative(root, &path)
-                                    ),
+                                    SourceTreeDiagnostic::FileMetadataUnavailable {
+                                        path: relative.clone(),
+                                        error: err.to_string(),
+                                    },
                                 );
                                 record_uncertain_prefix(&mut snapshot, root, &path);
                                 snapshot.index_entries.push(inaccessible_index_entry(
@@ -366,6 +493,10 @@ pub(super) fn visit_dir_with_cancel_check(
     snapshot
         .index_entries
         .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    snapshot
+        .diagnostics
+        .extend_from_slice(visited.diagnostics());
+    snapshot.diagnostics.truncate(MAX_LAYOUT_DIAGNOSTICS);
     snapshot.uncertain_prefixes.sort();
     Ok(snapshot)
 }
@@ -426,6 +557,17 @@ fn read_dir(dir: &Dir, path: &Path) -> Result<cap_std::fs::ReadDir, std::io::Err
     dir.entries()
 }
 
+fn directory_identity(dir: &Dir, _path: &Path) -> Result<Option<String>, std::io::Error> {
+    #[cfg(test)]
+    if let Some(identity) =
+        FORCED_DIRECTORY_IDENTITIES.with(|identities| identities.borrow().get(_path).cloned())
+    {
+        return Ok(identity);
+    }
+    let file = dir.try_clone()?.into_std_file();
+    Ok(stable_filesystem_identity_from_open_file(&file))
+}
+
 fn read_file_type(
     entry: &cap_std::fs::DirEntry,
     _path: &Path,
@@ -448,17 +590,10 @@ fn read_dir_entry(
     entry
 }
 
-fn record_layout_diagnostic(snapshot: &mut SourceTreeSnapshot, diagnostic: String) {
+fn record_layout_diagnostic(snapshot: &mut SourceTreeSnapshot, diagnostic: SourceTreeDiagnostic) {
     if snapshot.diagnostics.len() < MAX_LAYOUT_DIAGNOSTICS {
         snapshot.diagnostics.push(diagnostic);
     }
-}
-
-fn display_relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .display()
-        .to_string()
 }
 
 #[cfg(test)]
@@ -726,5 +861,47 @@ mod tests {
         };
 
         assert!(!facts.same_content_snapshot(&facts));
+    }
+
+    #[test]
+    fn injected_directory_identities_distinguish_cycles_repeats_and_fallback() {
+        use cap_fs_ext::ambient_authority;
+
+        let temp = tempfile::tempdir().unwrap();
+        let child_path = temp.path().join("child");
+        std::fs::create_dir(&child_path).unwrap();
+        let root_dir =
+            cap_std::fs::Dir::open_ambient_dir(temp.path(), ambient_authority()).unwrap();
+        let child_dir = root_dir.open_dir("child").unwrap();
+        let _root_identity = force_directory_identity(temp.path(), Some("root"));
+        let _child_identity = force_directory_identity(&child_path, Some("root"));
+
+        let mut visited = VisitedDirectories::default();
+        assert!(matches!(
+            visited.observe(&root_dir, temp.path(), Path::new("")),
+            DirectoryVisit::New
+        ));
+        assert!(matches!(
+            visited.observe(&child_dir, &child_path, Path::new("child")),
+            DirectoryVisit::Repeated
+        ));
+        assert!(matches!(
+            visited.diagnostics(),
+            [SourceTreeDiagnostic::RepeatedDirectory {
+                kind: DirectoryRepeatKind::Cycle,
+                ..
+            }]
+        ));
+
+        drop(_child_identity);
+        let _unsupported = force_directory_identity(&child_path, None);
+        assert!(matches!(
+            visited.observe(&child_dir, &child_path, Path::new("child")),
+            DirectoryVisit::IdentityUnavailable
+        ));
+        assert!(matches!(
+            visited.diagnostics().last(),
+            Some(SourceTreeDiagnostic::DirectoryIdentityUnavailable { error: None, .. })
+        ));
     }
 }

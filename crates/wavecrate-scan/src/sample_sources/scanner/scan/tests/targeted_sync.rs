@@ -1,5 +1,7 @@
 use super::*;
+use crate::sample_sources::scanner::scan_fs::force_directory_identity;
 use crate::sample_sources::scanner::scan_fs::force_directory_read_failure;
+use crate::sample_sources::scanner::{DirectoryRepeatKind, SourceTreeDiagnostic};
 use crate::sample_sources::scanner::{sync_paths, sync_paths_with_progress};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -369,6 +371,86 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
         .expect("targeted sync must resume from the committed checkpoint");
     assert_eq!(resumed.total_files, 70);
     assert_eq!(db.count_files().unwrap(), 70);
+}
+
+#[test]
+fn targeted_sync_reconciles_each_directory_identity_once() {
+    let source = tempdir().unwrap();
+    let parent = source.path().join("parent");
+    let first = parent.join("first");
+    let second = parent.join("second");
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&second).unwrap();
+    std::fs::write(first.join("first.wav"), b"first").unwrap();
+    std::fs::write(second.join("second.wav"), b"second").unwrap();
+
+    let _first_identity = force_directory_identity(&first, Some("repeated-target"));
+    let _second_identity = force_directory_identity(&second, Some("repeated-target"));
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+    let ScanError::Incomplete { committed, .. } =
+        sync_paths(&db, &[PathBuf::from("parent")]).unwrap_err()
+    else {
+        panic!("an injected repeated subtree must return the committed partial result");
+    };
+    let stats = *committed;
+
+    assert_eq!(stats.total_files, 1);
+    assert!(
+        stats
+            .traversal_diagnostics
+            .iter()
+            .any(|diagnostic| matches!(
+                diagnostic,
+                SourceTreeDiagnostic::RepeatedDirectory {
+                    kind: DirectoryRepeatKind::RepeatedTarget,
+                    ..
+                }
+            ))
+    );
+}
+
+#[test]
+fn targeted_sync_processes_sibling_files_sharing_a_parent_target() {
+    let source = tempdir().unwrap();
+    let nested = source.path().join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::write(nested.join("first.wav"), b"first").unwrap();
+    std::fs::write(nested.join("second.wav"), b"second").unwrap();
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+
+    let stats = sync_paths(
+        &db,
+        &[
+            PathBuf::from("nested/first.wav"),
+            PathBuf::from("nested/second.wav"),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(stats.total_files, 2);
+    assert_eq!(db.count_files().unwrap(), 2);
+    assert!(stats.traversal_diagnostics.is_empty());
+}
+
+#[test]
+fn targeted_sync_rejects_a_file_below_a_repeated_ancestor() {
+    let source = tempdir().unwrap();
+    let alias = source.path().join("alias");
+    std::fs::create_dir(&alias).unwrap();
+    let target = alias.join("keep.wav");
+    std::fs::write(&target, b"keep").unwrap();
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+    scan_once(&db).unwrap();
+
+    let _root_identity = force_directory_identity(source.path(), Some("root-identity"));
+    let _alias_identity = force_directory_identity(&alias, Some("root-identity"));
+    let ScanError::Incomplete { .. } =
+        sync_paths(&db, &[PathBuf::from("alias/keep.wav")]).unwrap_err()
+    else {
+        panic!("a repeated targeted ancestor must return an incomplete scan");
+    };
+
+    assert_eq!(db.count_files().unwrap(), 1);
 }
 
 #[cfg(unix)]
