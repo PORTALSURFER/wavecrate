@@ -415,6 +415,7 @@ fn display_relative(root: &Path, path: &Path) -> String {
         .to_string()
 }
 
+#[cfg(test)]
 pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanError> {
     let relative = strip_relative(root, path)?;
     #[cfg(test)]

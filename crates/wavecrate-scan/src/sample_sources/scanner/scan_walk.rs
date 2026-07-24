@@ -13,7 +13,7 @@ use wavecrate_library::sample_sources::SourceIndexDiagnostic;
 use super::scan::{ScanContext, ScanError};
 use super::scan_capability::{SourcePathBinding, SourceRootCapability};
 use super::scan_diff::{PreparedFile, apply_diff};
-use super::scan_diff_phase::prepare_diff;
+use super::scan_diff_phase::prepare_diff_from_facts;
 use super::scan_fs::{
     compute_content_hash_with_reader, is_supported_scannable_audio_file, read_facts_from_open_file,
     visit_dir_with_cancel_check,
@@ -36,6 +36,7 @@ pub(super) fn walk_phase(
     // resumes from the durable partial index without presenting it as a complete generation.
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
+    let source_root = SourceRootCapability::open(root)?;
     let source_tree_snapshot =
         visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
             if cancel_requested(cancel) {
@@ -48,25 +49,29 @@ pub(super) fn walk_phase(
             if context.skip_previously_audited_path(&relative_path) {
                 return Ok(());
             }
-            let mut prepared = match prepare_diff(root, path, context) {
-                Ok(prepared) => prepared,
-                Err(error) => {
-                    context.mark_source_tree_incomplete();
-                    context.existing.remove(&relative_path);
-                    context.mark_uncertain_prefixes([relative_path.clone()]);
-                    context.observe_index_entries([inaccessible_index_entry(
-                        relative_path,
-                        SourceIndexDiagnostic::MetadataUnavailable,
-                    )]);
-                    tracing::warn!(
-                        path = %path.display(),
-                        error = %error,
-                        committed = committed.get(),
-                        "Persisting an inaccessible supported file for retry"
-                    );
-                    return Ok(());
-                }
-            };
+            let mut prepared =
+                match prepare_diff_from_capability(&source_root, root, &relative_path, context) {
+                    Ok(Some(prepared)) => prepared,
+                    Ok(None) => {
+                        record_unavailable_preparation(
+                            context,
+                            relative_path,
+                            path,
+                            committed.get(),
+                        );
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        record_inaccessible_preparation(
+                            context,
+                            relative_path,
+                            path,
+                            committed.get(),
+                            &error,
+                        );
+                        return Ok(());
+                    }
+                };
             if !context.resumable_manifest_audit_active() {
                 context.stats.total_files += 1;
                 if let Some(on_progress) = on_progress.as_mut() {
@@ -74,8 +79,14 @@ pub(super) fn walk_phase(
                 }
             }
             if !prepared.requires_apply {
-                let Some(refreshed) =
-                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+                let Some(refreshed) = refresh_noop_preparation_or_skip(
+                    db,
+                    root,
+                    &source_root,
+                    context,
+                    prepared,
+                    committed.get(),
+                )?
                 else {
                     return Ok(());
                 };
@@ -153,6 +164,61 @@ fn publish_manifest_audit_progress(
     }
 }
 
+fn prepare_diff_from_capability(
+    source_root: &SourceRootCapability,
+    root: &Path,
+    relative_path: &Path,
+    context: &ScanContext,
+) -> Result<Option<PreparedFile>, ScanError> {
+    let Some(file) = source_root.open_regular_file(relative_path)? else {
+        return Ok(None);
+    };
+    let absolute = root.join(relative_path);
+    let facts = read_facts_from_open_file(root, &absolute, &file)?;
+    let mut prepared = prepare_diff_from_facts(facts, context);
+    prepared.source_file = Some(file);
+    prepared.source_handle_verified = true;
+    Ok(Some(prepared))
+}
+
+fn record_unavailable_preparation(
+    context: &mut ScanContext,
+    relative_path: std::path::PathBuf,
+    path: &Path,
+    committed: bool,
+) {
+    context.mark_source_tree_incomplete();
+    context.existing.remove(&relative_path);
+    context.mark_uncertain_prefixes([relative_path]);
+    tracing::warn!(
+        path = %path.display(),
+        committed,
+        "Persisting a source file that no longer opens without following links for retry"
+    );
+}
+
+fn record_inaccessible_preparation(
+    context: &mut ScanContext,
+    relative_path: std::path::PathBuf,
+    path: &Path,
+    committed: bool,
+    error: &ScanError,
+) {
+    context.mark_source_tree_incomplete();
+    context.existing.remove(&relative_path);
+    context.mark_uncertain_prefixes([relative_path.clone()]);
+    context.observe_index_entries([inaccessible_index_entry(
+        relative_path,
+        SourceIndexDiagnostic::MetadataUnavailable,
+    )]);
+    tracing::warn!(
+        path = %path.display(),
+        %error,
+        committed,
+        "Persisting an inaccessible supported file for retry"
+    );
+}
+
 pub(super) fn apply_prepared_chunk(
     db: &SourceDatabase,
     root: &Path,
@@ -162,11 +228,18 @@ pub(super) fn apply_prepared_chunk(
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
 ) -> Result<bool, ScanError> {
+    let source_root = SourceRootCapability::open(root)?;
     let mut pending = Vec::with_capacity(prepared.len());
     for mut file in prepared {
         if !file.requires_apply {
-            let Some(refreshed) =
-                refresh_noop_preparation_or_skip(db, root, context, file, tolerate_file_errors)?
+            let Some(refreshed) = refresh_noop_preparation_or_skip(
+                db,
+                root,
+                &source_root,
+                context,
+                file,
+                tolerate_file_errors,
+            )?
             else {
                 continue;
             };
@@ -196,13 +269,18 @@ pub(super) fn apply_prepared_chunk(
 fn refresh_noop_preparation_or_skip(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     context: &mut ScanContext,
     prepared: PreparedFile,
     tolerate_file_errors: bool,
 ) -> Result<Option<PreparedFile>, ScanError> {
     let relative_path = prepared.facts.relative.clone();
-    match refresh_noop_preparation(db, root, context, prepared) {
-        Ok(prepared) => Ok(Some(prepared)),
+    match refresh_noop_preparation(db, root, source_root, context, prepared) {
+        Ok(Some(prepared)) => Ok(Some(prepared)),
+        Ok(None) => {
+            context.mark_source_tree_incomplete();
+            Ok(None)
+        }
         Err(error) if tolerate_file_errors => {
             context.mark_source_tree_incomplete();
             skip_changed_or_unavailable(context, root, &relative_path);
@@ -220,9 +298,10 @@ fn refresh_noop_preparation_or_skip(
 fn refresh_noop_preparation(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     context: &mut ScanContext,
     prepared: PreparedFile,
-) -> Result<PreparedFile, ScanError> {
+) -> Result<Option<PreparedFile>, ScanError> {
     let relative_path = prepared.facts.relative.clone();
     let current = db.entry_for_path(&relative_path)?;
     let snapshot = context.existing.get(&relative_path);
@@ -236,7 +315,7 @@ fn refresh_noop_preparation(
                 && entry.content_hash == snapshot.content_hash
         })
     {
-        return Ok(prepared);
+        return Ok(Some(prepared));
     }
     match current {
         Some(entry) => {
@@ -246,7 +325,7 @@ fn refresh_noop_preparation(
             context.existing.remove(&relative_path);
         }
     }
-    prepare_diff(root, &root.join(relative_path), context)
+    prepare_diff_from_capability(source_root, root, &relative_path, context)
 }
 
 pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {
@@ -269,6 +348,29 @@ fn apply_batch(
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
+) -> Result<ApplyBatchOutcome, ScanError> {
+    apply_batch_with_precommit_hook(
+        db,
+        root,
+        cancel,
+        context,
+        prepared,
+        tolerate_file_errors,
+        writer,
+        |_| {},
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_batch_with_precommit_hook(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
+    context: &mut ScanContext,
+    prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
+    writer: &impl ScanWriter,
+    mut precommit: impl FnMut(&Path),
 ) -> Result<ApplyBatchOutcome, ScanError> {
     let source_root = SourceRootCapability::open(root)?;
     let mut ready = Vec::with_capacity(prepared.len());
@@ -317,9 +419,12 @@ fn apply_batch(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    let stats_before_staging = context.stats.clone();
+    let generation_before_staging = context.rename_candidate_generation;
     context.ensure_rename_candidate_generation(&mut batch)?;
     let mut audited_paths = Vec::with_capacity(ready.len());
-    for file in ready {
+    let mut retained = Vec::with_capacity(ready.len());
+    for mut file in ready {
         let relative_path = file.facts.relative.clone();
         let file_handle = file
             .source_file
@@ -333,7 +438,10 @@ fn apply_batch(
             context.existing.remove(&relative_path);
             continue;
         }
-        match source_root.path_binding(&relative_path, file_handle)? {
+        match source_root
+            .path_binding(&relative_path, file_handle)
+            .unwrap_or(SourcePathBinding::Changed)
+        {
             SourcePathBinding::Matches => {}
             // A link or absence is a definite deletion: leave its old row in
             // `existing` for the missing phase to retire.
@@ -344,17 +452,91 @@ fn apply_batch(
                 continue;
             }
         }
+        let retained_file = file
+            .source_file
+            .take()
+            .expect("validated source files retain their descriptor until commit");
+        let retained_facts = file.facts.clone();
+        let content_was_hashed = file.content_hash.is_some();
+        let existing_before = context.existing.get(&relative_path).cloned();
         apply_diff(db, &mut batch, file, context)?;
-        audited_paths.push(relative_path);
+        audited_paths.push(relative_path.clone());
+        retained.push(RetainedPublication {
+            relative_path,
+            facts: retained_facts,
+            content_was_hashed,
+            file: retained_file,
+            existing_before,
+        });
     }
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
+    }
+    for publication in &retained {
+        precommit(&publication.relative_path);
+    }
+    let final_bindings = retained
+        .iter()
+        .map(|publication| {
+            let absolute = root.join(&publication.relative_path);
+            let descriptor_matches = read_facts_from_open_file(root, &absolute, &publication.file)
+                .is_ok_and(|facts| {
+                    if publication.content_was_hashed {
+                        publication.facts.same_content_snapshot(&facts)
+                    } else {
+                        publication.facts.same_file_facts(&facts)
+                    }
+                });
+            let binding = source_root
+                .path_binding(&publication.relative_path, &publication.file)
+                .unwrap_or(SourcePathBinding::Changed);
+            (
+                publication.relative_path.clone(),
+                descriptor_matches,
+                binding,
+            )
+        })
+        .collect::<Vec<_>>();
+    if final_bindings
+        .iter()
+        .any(|(_, descriptor_matches, binding)| {
+            !descriptor_matches || *binding != SourcePathBinding::Matches
+        })
+    {
+        drop(batch);
+        context.stats = stats_before_staging;
+        context.rename_candidate_generation = generation_before_staging;
+        for publication in &retained {
+            if let Some(existing) = publication.existing_before.clone() {
+                context
+                    .existing
+                    .insert(publication.relative_path.clone(), existing);
+            } else {
+                context.existing.remove(&publication.relative_path);
+            }
+        }
+        for (relative_path, _descriptor_matches, binding) in final_bindings {
+            if binding == SourcePathBinding::Retire {
+                continue;
+            }
+            context.existing.remove(&relative_path);
+        }
+        context.mark_source_tree_incomplete();
+        return Ok(ApplyBatchOutcome::default());
     }
     context.commit_batch(batch)?;
     Ok(ApplyBatchOutcome {
         committed: true,
         audited_paths,
     })
+}
+
+struct RetainedPublication {
+    relative_path: std::path::PathBuf,
+    facts: super::scan_fs::FileFacts,
+    content_was_hashed: bool,
+    file: std::fs::File,
+    existing_before: Option<crate::sample_sources::WavEntry>,
 }
 
 #[derive(Default)]
@@ -474,7 +656,8 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        PrepareForApply, apply_batch, finalize_source_tree_snapshot, prepare_for_apply,
+        PrepareForApply, SourceRootCapability, apply_batch, apply_batch_with_precommit_hook,
+        finalize_source_tree_snapshot, prepare_diff_from_capability, prepare_for_apply,
         prepare_for_apply_with_post_hash_hook, refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
@@ -536,9 +719,16 @@ mod tests {
         batch.remove_file(Path::new("one.wav")).unwrap();
         batch.commit().unwrap();
 
-        let refreshed =
-            refresh_noop_preparation_or_skip(&db, dir.path(), &mut context, prepared, true)
-                .unwrap();
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let refreshed = refresh_noop_preparation_or_skip(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            prepared,
+            true,
+        )
+        .unwrap();
 
         assert!(refreshed.is_none());
         assert!(context.source_tree_incomplete());
@@ -637,6 +827,71 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn full_scan_fact_collection_rejects_an_outside_link_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("one.wav");
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+
+        std::fs::remove_file(&source).unwrap();
+        symlink(&outside_file, &source).unwrap();
+
+        assert!(
+            prepare_diff_from_capability(&source_root, dir.path(), Path::new("one.wav"), &context,)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_scan_fact_collection_rejects_an_outside_link_ancestor() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        let moved = dir.path().join("moved");
+        std::fs::create_dir(&nested).unwrap();
+        std::fs::write(nested.join("one.wav"), b"inside").unwrap();
+        let outside = tempdir().unwrap();
+        std::fs::write(outside.path().join("one.wav"), b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+
+        std::fs::rename(&nested, &moved).unwrap();
+        symlink(outside.path(), &nested).unwrap();
+
+        assert!(!matches!(
+            prepare_diff_from_capability(
+                &source_root,
+                dir.path(),
+                Path::new("nested/one.wav"),
+                &context,
+            ),
+            Ok(Some(_))
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn full_scan_hash_rejects_an_outside_link_replacement_during_hashing() {
         use std::os::unix::fs::symlink;
 
@@ -665,6 +920,93 @@ mod tests {
             })
             .unwrap();
         assert!(matches!(outcome, PrepareForApply::Skip));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_scan_does_not_publish_an_outside_link_replacement_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+
+        let outcome = apply_batch_with_precommit_hook(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            false,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+            |path| {
+                let absolute = dir.path().join(path);
+                std::fs::remove_file(&absolute).unwrap();
+                symlink(&outside_file, absolute).unwrap();
+            },
+        )
+        .unwrap();
+
+        assert!(!outcome.committed);
+        assert!(context.source_tree_incomplete());
+        assert!(db.entry_for_path(relative).unwrap().is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn targeted_sync_does_not_publish_an_outside_link_replacement_before_commit() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let prepared = prepare_diff(dir.path(), &source, &context).unwrap();
+
+        let outcome = apply_batch_with_precommit_hook(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            false,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+            |path| {
+                let absolute = dir.path().join(path);
+                std::fs::remove_file(&absolute).unwrap();
+                symlink(&outside_file, absolute).unwrap();
+            },
+        )
+        .unwrap();
+
+        assert!(!outcome.committed);
+        assert!(context.source_tree_incomplete());
+        assert!(db.entry_for_path(relative).unwrap().is_none());
     }
 
     #[cfg(unix)]
