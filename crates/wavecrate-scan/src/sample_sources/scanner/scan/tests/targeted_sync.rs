@@ -104,6 +104,7 @@ fn targeted_sync_hides_confirmed_missing_file() {
     assert_eq!(stats.missing, 1);
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
+    assert!(db.list_source_index_entries().unwrap().is_empty());
     assert_eq!(rows[0].relative_path, Path::new("two.wav"));
     assert_eq!(stats.committed_delta.deleted.len(), 1);
 }
@@ -259,6 +260,7 @@ fn targeted_sync_ignores_appledouble_sidecars() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("drums/kick.wav"));
+    assert!(db.list_source_index_entries().unwrap().is_empty());
 }
 
 #[test]

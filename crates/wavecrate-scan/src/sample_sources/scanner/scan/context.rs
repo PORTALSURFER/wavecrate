@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
+use crate::sample_sources::db::{SourceIndexEntry, SourceWriteBatch, WavEntry};
 use wavecrate_library::sample_sources::SourceManifestEntry;
 
 use super::{ScanError, ScanMode, ScanStats};
@@ -12,6 +12,8 @@ pub(crate) struct ScanContext {
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
     pub(crate) rename_candidate_generation: Option<u64>,
+    existing_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
+    observed_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
     committed_manifest: BTreeMap<PathBuf, SourceManifestEntry>,
     committed_manifest_revision: u64,
     pub(crate) last_committed_revision: Option<u64>,
@@ -34,12 +36,13 @@ impl ScanContext {
         manifest: Vec<SourceManifestEntry>,
     ) -> Result<Self, ScanError> {
         let existing = index_existing(db)?;
-        Ok(Self::from_existing(
-            existing,
-            mode,
-            manifest_revision,
-            manifest,
-        ))
+        let mut context = Self::from_existing(existing, mode, manifest_revision, manifest);
+        context.existing_index_entries = db
+            .list_source_index_entries()?
+            .into_iter()
+            .map(|entry| (entry.relative_path.clone(), entry))
+            .collect();
+        Ok(context)
     }
 
     pub(in crate::sample_sources::scanner) fn from_existing(
@@ -53,6 +56,8 @@ impl ScanContext {
             stats: ScanStats::default(),
             mode,
             rename_candidate_generation: None,
+            existing_index_entries: BTreeMap::new(),
+            observed_index_entries: BTreeMap::new(),
             committed_manifest: manifest
                 .into_iter()
                 .map(|entry| (entry.relative_path.clone(), entry))
@@ -63,6 +68,41 @@ impl ScanContext {
             source_tree_incomplete: false,
             uncertain_prefixes: BTreeSet::new(),
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn set_targeted_index_entries(
+        &mut self,
+        existing: impl IntoIterator<Item = SourceIndexEntry>,
+        observed: impl IntoIterator<Item = SourceIndexEntry>,
+    ) {
+        self.existing_index_entries = existing
+            .into_iter()
+            .map(|entry| (entry.relative_path.clone(), entry))
+            .collect();
+        self.observe_index_entries(observed);
+    }
+
+    pub(in crate::sample_sources::scanner) fn observe_index_entries(
+        &mut self,
+        entries: impl IntoIterator<Item = SourceIndexEntry>,
+    ) {
+        self.observed_index_entries.extend(
+            entries
+                .into_iter()
+                .map(|entry| (entry.relative_path.clone(), entry)),
+        );
+    }
+
+    pub(in crate::sample_sources::scanner) fn take_index_reconciliation(
+        &mut self,
+    ) -> (
+        BTreeMap<PathBuf, SourceIndexEntry>,
+        BTreeMap<PathBuf, SourceIndexEntry>,
+    ) {
+        (
+            std::mem::take(&mut self.existing_index_entries),
+            std::mem::take(&mut self.observed_index_entries),
+        )
     }
 
     pub(in crate::sample_sources::scanner) fn mark_source_tree_incomplete(&mut self) {

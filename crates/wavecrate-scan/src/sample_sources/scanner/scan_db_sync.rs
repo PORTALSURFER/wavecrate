@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::scan::{ScanContext, ScanError};
 use super::scan_diff::mark_missing;
+use super::scan_index::reconcile_index_entries;
 use super::scan_writer::{ScanWritePhase, ScanWriter};
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT;
@@ -45,6 +46,7 @@ pub(super) fn db_sync_phase(
         context.commit_batch(batch)?;
     }
 
+    reconcile_index_entries(db, context, writer)?;
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }

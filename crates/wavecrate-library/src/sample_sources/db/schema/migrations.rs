@@ -42,6 +42,7 @@ pub(super) fn apply_current_stamp_repairs(connection: &Connection) -> Result<(),
 
 fn apply_structural_migrations(connection: &Connection) -> Result<(), SourceDbError> {
     ensure_wav_files_optional_columns(connection)?;
+    ensure_source_index_schema(connection)?;
     ensure_pending_rename_optional_columns(connection)?;
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
@@ -53,6 +54,30 @@ fn apply_structural_migrations(connection: &Connection) -> Result<(), SourceDbEr
     ensure_collection_membership_schema(connection)?;
     ensure_pending_rename_destination_schema(connection)?;
     ensure_aspect_descriptor_tables(connection)?;
+    Ok(())
+}
+
+fn ensure_source_index_schema(connection: &Connection) -> Result<(), SourceDbError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS source_index_entries (
+                path TEXT PRIMARY KEY,
+                classification TEXT NOT NULL CHECK(classification IN (
+                    'unsupported_audio',
+                    'unsupported_non_audio',
+                    'inaccessible',
+                    'practically_unsupported_audio'
+                )),
+                file_size INTEGER,
+                modified_ns INTEGER,
+                file_identity TEXT,
+                diagnostic TEXT,
+                format_policy_version INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS idx_source_index_entries_classification_path
+                ON source_index_entries(classification, path);",
+        )
+        .map_err(map_sql_error)?;
     Ok(())
 }
 

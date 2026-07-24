@@ -36,6 +36,9 @@ impl SourceWriteBatch<'_> {
         if self.paths_revision_dirty || !self.manifest_touched_paths.is_empty() {
             return Err(SourceDbError::Unexpected);
         }
+        if self.index_revision_dirty {
+            SourceDatabase::bump_source_index_revision(&self.tx)?;
+        }
         self.tx.commit().map_err(map_sql_error)?;
         crate::sqlite_wal::maybe_checkpoint_database_file(
             &self.db_path,
@@ -144,6 +147,9 @@ impl SourceWriteBatch<'_> {
         SourceDatabase::bump_revision(&self.tx)?;
         if self.paths_revision_dirty {
             SourceDatabase::bump_wav_paths_revision(&self.tx)?;
+        }
+        if self.index_revision_dirty {
+            SourceDatabase::bump_source_index_revision(&self.tx)?;
         }
         Ok(())
     }

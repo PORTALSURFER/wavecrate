@@ -5,6 +5,7 @@ mod scan_diff;
 mod scan_diff_phase;
 mod scan_fs;
 mod scan_hash;
+mod scan_index;
 mod scan_paths;
 mod scan_walk;
 mod scan_writer;

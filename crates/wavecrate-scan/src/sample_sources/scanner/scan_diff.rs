@@ -42,6 +42,7 @@ pub(super) fn apply_diff(
     let path = facts.relative.clone();
     let should_hash = hash_required;
     let _ = context.existing.remove(&path);
+    batch.remove_source_index_entry(&path)?;
     let existing = db.entry_for_path(&path)?;
     match existing {
         Some(entry)
