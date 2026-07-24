@@ -670,6 +670,137 @@ fn interrupted_manifest_audit_resumes_checked_paths_and_finishes_deletion_reconc
 }
 
 #[test]
+fn interrupted_manifest_audit_revalidates_a_checkpointed_file() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..70 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let first =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 100, &mut |checked, _| {
+            if checked >= 64 {
+                cancel.store(true, Ordering::Release);
+            }
+        });
+    assert!(matches!(first, Err(ScanError::Incomplete { .. })));
+
+    let checked = db
+        .begin_or_resume_manifest_audit(101)
+        .expect("load durable audit checkpoint");
+    assert_eq!(checked.len(), 64);
+    let relative = &checked[0];
+    let path = dir.path().join(relative);
+    let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let original_entry = db
+        .entry_for_path(relative)
+        .unwrap()
+        .expect("checkpointed path is indexed");
+    let original_modified_ns = original_entry.modified_ns;
+    let original_hash = original_entry
+        .content_hash
+        .expect("small fixture is hashed during the quick scan");
+
+    std::fs::write(&path, b"y").unwrap();
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+        .unwrap();
+    cancel.store(false, Ordering::Release);
+    let resumed = audit_source_and_record_with_progress(&db, Some(&cancel), 0, 200, &mut |_, _| {})
+        .expect("resume interrupted manifest audit");
+    let entry = db
+        .entry_for_path(relative)
+        .unwrap()
+        .expect("checkpointed path remains indexed");
+
+    assert_eq!(entry.file_size, 1);
+    assert_eq!(entry.modified_ns, original_modified_ns);
+    assert_ne!(entry.content_hash.as_deref(), Some(original_hash.as_str()));
+    assert_eq!(resumed.updated, 1);
+    assert!(resumed.content_changed >= 1);
+    assert!(
+        resumed
+            .committed_delta
+            .changed
+            .iter()
+            .any(|changed| changed.relative_path == *relative)
+    );
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("200")
+    );
+}
+
+#[test]
+fn interrupted_manifest_audit_revalidates_checkpointed_paths_in_bounded_slices() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..128 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+    let first =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 100, &mut |checked, _| {
+            if checked >= 128 {
+                cancel.store(true, Ordering::Release);
+            }
+        });
+    assert!(matches!(first, Err(ScanError::Incomplete { .. })));
+
+    let checked = db
+        .begin_or_resume_manifest_audit(101)
+        .expect("load durable audit checkpoint");
+    assert_eq!(checked.len(), 128);
+    let relative = &checked[0];
+    let path = dir.path().join(relative);
+    let original_hash = db
+        .entry_for_path(relative)
+        .unwrap()
+        .expect("checkpointed path is indexed")
+        .content_hash
+        .expect("small fixture is hashed during the quick scan");
+    std::fs::write(&path, b"y").unwrap();
+
+    let resumed = audit_source_and_record(&db, None, 0, 200);
+    assert!(matches!(resumed, Err(ScanError::Incomplete { .. })));
+    assert_eq!(
+        db.begin_or_resume_manifest_audit(201)
+            .expect("load remaining bounded checkpoint work")
+            .len(),
+        64
+    );
+    assert_ne!(
+        db.entry_for_path(relative)
+            .unwrap()
+            .unwrap()
+            .content_hash
+            .as_deref(),
+        Some(original_hash.as_str())
+    );
+    assert!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .is_none(),
+        "audit completion must remain pending while checkpoint slices remain"
+    );
+
+    audit_source_and_record(&db, None, 0, 300).expect("finish remaining checkpoint slice");
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("300")
+    );
+}
+
+#[test]
 fn cancellation_after_walk_skips_missing_reconciliation_and_completion_publish() {
     use std::sync::atomic::{AtomicBool, Ordering};
 

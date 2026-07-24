@@ -47,9 +47,6 @@ pub(super) fn walk_phase(
                 .strip_prefix(root)
                 .map(Path::to_path_buf)
                 .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
-            if context.skip_previously_audited_path(&relative_path) {
-                return Ok(());
-            }
             let mut prepared =
                 match prepare_diff_from_capability(&source_root, root, &relative_path, context) {
                     Ok(Some(prepared)) => prepared,
@@ -153,6 +150,10 @@ pub(super) fn walk_phase(
             publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
         }
     }
+    context.mark_uncertain_prefixes(source_tree_snapshot.uncertain_prefixes.clone());
+    if !context.has_uncertain_prefixes() {
+        context.complete_missing_manifest_audit_paths();
+    }
     flush_manifest_audit_checkpoint_with_noops(
         db,
         root,
@@ -160,7 +161,6 @@ pub(super) fn walk_phase(
         context,
         &mut pending_noops,
     )?;
-    context.mark_uncertain_prefixes(source_tree_snapshot.uncertain_prefixes.clone());
     context.observe_index_entries(source_tree_snapshot.index_entries.clone());
     context.stats.source_tree_snapshot =
         Some(finalize_source_tree_snapshot(context, source_tree_snapshot));
@@ -803,6 +803,7 @@ mod tests {
             hash_required: true,
             needs_hash: false,
             requires_apply: true,
+            revalidate_checkpoint: false,
             identity_replaced: false,
             content_hash: None,
             source_file: None,
@@ -1069,6 +1070,7 @@ mod tests {
             hash_required: true,
             needs_hash: true,
             requires_apply: true,
+            revalidate_checkpoint: false,
             identity_replaced: false,
             content_hash: None,
             source_file: None,
@@ -1195,6 +1197,7 @@ mod tests {
             hash_required: true,
             needs_hash: true,
             requires_apply: true,
+            revalidate_checkpoint: false,
             identity_replaced: false,
             content_hash: None,
             source_file: None,
@@ -1375,6 +1378,7 @@ mod tests {
             hash_required: false,
             needs_hash: false,
             requires_apply: true,
+            revalidate_checkpoint: false,
             identity_replaced: false,
             content_hash: None,
             source_file: Some(file),
