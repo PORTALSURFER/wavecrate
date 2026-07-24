@@ -305,17 +305,46 @@ fn refresh_noop_preparation(
     let relative_path = prepared.facts.relative.clone();
     let current = db.entry_for_path(&relative_path)?;
     let snapshot = context.existing.get(&relative_path);
-    if current
-        .as_ref()
-        .zip(snapshot)
-        .is_some_and(|(entry, snapshot)| {
-            !entry.missing
-                && entry.file_size == prepared.facts.size
-                && entry.modified_ns == prepared.facts.modified_ns
-                && entry.content_hash == snapshot.content_hash
-        })
-    {
-        return Ok(Some(prepared));
+    let database_snapshot_matches =
+        current
+            .as_ref()
+            .zip(snapshot)
+            .is_some_and(|(entry, snapshot)| {
+                !entry.missing
+                    && entry.file_size == prepared.facts.size
+                    && entry.modified_ns == prepared.facts.modified_ns
+                    && entry.content_hash == snapshot.content_hash
+            });
+    if database_snapshot_matches {
+        let mut prepared = prepared;
+        let file = match prepared.source_file.take() {
+            Some(file) => file,
+            None => {
+                let Some(file) = source_root.open_regular_file(&relative_path)? else {
+                    return Ok(None);
+                };
+                file
+            }
+        };
+        let absolute = root.join(&relative_path);
+        let descriptor_matches = read_facts_from_open_file(root, &absolute, &file)
+            .is_ok_and(|facts| prepared_still_current(&prepared, &facts));
+        match source_root
+            .path_binding(&relative_path, &file)
+            .unwrap_or(SourcePathBinding::Changed)
+        {
+            SourcePathBinding::Matches if descriptor_matches => {
+                prepared.source_file = Some(file);
+                prepared.source_handle_verified = true;
+                return Ok(Some(prepared));
+            }
+            // Leave the prior row eligible for missing reconciliation.
+            SourcePathBinding::Retire => return Ok(None),
+            SourcePathBinding::Matches | SourcePathBinding::Changed => {
+                context.existing.remove(&relative_path);
+                return Ok(None);
+            }
+        }
     }
     match current {
         Some(entry) => {
@@ -734,6 +763,51 @@ mod tests {
         assert!(context.source_tree_incomplete());
         let snapshot = finalize_source_tree_snapshot(&context, Default::default());
         assert!(!snapshot.is_complete());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_scan_noop_does_not_audit_a_late_outside_link_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(relative).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(relative.to_path_buf(), entry)]),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+        assert!(!prepared.requires_apply);
+
+        std::fs::remove_file(&source).unwrap();
+        symlink(&outside_file, &source).unwrap();
+
+        let refreshed = refresh_noop_preparation_or_skip(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            prepared,
+            false,
+        )
+        .unwrap();
+
+        assert!(refreshed.is_none());
+        assert!(context.source_tree_incomplete());
+        assert!(context.existing.contains_key(relative));
     }
 
     #[test]

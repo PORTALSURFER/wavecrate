@@ -235,28 +235,33 @@ mod tests {
         let source = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         fs::write(outside.path().join("outside.wav"), b"outside").unwrap();
-        if symlink_file(
+        let file_link_supported = symlink_file(
             outside.path().join("outside.wav"),
             source.path().join("linked.wav"),
         )
-        .is_err()
-            || symlink_dir(outside.path(), source.path().join("linked-dir")).is_err()
-        {
+        .is_ok();
+        let directory_link_supported =
+            symlink_dir(outside.path(), source.path().join("linked-dir")).is_ok();
+        if !file_link_supported && !directory_link_supported {
             return;
         }
         let capability = SourceRootCapability::open(source.path()).unwrap();
 
-        assert!(
-            capability
-                .open_regular_file(Path::new("linked.wav"))
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            capability
-                .open_regular_file(Path::new("linked-dir/outside.wav"))
-                .unwrap()
-                .is_none()
-        );
+        if file_link_supported {
+            assert!(
+                capability
+                    .open_regular_file(Path::new("linked.wav"))
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        if directory_link_supported {
+            assert!(
+                capability
+                    .open_regular_file(Path::new("linked-dir/outside.wav"))
+                    .unwrap()
+                    .is_none()
+            );
+        }
     }
 }
