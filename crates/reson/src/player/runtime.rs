@@ -631,7 +631,10 @@ impl PlaybackRuntimeCommandQueue {
                     }
                     PlaybackRuntimeCommand::Stop { .. }
                     | PlaybackRuntimeCommand::CancelPendingPlayback
-                    | PlaybackRuntimeCommand::Shutdown => find_noncritical_command(&state.commands),
+                    | PlaybackRuntimeCommand::Shutdown => find_noncritical_command(
+                        &state.commands,
+                        self.can_record_cancellations(&state, 1),
+                    ),
                     _ => None,
                 };
                 if let Some(index) = eviction {
@@ -787,17 +790,29 @@ fn find_disposable_command(commands: &VecDeque<PlaybackRuntimeCommand>) -> Optio
     })
 }
 
-fn find_noncritical_command(commands: &VecDeque<PlaybackRuntimeCommand>) -> Option<usize> {
-    commands.iter().position(|command| {
-        matches!(
-            command,
-            PlaybackRuntimeCommand::Play { .. }
-                | PlaybackRuntimeCommand::PollProgress { .. }
-                | PlaybackRuntimeCommand::RetargetSpan { .. }
-                | PlaybackRuntimeCommand::SetVolume { .. }
-                | PlaybackRuntimeCommand::SetPlaybackGain { .. }
-        )
-    })
+fn find_noncritical_command(
+    commands: &VecDeque<PlaybackRuntimeCommand>,
+    can_cancel_play: bool,
+) -> Option<usize> {
+    commands
+        .iter()
+        .position(|command| {
+            matches!(
+                command,
+                PlaybackRuntimeCommand::PollProgress { .. }
+                    | PlaybackRuntimeCommand::RetargetSpan { .. }
+                    | PlaybackRuntimeCommand::SetVolume { .. }
+                    | PlaybackRuntimeCommand::SetPlaybackGain { .. }
+            )
+        })
+        .or_else(|| {
+            can_cancel_play.then(|| {
+                commands
+                    .iter()
+                    .position(|command| matches!(command, PlaybackRuntimeCommand::Play { .. }))
+                    .expect("noncritical play command")
+            })
+        })
 }
 
 struct PlaybackRuntimeEventQueue {
