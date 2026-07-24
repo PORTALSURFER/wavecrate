@@ -149,6 +149,7 @@ pub fn audit_source_and_record_with_progress(
         Some(on_progress),
         &UncoordinatedScanWriter,
         || {},
+        || {},
     )
 }
 
@@ -187,6 +188,7 @@ pub fn audit_source_and_record_with_budget_and_progress_and_writer(
         Some(on_progress),
         writer,
         || {},
+        || {},
     )
 }
 
@@ -197,6 +199,7 @@ fn audit_source_and_record_after_scan(
     completed_at: i64,
     on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     writer: &impl ScanWriter,
+    before_record: impl FnOnce(),
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
@@ -213,7 +216,18 @@ fn audit_source_and_record_after_scan(
         false,
         writer,
     )?;
-    record_manifest_audit_completion(db, &mut stats, completed_at, writer, &source_root)?;
+    before_record();
+    if let Err(error) =
+        record_manifest_audit_completion(db, &mut stats, completed_at, writer, &source_root)
+    {
+        if stats.committed_delta.revision > 0 {
+            return Err(ScanError::Incomplete {
+                committed: Box::new(stats),
+                error: error.to_string(),
+            });
+        }
+        return Err(error);
+    }
     after_scan();
     let mut stats = merge_audit_verification(
         &mut stats,
@@ -286,7 +300,28 @@ pub(crate) fn audit_source_and_record_with_post_scan_hook(
         completed_at,
         None,
         &UncoordinatedScanWriter,
+        || {},
         after_scan,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn audit_source_and_record_with_pre_record_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    before_record: impl FnOnce(),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(
+        db,
+        cancel,
+        ContentAuditBudget::entry_limited(max_hashes),
+        completed_at,
+        None,
+        &UncoordinatedScanWriter,
+        before_record,
+        || {},
     )
 }
 

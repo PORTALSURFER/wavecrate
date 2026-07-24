@@ -1027,6 +1027,34 @@ fn manifest_audit_publishes_unchanged_committed_revision_when_verification_is_ca
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn manifest_audit_root_swap_after_scan_returns_committed_checkpoint() {
+    let parent = tempdir().unwrap();
+    let root = parent.path().join("source");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("known.wav"), b"known").unwrap();
+    let db = SourceDatabase::open_for_scan(&root).unwrap();
+
+    let old_root = parent.path().join("old-source");
+    let result = audit_source_and_record_with_pre_record_hook(&db, None, 0, 1_234, || {
+        std::fs::rename(&root, &old_root).unwrap();
+        std::fs::create_dir(&root).unwrap();
+    });
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("stale audit completion must return the committed checkpoint");
+    };
+
+    assert!(error.contains("Source root generation changed"));
+    assert_eq!(committed.committed_delta.created.len(), 1);
+    assert!(db.entry_for_path(Path::new("known.wav")).unwrap().is_some());
+    assert!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .is_none()
+    );
+}
+
 #[test]
 fn skipped_existing_file_is_not_used_as_a_rename_source() {
     let dir = tempdir().unwrap();
