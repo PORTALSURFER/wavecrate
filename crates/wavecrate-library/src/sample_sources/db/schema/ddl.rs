@@ -335,6 +335,15 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON wav_files(path) WHERE missing != 0;
      CREATE INDEX IF NOT EXISTS idx_wav_files_extension
          ON wav_files(extension);
+     CREATE INDEX IF NOT EXISTS idx_source_content_audit_forward_path
+         ON wav_files(path)
+         WHERE missing = 0
+           AND extension IN ('wav')
+           AND path NOT GLOB '._*'
+           AND path NOT GLOB '*/._*';
+     CREATE INDEX IF NOT EXISTS idx_source_content_audit_retry_due
+         ON source_content_audit_entries(COALESCE(retry_at, 0), path)
+         WHERE skip_reason IS NOT NULL;
      CREATE INDEX IF NOT EXISTS idx_wav_file_tags_tag_id
          ON wav_file_tags(tag_id);
      CREATE INDEX IF NOT EXISTS idx_wav_file_collections_collection

@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{
-    ContentAuditSkipReason, PendingRenameEntry, SourceWriteBatch, WavEntry,
+    ContentAuditForwardCandidate, ContentAuditRetryCandidate, ContentAuditSkipReason,
+    PendingRenameEntry, SourceWriteBatch, WavEntry,
 };
 use wavecrate_library::sample_sources::{SourceEntryFileType, classify_source_entry};
 
@@ -23,6 +24,11 @@ struct HashBackfill {
 }
 
 const CONTENT_AUDIT_RETRY_SECONDS: i64 = 15 * 60;
+
+enum PlannedContentAuditEntry {
+    Forward(ContentAuditForwardCandidate),
+    Retry(ContentAuditRetryCandidate),
+}
 
 /// Resource ceilings for one resumable content-verification batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -260,83 +266,52 @@ fn verify_content_batch_with_hooks(
     post_hash: &mut impl FnMut(&std::path::Path),
     elapsed: &mut impl FnMut() -> Duration,
 ) -> Result<ScanStats, ScanError> {
-    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
+    let planning_started = Instant::now();
+    let manifest_revision = db.get_revision()?;
     let root = ensure_root_dir(db)?;
-    let entries = manifest_before.clone();
     let checkpoint = {
         let _writer = writer.lock(ScanWritePhase::Manifest);
         db.begin_or_resume_content_audit(now, manifest_revision)?
     };
-    let states = db.content_audit_entry_states()?;
-    let forward_is_due = entries.iter().any(|entry| {
-        states.get(&entry.relative_path).is_none_or(|state| {
-            !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
-        })
-    });
+    let forward = db.content_audit_forward_candidates(
+        checkpoint.rotation_id,
+        &checkpoint.cursor,
+        budget.max_entries,
+    )?;
+    let forward_is_due = forward.iter().any(|candidate| candidate.needs_verification);
     let retry_limit = budget.retry_entries.min(
         budget
             .max_entries
             .saturating_sub(usize::from(forward_is_due)),
     );
-    let due_retries = entries
-        .iter()
-        .filter(|entry| {
-            states.get(&entry.relative_path).is_some_and(|state| {
-                !state.verifies(entry, checkpoint.rotation_id) && state.retry_is_due(now)
-            })
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let retry_start = due_retries
-        .iter()
-        .position(|entry| {
-            entry.relative_path.to_string_lossy().as_ref() > checkpoint.retry_cursor.as_str()
-        })
-        .unwrap_or(0);
-    let retry = due_retries
-        .iter()
-        .cycle()
-        .skip(retry_start)
-        .take(due_retries.len())
-        .take(retry_limit)
-        .cloned()
-        .collect::<Vec<_>>();
-    let start = entries
-        .iter()
-        .position(|entry| {
-            entry.relative_path.to_string_lossy().as_ref() > checkpoint.cursor.as_str()
-        })
-        .unwrap_or(0);
-    let forward = entries
-        .iter()
-        .cycle()
-        .skip(start)
-        .take(entries.len())
-        .filter(|entry| {
-            states.get(&entry.relative_path).is_none_or(|state| {
-                !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
-            })
-        })
-        .take(budget.max_entries.saturating_sub(retry.len()))
-        .cloned()
-        .collect::<Vec<_>>();
+    let retry = db.content_audit_retry_candidates(&checkpoint.retry_cursor, now, retry_limit)?;
+    let planned_forward = forward.len();
+    let planned_retries = retry.len();
     let mut selected = Vec::with_capacity(retry.len() + forward.len());
     let mut retry = VecDeque::from(retry);
     let mut forward = VecDeque::from(forward);
-    let mut retry_paths = HashSet::new();
     let mut planned_retry_next = checkpoint.retry_next;
     while selected.len() < budget.max_entries && (!retry.is_empty() || !forward.is_empty()) {
         let take_retry = !retry.is_empty() && (planned_retry_next || forward.is_empty());
         if take_retry {
             let entry = retry.pop_front().expect("retry queue is non-empty");
-            retry_paths.insert(entry.relative_path.clone());
-            selected.push(entry);
+            selected.push(PlannedContentAuditEntry::Retry(entry));
             planned_retry_next = false;
         } else if let Some(entry) = forward.pop_front() {
-            selected.push(entry);
+            selected.push(PlannedContentAuditEntry::Forward(entry));
             planned_retry_next = true;
         }
     }
+    tracing::debug!(
+        manifest_revision,
+        rotation_id = checkpoint.rotation_id,
+        admitted_entries = budget.max_entries,
+        planned_forward,
+        planned_retries,
+        selected_entries = selected.len(),
+        planning_elapsed_us = planning_started.elapsed().as_micros().min(u64::MAX as u128) as u64,
+        "Planned bounded source content-audit slice"
+    );
     let mut stats = ScanStats::default();
     let mut verified = Vec::new();
     let mut skipped = Vec::new();
@@ -344,10 +319,33 @@ fn verify_content_batch_with_hooks(
     let mut last_forward = None;
     let mut last_retry = None;
     let mut retry_next = checkpoint.retry_next;
-    for entry in &selected {
+    let mut stale_retries = Vec::new();
+    let mut cursor_only_progress = false;
+    for planned in &selected {
         if cancel_requested(cancel) {
             break;
         }
+        let (entry, is_retry) = match planned {
+            PlannedContentAuditEntry::Forward(candidate) => {
+                if !candidate.needs_verification || candidate.retry_pending {
+                    last_forward = Some(candidate.entry.relative_path.clone());
+                    retry_next = true;
+                    cursor_only_progress = true;
+                    continue;
+                }
+                (&candidate.entry, false)
+            }
+            PlannedContentAuditEntry::Retry(candidate) => {
+                let Some(entry) = candidate.entry.as_ref() else {
+                    last_retry = Some(candidate.relative_path.clone());
+                    retry_next = false;
+                    stale_retries.push(candidate.relative_path.clone());
+                    cursor_only_progress = true;
+                    continue;
+                };
+                (entry, true)
+            }
+        };
         if !verified.is_empty() || !skipped.is_empty() {
             if elapsed() >= budget.max_elapsed
                 || attempted_bytes.saturating_add(entry.file_size) > budget.max_bytes
@@ -355,7 +353,7 @@ fn verify_content_batch_with_hooks(
                 break;
             }
         }
-        if retry_paths.contains(&entry.relative_path) {
+        if is_retry {
             last_retry = Some(entry.relative_path.clone());
             retry_next = false;
         } else {
@@ -417,7 +415,7 @@ fn verify_content_batch_with_hooks(
         stats.hashes_computed += 1;
     }
     let cancelled = cancel_requested(cancel);
-    let committed_snapshot = if !verified.is_empty() || !skipped.is_empty() {
+    if !verified.is_empty() || !skipped.is_empty() || cursor_only_progress {
         let _writer = writer.lock(ScanWritePhase::DeferredHash);
         let mut batch = db.write_batch()?;
         if !batch.matches_revision(manifest_revision)? {
@@ -438,6 +436,7 @@ fn verify_content_batch_with_hooks(
                 }
             }
         }
+        let mut changed_before = Vec::new();
         for (previous, facts, content_hash) in &committed_verified {
             batch.record_content_audit_verified(
                 &previous.relative_path,
@@ -454,6 +453,7 @@ fn verify_content_batch_with_hooks(
             {
                 continue;
             }
+            changed_before.push(previous.clone());
             if previous.file_identity != facts.file_identity {
                 tracing::debug!(
                     path = %previous.relative_path.display(),
@@ -495,6 +495,9 @@ fn verify_content_batch_with_hooks(
                 *bytes_read,
             )?;
         }
+        for path in &stale_retries {
+            batch.remove_stale_content_audit_entry(path)?;
+        }
         batch.checkpoint_content_audit(
             last_forward.as_deref(),
             last_retry.as_deref(),
@@ -503,22 +506,35 @@ fn verify_content_batch_with_hooks(
             attempted_bytes,
             now,
         )?;
-        batch.commit_with_manifest_snapshot()?
+        let (revision, changes) = batch.commit_with_bounded_manifest_changes(manifest_revision)?;
+        let changed_after = changes
+            .into_iter()
+            .filter_map(|(_, entry)| entry)
+            .collect::<Vec<_>>();
+        stats.committed_delta =
+            super::manifest::build_committed_delta(&changed_before, &changed_after, revision);
+        stats.manifest_updates = changed_after;
     } else {
-        db.manifest_snapshot_with_revision()?
+        stats.committed_delta.revision = db.get_revision()?;
     };
-    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     let report = {
         let _writer = writer.lock(ScanWritePhase::Manifest);
         db.content_audit_report(now)?
     };
     if report.remaining_entries == 0 && report.total_entries > 0 {
-        let manifest_before = stats.manifest_before.clone();
         let _writer = writer.lock(ScanWritePhase::Manifest);
         let mut batch = db.write_batch()?;
+        if !batch.matches_revision(stats.committed_delta.revision)? {
+            return Err(ScanError::StaleRevision {
+                expected: stats.committed_delta.revision,
+                actual: db.get_revision()?,
+            });
+        }
         batch.complete_content_audit_rotation(now, stats.committed_delta.revision)?;
-        let committed = batch.commit_with_manifest_snapshot()?;
-        super::manifest::publish_committed_delta(&mut stats, manifest_before, committed);
+        let (revision, changes) =
+            batch.commit_with_bounded_manifest_changes(stats.committed_delta.revision)?;
+        debug_assert!(changes.is_empty());
+        stats.committed_delta.revision = revision;
     }
     stats.content_audit = Some({
         let _writer = writer.lock(ScanWritePhase::Manifest);
@@ -1128,6 +1144,69 @@ mod tests {
         assert_eq!(second_report.verified_entries, 6);
         assert_eq!(second_report.remaining_entries, 4);
         assert_eq!(second.hashes_computed, 3);
+    }
+
+    #[test]
+    fn verified_forward_rows_advance_the_cursor_without_rehashing() {
+        let (_directory, database) = content_fixture(3, 32);
+        let revision = database.get_revision().unwrap();
+        let checkpoint = database
+            .begin_or_resume_content_audit(100, revision)
+            .unwrap();
+        let entries = database.list_manifest_entries().unwrap();
+        let mut batch = database.write_batch().unwrap();
+        for entry in entries.iter().take(2) {
+            batch
+                .record_content_audit_verified(
+                    &entry.relative_path,
+                    checkpoint.rotation_id,
+                    100,
+                    entry.file_size,
+                    entry.modified_ns,
+                    entry.file_identity.as_deref(),
+                )
+                .unwrap();
+        }
+        batch.commit().unwrap();
+
+        let first =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 101)
+                .expect("advance verified forward row");
+
+        assert_eq!(first.hashes_computed, 0);
+        let report = first.content_audit.expect("coverage");
+        assert_eq!(report.cursor, "sample-00000.wav");
+        assert_eq!(report.verified_entries, 2);
+        assert_eq!(report.remaining_entries, 1);
+    }
+
+    #[test]
+    fn stale_due_retry_state_is_retired_in_a_bounded_slice() {
+        let (directory, database) = content_fixture(1, 32);
+        let path = Path::new("sample-00000.wav");
+        std::fs::remove_file(directory.path().join(path)).unwrap();
+        verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 100)
+            .expect("record unavailable retry");
+        assert!(
+            database
+                .content_audit_entry_states()
+                .unwrap()
+                .contains_key(path)
+        );
+        database.set_missing(path, true).unwrap();
+
+        let cleanup =
+            verify_content_batch(&database, None, ContentAuditBudget::entry_limited(1), 1_000)
+                .expect("retire stale retry");
+
+        assert_eq!(cleanup.hashes_computed, 0);
+        assert!(
+            !database
+                .content_audit_entry_states()
+                .unwrap()
+                .contains_key(path)
+        );
+        assert_eq!(cleanup.content_audit.expect("coverage").total_entries, 0);
     }
 
     #[test]
