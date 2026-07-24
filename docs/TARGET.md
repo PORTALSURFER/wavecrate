@@ -1503,6 +1503,11 @@ Wavecrate should support clipboard-based audio handoff.
 
 When the user selects one or more supported sample files in the sample browser and presses copy, Wavecrate should place those files on the system clipboard in a format that DAWs and Explorer can consume as ordinary audio files.
 
+On Windows, the compatibility clipboard writer must open the clipboard with the
+current Wavecrate UI thread's active window as a non-null owner. It must close
+the clipboard on every post-open failure, including an `EmptyClipboard` failure,
+before returning the error.
+
 Playback-only unsupported audio files should not be eligible for Wavecrate's DAW/external audio handoff workflows, even when the original file path could technically be copied or dragged. Wavecrate cannot guarantee DAW compatibility for unsupported formats, so clipboard and drag/drop audio handoff should stay limited to supported sample formats. Users may still reveal, rename, move, copy, or remove the unsupported file through filesystem-management actions where those actions are available.
 
 Wavecrate should distinguish between path-copy commands and file-copy commands. "Copy Path" is a context-menu utility that copies one absolute path as text. It must not place the file itself on the clipboard. Copying the actual file is a separate file handoff action, such as the normal copy command on selected browser files.
