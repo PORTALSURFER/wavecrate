@@ -235,7 +235,7 @@ fn scan_ignores_non_wav_and_counts_nested() {
 }
 
 #[test]
-fn scan_tracks_dot_prefixed_wav_files_but_not_files_below_hidden_directories() {
+fn scan_includes_dot_prefixed_files_and_nested_hidden_audio_by_default() {
     let dir = tempdir().unwrap();
     let hidden = dir.path().join(".hidden");
     std::fs::create_dir(&hidden).unwrap();
@@ -245,12 +245,12 @@ fn scan_tracks_dot_prefixed_wav_files_but_not_files_below_hidden_directories() {
     let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
 
-    assert_eq!(stats.added, 1);
+    assert_eq!(stats.added, 2);
     assert!(db.entry_for_path(Path::new(".kick.wav")).unwrap().is_some());
     assert!(
         db.entry_for_path(Path::new(".hidden/ignored.wav"))
             .unwrap()
-            .is_none()
+            .is_some()
     );
 }
 
@@ -414,7 +414,14 @@ fn missing_stage_keeps_concurrently_restored_live_row() {
     let mut stats = ScanStats::default();
     let mut batch = db.write_batch().unwrap();
 
-    super::super::super::scan_diff::mark_missing(&db, &mut batch, [stale], &mut stats).unwrap();
+    super::super::super::scan_diff::mark_missing(
+        &db,
+        db.source_traversal_policy().unwrap(),
+        &mut batch,
+        [stale],
+        &mut stats,
+    )
+    .unwrap();
     batch.commit().unwrap();
 
     assert_eq!(stats.missing, 0);
@@ -447,13 +454,17 @@ fn missing_stage_prunes_path_replaced_by_directory() {
 }
 
 #[test]
-fn full_scan_prunes_tracked_files_below_hidden_directories() {
+fn configured_hidden_directory_exclusion_prunes_tracked_files() {
     let dir = tempdir().unwrap();
     let hidden = dir.path().join(".hidden");
     std::fs::create_dir(&hidden).unwrap();
     std::fs::write(hidden.join("one.wav"), b"hidden").unwrap();
     let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     db.upsert_file(Path::new(".hidden/one.wav"), 6, 1).unwrap();
+    db.set_source_traversal_policy(
+        wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+    )
+    .unwrap();
 
     let stats = scan_once(&db).unwrap();
 

@@ -7,6 +7,8 @@ use std::{
 use rusqlite::{Connection, Transaction};
 use std::fmt;
 
+use super::source_entry::SourceTraversalPolicy;
+
 mod content_audit;
 mod error;
 /// Persistent file operation journal for crash recovery.
@@ -89,6 +91,8 @@ pub const META_WAV_IDENTITIES_REVISION: &str = "wav_identities_revision_v1";
 pub const META_READINESS_DUPLICATE_IDENTITY: &str = "readiness_duplicate_identity_v1";
 /// Metadata key storing the revision of the index-only unsupported file set.
 pub const META_SOURCE_INDEX_REVISION: &str = "source_index_revision_v1";
+/// Metadata key for the persisted source traversal/visibility policy.
+pub const META_SOURCE_TRAVERSAL_POLICY: &str = "source_traversal_policy_v1";
 /// Env var that enables read-only source DB opening by default.
 pub const SOURCE_DB_READ_ONLY_ENV: &str = "WAVECRATE_SOURCE_DB_READ_ONLY";
 
@@ -137,6 +141,23 @@ impl SourceDatabase {
         self.connection
             .busy_timeout(timeout)
             .map_err(SourceDbError::from)
+    }
+
+    /// Read the source traversal policy, defaulting to recursive inclusion for legacy sources.
+    pub fn source_traversal_policy(&self) -> Result<SourceTraversalPolicy, SourceDbError> {
+        Ok(self
+            .get_metadata(META_SOURCE_TRAVERSAL_POLICY)?
+            .as_deref()
+            .map(SourceTraversalPolicy::from_stored)
+            .unwrap_or_default())
+    }
+
+    /// Persist the source traversal policy used by full scans, audits, and targeted sync.
+    pub fn set_source_traversal_policy(
+        &self,
+        policy: SourceTraversalPolicy,
+    ) -> Result<(), SourceDbError> {
+        self.set_metadata(META_SOURCE_TRAVERSAL_POLICY, policy.as_str())
     }
 
     /// Open a writable source database for general source-owned mutations.

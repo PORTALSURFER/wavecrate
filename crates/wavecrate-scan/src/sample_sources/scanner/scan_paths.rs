@@ -9,7 +9,8 @@ use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority
 use cap_std::fs::{Dir, OpenOptions};
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
-    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry, is_rejected_source_file_path,
+    SourceIndexDiagnostic, SourceIndexEntry, SourceTraversalPolicy,
+    classify_source_entry_with_policy, is_rejected_source_file_path,
 };
 
 use crate::sample_sources::{SourceDatabase, WavEntry};
@@ -55,7 +56,8 @@ pub fn sync_paths_with_progress_and_writer(
 ) -> Result<ScanStats, ScanError> {
     let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
-    let targets = collect_targets(db, &root, paths, cancel)?;
+    let policy = db.source_traversal_policy()?;
+    let targets = collect_targets(db, &root, paths, cancel, policy)?;
     let TargetedScanTargets {
         current_files,
         existing,
@@ -69,6 +71,7 @@ pub fn sync_paths_with_progress_and_writer(
         manifest_revision,
         manifest_before.clone(),
     );
+    context.set_traversal_policy(policy);
     context.set_targeted_index_entries(
         existing_index_entries.into_values(),
         current_index_entries.into_values(),
@@ -140,6 +143,7 @@ fn collect_targets(
     root: &Path,
     paths: &[PathBuf],
     cancel: Option<&AtomicBool>,
+    policy: SourceTraversalPolicy,
 ) -> Result<TargetedScanTargets, ScanError> {
     let source_root =
         Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
@@ -164,6 +168,7 @@ fn collect_targets(
             root,
             &relative_path,
             cancel,
+            policy,
             &mut current_files,
             &mut current_index_entries,
             &mut uncertain_prefixes,
@@ -227,6 +232,7 @@ fn collect_current_files(
     root: &Path,
     relative_path: &Path,
     cancel: Option<&AtomicBool>,
+    policy: SourceTraversalPolicy,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
     current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
@@ -263,7 +269,11 @@ fn collect_current_files(
         }
     };
     let file_type = metadata.file_type();
-    match classify_source_entry(relative_path, targeted_source_entry_file_type(&file_type)) {
+    match classify_source_entry_with_policy(
+        relative_path,
+        targeted_source_entry_file_type(&file_type),
+        policy,
+    ) {
         SourceEntryClassification::Directory { .. } => {
             let dir = match parent.open_dir_nofollow(name_path) {
                 Ok(dir) => dir,
@@ -283,6 +293,7 @@ fn collect_current_files(
                 root,
                 relative_path,
                 cancel,
+                policy,
                 current_files,
                 current_index_entries,
                 uncertain_prefixes,
@@ -296,6 +307,7 @@ fn collect_current_files(
                 Path::new(&name),
                 root,
                 relative_path,
+                policy,
                 current_files,
                 current_index_entries,
                 uncertain_prefixes,
@@ -369,6 +381,7 @@ fn collect_current_files_in_dir(
     root: &Path,
     start_relative: &Path,
     cancel: Option<&AtomicBool>,
+    policy: SourceTraversalPolicy,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
     current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
@@ -433,8 +446,11 @@ fn collect_current_files_in_dir(
                 }
             };
             let relative_path = relative_dir.join(name_path);
-            match classify_source_entry(&relative_path, targeted_source_entry_file_type(&file_type))
-            {
+            match classify_source_entry_with_policy(
+                &relative_path,
+                targeted_source_entry_file_type(&file_type),
+                policy,
+            ) {
                 SourceEntryClassification::Directory { .. } => {
                     let child_dir = match dir.open_dir_nofollow(name_path) {
                         Ok(child_dir) => child_dir,
@@ -464,6 +480,7 @@ fn collect_current_files_in_dir(
                         name_path,
                         root,
                         &relative_path,
+                        policy,
                         current_files,
                         current_index_entries,
                         uncertain_prefixes,
@@ -492,12 +509,15 @@ fn collect_current_file(
     name: &Path,
     root: &Path,
     relative_path: &Path,
+    policy: SourceTraversalPolicy,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
     current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
     let absolute_path = root.join(relative_path);
-    if !classify_source_entry(relative_path, SourceEntryFileType::File).indexes_audio() {
+    if !classify_source_entry_with_policy(relative_path, SourceEntryFileType::File, policy)
+        .indexes_audio()
+    {
         return Ok(());
     }
     let mut options = OpenOptions::new();

@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::sample_sources::SourceDatabase;
-use wavecrate_library::sample_sources::SourceIndexDiagnostic;
+use wavecrate_library::sample_sources::{SourceIndexDiagnostic, SourceTraversalPolicy};
 
 use super::scan::{ScanContext, ScanError};
 use super::scan_capability::{SourcePathBinding, SourceRootCapability};
@@ -26,6 +26,7 @@ const APPLY_BATCH_SIZE: usize = 64;
 pub(super) fn walk_phase(
     db: &SourceDatabase,
     root: &Path,
+    policy: SourceTraversalPolicy,
     cancel: Option<&AtomicBool>,
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
     context: &mut ScanContext,
@@ -38,8 +39,11 @@ pub(super) fn walk_phase(
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
     let mut pending_noops = Vec::with_capacity(APPLY_BATCH_SIZE);
     let source_root = SourceRootCapability::open(root)?;
-    let source_tree_snapshot =
-        visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
+    let source_tree_snapshot = visit_dir_with_cancel_check(
+        root,
+        policy,
+        &mut || cancel_requested(cancel),
+        &mut |path| {
             if cancel_requested(cancel) {
                 return Err(ScanError::Canceled);
             }
@@ -138,7 +142,8 @@ pub(super) fn walk_phase(
                 }
             }
             Ok(())
-        })?;
+        },
+    )?;
     if !pending.is_empty() {
         let outcome = apply_batch(db, root, cancel, context, pending, committed.get(), writer)?;
         if outcome.committed {
@@ -666,7 +671,7 @@ struct ApplyBatchOutcome {
 }
 
 fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {
-    if is_supported_scannable_audio_file(root, relative_path) {
+    if is_supported_scannable_audio_file(root, relative_path, context.traversal_policy()) {
         context.existing.remove(relative_path);
     }
 }

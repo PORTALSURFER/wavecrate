@@ -318,7 +318,9 @@ fn scan_with_writer(
     let (manifest_revision, manifest_before) =
         super::super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
+    let traversal_policy = db.source_traversal_policy()?;
     let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
+    context.set_traversal_policy(traversal_policy);
     if let Some(started_at) = manifest_audit_started_at {
         context.resume_manifest_audit(db, started_at)?;
         if let Some((checked, _expected)) = context.manifest_audit_progress()
@@ -328,24 +330,32 @@ fn scan_with_writer(
             on_progress(checked, &root);
         }
     }
-    let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context, writer)
-        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer))
-        .and_then(|committed_snapshot| {
-            reconcile_scan_renames(
-                db,
-                &mut context,
-                &manifest_before,
-                committed_snapshot,
-                cancel,
-                writer,
-            )
-        })
-        .and_then(|committed_snapshot| {
-            if finalize_pending_renames && !context.has_uncertain_prefixes() {
-                finalize_pending_rename_completion(db, &mut context.stats, mode, writer)?;
-            }
-            Ok(committed_snapshot)
-        });
+    let result = walk_phase(
+        db,
+        &root,
+        traversal_policy,
+        cancel,
+        &mut on_progress,
+        &mut context,
+        writer,
+    )
+    .and_then(|()| db_sync_phase(db, &mut context, cancel, writer))
+    .and_then(|committed_snapshot| {
+        reconcile_scan_renames(
+            db,
+            &mut context,
+            &manifest_before,
+            committed_snapshot,
+            cancel,
+            writer,
+        )
+    })
+    .and_then(|committed_snapshot| {
+        if finalize_pending_renames && !context.has_uncertain_prefixes() {
+            finalize_pending_rename_completion(db, &mut context.stats, mode, writer)?;
+        }
+        Ok(committed_snapshot)
+    });
     finish_scan_result(manifest_before, context, result)
 }
 

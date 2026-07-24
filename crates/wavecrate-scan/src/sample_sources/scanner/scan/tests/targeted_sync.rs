@@ -131,6 +131,50 @@ fn targeted_sync_prunes_removed_folder_prefix() {
 }
 
 #[test]
+fn targeted_sync_reconciles_hidden_directory_policy_changes() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(hidden.join("kick.wav"), b"kick").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+
+    assert_eq!(scan_once(&db).unwrap().added, 1);
+    db.set_source_traversal_policy(
+        wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+    )
+    .unwrap();
+    assert_eq!(
+        sync_paths(&db, &[PathBuf::from(".hidden")])
+            .unwrap()
+            .missing,
+        1
+    );
+    assert!(db.list_files().unwrap().is_empty());
+
+    db.set_source_traversal_policy(
+        wavecrate_library::sample_sources::SourceTraversalPolicy::include_hidden_directories(),
+    )
+    .unwrap();
+    assert_eq!(
+        sync_paths(&db, &[PathBuf::from(".hidden")]).unwrap().added,
+        1
+    );
+    assert_eq!(db.list_files().unwrap().len(), 1);
+
+    db.set_source_traversal_policy(
+        wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+    )
+    .unwrap();
+    assert_eq!(
+        sync_paths(&db, &[PathBuf::from(".hidden")])
+            .unwrap()
+            .missing,
+        1
+    );
+    assert!(db.list_files().unwrap().is_empty());
+}
+
+#[test]
 fn targeted_sync_preserves_an_unreadable_directory_until_recovery() {
     let dir = tempdir().unwrap();
     let protected = dir.path().join("protected");

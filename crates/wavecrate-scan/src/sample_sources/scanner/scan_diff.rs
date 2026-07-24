@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{RenameMetadataSnapshot, SourceWriteBatch, WavEntry};
+use wavecrate_library::sample_sources::SourceTraversalPolicy;
 
 use super::scan::{
     ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
@@ -188,12 +189,13 @@ fn required_prepared_hash(content_hash: Option<String>) -> String {
 
 pub(super) fn mark_missing(
     db: &SourceDatabase,
+    policy: SourceTraversalPolicy,
     batch: &mut SourceWriteBatch<'_>,
     existing: impl IntoIterator<Item = WavEntry>,
     stats: &mut ScanStats,
 ) -> Result<(), ScanError> {
     for stale in existing {
-        if is_supported_scannable_audio_file(db.root(), &stale.relative_path) {
+        if is_supported_scannable_audio_file(db.root(), &stale.relative_path, policy) {
             continue;
         }
         let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {
