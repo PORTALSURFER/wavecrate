@@ -79,11 +79,11 @@ impl SourceWriteBatch<'_> {
 
     /// Commit the batch and return its exact revision plus manifest state owned by that revision.
     ///
-    /// When the caller's cached revision is current, the second tuple element contains only
-    /// touched paths and the optional full snapshot is `None`, keeping chunked scans linear. When
-    /// another writer has advanced the manifest, the touched-path list is empty and the optional
-    /// full snapshot is captured inside this committing transaction before the write lock is
-    /// released.
+    /// When the caller's cached revision is current, `touched_path_changes` contains only touched
+    /// paths and `authoritative_snapshot` is `None`, keeping chunked scans linear. When another
+    /// writer has advanced the manifest, `touched_path_changes` is empty and
+    /// `authoritative_snapshot` contains the full manifest captured inside this committing
+    /// transaction before the write lock is released.
     pub fn commit_with_manifest_changes(
         self,
         expected_previous_revision: u64,
