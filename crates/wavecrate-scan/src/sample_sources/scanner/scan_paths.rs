@@ -85,8 +85,8 @@ pub fn sync_paths_with_progress_and_writer(
             }
             let absolute = root.join(&targeted_file.relative);
             let mut prepared_file = prepare_diff_from_facts(targeted_file.facts, &context);
-            prepared_file.targeted_file = Some(targeted_file.file);
-            prepared_file.targeted_handle_verified = true;
+            prepared_file.source_file = Some(targeted_file.file);
+            prepared_file.source_handle_verified = true;
             prepared.push(prepared_file);
             context.stats.total_files += 1;
             on_progress(context.stats.total_files, &absolute);

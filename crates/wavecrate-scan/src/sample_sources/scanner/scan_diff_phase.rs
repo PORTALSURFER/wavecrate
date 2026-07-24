@@ -1,8 +1,14 @@
-use super::scan::{ScanContext, ScanError, ScanMode};
+#[cfg(test)]
+use super::scan::ScanError;
+use super::scan::{ScanContext, ScanMode};
 use super::scan_diff::{PreparedFile, should_compute_full_hash};
-use super::scan_fs::{FileFacts, read_facts};
+use super::scan_fs::FileFacts;
+#[cfg(test)]
+use super::scan_fs::read_facts;
+#[cfg(test)]
 use std::path::Path;
 
+#[cfg(test)]
 pub(super) fn prepare_diff(
     root: &Path,
     path: &Path,
@@ -54,7 +60,7 @@ pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -
         requires_apply,
         identity_replaced,
         content_hash: None,
-        targeted_file: None,
-        targeted_handle_verified: false,
+        source_file: None,
+        source_handle_verified: false,
     }
 }
