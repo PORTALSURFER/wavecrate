@@ -201,8 +201,10 @@ pub(super) fn open_total_count(source_root: &Path) -> usize {
 mod tests {
     use super::{
         SLOW_SOURCE_DB_OPEN_STEP, SLOW_SOURCE_DB_OPEN_TOTAL, SLOW_SOURCE_DB_OPEN_TOTAL_JOB_WORKER,
-        open_phase_success_threshold, open_total_success_threshold, slow_success_outcome,
+        open_phase_success_threshold, open_total_count, open_total_success_threshold,
+        record_test_open_total, slow_success_outcome,
     };
+    use std::path::Path;
     use std::time::Duration;
 
     #[test]
@@ -257,5 +259,19 @@ mod tests {
             open_total_success_threshold("job_worker", false),
             SLOW_SOURCE_DB_OPEN_TOTAL_JOB_WORKER
         );
+    }
+
+    #[test]
+    fn open_total_count_scope_cleans_up_after_unwind() {
+        let root = Path::new("source-db-open-count-scope");
+        let unwind = std::panic::catch_unwind(|| {
+            let _scope = super::super::open::test_scope_source_db_open_total_count(root);
+            record_test_open_total(root);
+            assert_eq!(open_total_count(root), 1);
+            panic!("exercise source DB open-count cleanup");
+        });
+
+        assert!(unwind.is_err());
+        assert_eq!(open_total_count(root), 0);
     }
 }

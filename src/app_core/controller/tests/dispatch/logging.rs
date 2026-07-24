@@ -45,9 +45,9 @@ where
         .with_max_level(tracing::Level::DEBUG)
         .with_writer(buffer.clone())
         .finish();
-    crate::logging::set_debug_logging_enabled_for_tests(true);
-    tracing::subscriber::with_default(subscriber, run);
-    crate::logging::set_debug_logging_enabled_for_tests(false);
+    crate::logging::with_debug_logging_enabled_for_tests(true, || {
+        tracing::subscriber::with_default(subscriber, run);
+    });
     buffer.captured()
 }
 

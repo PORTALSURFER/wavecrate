@@ -36,6 +36,10 @@ pub mod scanner {
 
 /// Per-source database helpers.
 pub mod db {
+    #[cfg(debug_assertions)]
+    pub use wavecrate_library::sample_sources::db::test_scope_source_db_open_total_count;
+    #[cfg(debug_assertions)]
+    pub use wavecrate_library::sample_sources::db::test_source_db_open_total_count;
     pub use wavecrate_library::sample_sources::db::{
         BrowserMetadataSnapshot, ContentAuditCheckpoint, ContentAuditEntryState,
         ContentAuditReport, ContentAuditSkipReason, DB_FILE_NAME, LEGACY_DB_FILE_NAME,
@@ -46,10 +50,6 @@ pub mod db {
         SourceDatabaseConnectionRole, SourceDatabaseWriteFence, SourceDbError, SourceFileWrite,
         SourceTag, SourceTagUsage, SourceTagWrite, SourceWriteBatch, SourceWriteCommand, WavEntry,
         file_ops_journal, normalize_relative_path, read, schema, tags, util, write,
-    };
-    #[cfg(debug_assertions)]
-    pub use wavecrate_library::sample_sources::db::{
-        test_reset_source_db_open_total_count, test_source_db_open_total_count,
     };
 }
 
