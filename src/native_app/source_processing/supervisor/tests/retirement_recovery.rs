@@ -309,6 +309,43 @@ fn safety_probe_recovers_durable_retry_and_lease_deadlines_after_restart() {
         &database_root,
         SourceDatabaseConnectionRole::JobWorker,
     )
+    .expect("reopen source database for null lease");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'running', lease_expires_at = NULL
+             WHERE readiness_managed = 1",
+            [],
+        )
+        .expect("simulate compatibility-null running lease");
+    drop(connection);
+
+    let Cancellable::Completed((candidates, stats, _health)) =
+        discover_source_candidates_with_progress(
+            &source,
+            101,
+            false,
+            false,
+            None,
+            true,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .expect("probe compatibility-null lease")
+    else {
+        panic!("compatibility-null lease probe unexpectedly cancelled");
+    };
+    assert!(!stats.cheap_noop_sweep);
+    assert!(
+        !candidates.is_empty(),
+        "compatibility-null lease must become candidate work"
+    );
+
+    let connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
     .expect("reopen source database for retry");
     connection
         .execute(
