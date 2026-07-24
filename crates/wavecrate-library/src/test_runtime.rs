@@ -5,16 +5,17 @@ use std::{
     marker::PhantomData,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{Condvar, Mutex, MutexGuard, OnceLock},
+    sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock},
     thread::{self, ThreadId},
 };
 
-static PROCESS_STATE_LOCK: OnceLock<ReentrantProcessLock> = OnceLock::new();
+static PROCESS_STATE_LOCK: OnceLock<Arc<ReentrantProcessLock>> = OnceLock::new();
 
 #[derive(Default)]
 struct LockState {
     owner: Option<ThreadId>,
     depth: usize,
+    failure: Option<String>,
 }
 
 #[derive(Default)]
@@ -28,6 +29,11 @@ impl ReentrantProcessLock {
         let current = thread::current().id();
         let mut state = lock_unpoisoned(&self.state);
         loop {
+            if let Some(failure) = state.failure.clone() {
+                drop(state);
+                panic!("process test runtime is unavailable: {failure}");
+            }
+
             match state.owner.as_ref() {
                 None => {
                     state.owner = Some(current);
@@ -51,6 +57,9 @@ impl ReentrantProcessLock {
     fn release(&self) {
         let current = thread::current().id();
         let mut state = lock_unpoisoned(&self.state);
+        if state.failure.is_some() {
+            return;
+        }
         assert_eq!(
             state.owner.as_ref(),
             Some(&current),
@@ -60,6 +69,33 @@ impl ReentrantProcessLock {
         if state.depth == 0 {
             state.owner = None;
             self.available.notify_one();
+        }
+    }
+
+    fn complete_scope(&self, current_dir_restore_error: Option<(PathBuf, std::io::Error)>) {
+        let Some((path, error)) = current_dir_restore_error else {
+            self.release();
+            return;
+        };
+
+        let failure = format!(
+            "failed to restore process working directory to {}: {error}",
+            path.display()
+        );
+        {
+            let mut state = lock_unpoisoned(&self.state);
+            if state.failure.is_none() {
+                state.failure = Some(failure.clone());
+            }
+            state.owner = None;
+            state.depth = 0;
+            self.available.notify_all();
+        }
+
+        if thread::panicking() {
+            eprintln!("{failure} while unwinding; future process test runtime access is disabled");
+        } else {
+            panic!("{failure}; future process test runtime access is disabled");
         }
     }
 }
@@ -85,6 +121,7 @@ enum Restoration {
 /// restores its own mutations in reverse order before allowing another thread
 /// to enter the scope.
 pub struct TestRuntimeGuard {
+    lock: Arc<ReentrantProcessLock>,
     restorations: Vec<Restoration>,
     _not_send_or_sync: PhantomData<Rc<()>>,
 }
@@ -92,8 +129,13 @@ pub struct TestRuntimeGuard {
 impl TestRuntimeGuard {
     /// Acquire exclusive ownership of process-global test runtime state.
     pub fn acquire() -> Self {
-        process_state_lock().acquire();
+        Self::acquire_with(Arc::clone(process_state_lock()))
+    }
+
+    fn acquire_with(lock: Arc<ReentrantProcessLock>) -> Self {
+        lock.acquire();
         Self {
+            lock,
             restorations: Vec::new(),
             _not_send_or_sync: PhantomData,
         }
@@ -159,26 +201,12 @@ impl Drop for TestRuntimeGuard {
                 }
             }
         }
-        process_state_lock().release();
-
-        if let Some((path, error)) = current_dir_restore_error {
-            if thread::panicking() {
-                eprintln!(
-                    "failed to restore process working directory to {} while unwinding: {error}",
-                    path.display()
-                );
-            } else {
-                panic!(
-                    "failed to restore process working directory to {}: {error}",
-                    path.display()
-                );
-            }
-        }
+        self.lock.complete_scope(current_dir_restore_error);
     }
 }
 
-fn process_state_lock() -> &'static ReentrantProcessLock {
-    PROCESS_STATE_LOCK.get_or_init(ReentrantProcessLock::default)
+fn process_state_lock() -> &'static Arc<ReentrantProcessLock> {
+    PROCESS_STATE_LOCK.get_or_init(|| Arc::new(ReentrantProcessLock::default()))
 }
 
 #[cfg(test)]
@@ -187,7 +215,6 @@ mod tests {
     use std::{
         panic::{AssertUnwindSafe, catch_unwind},
         sync::{
-            Arc,
             atomic::{AtomicBool, Ordering},
             mpsc,
         },
@@ -278,5 +305,43 @@ mod tests {
 
         lock.acquire();
         lock.release();
+    }
+
+    #[test]
+    fn failed_current_directory_restore_disables_future_access_after_caught_panic() {
+        let original_dir = std::env::current_dir().expect("current directory");
+        let saved_dir = tempdir().expect("saved temporary working directory");
+        let mutated_dir = tempdir().expect("mutated temporary working directory");
+        let mut outer = TestRuntimeGuard::acquire();
+        outer
+            .set_current_dir(saved_dir.path())
+            .expect("enter saved working directory");
+
+        let isolated_lock = Arc::new(ReentrantProcessLock::default());
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let mut nested = TestRuntimeGuard::acquire_with(Arc::clone(&isolated_lock));
+            nested
+                .set_current_dir(mutated_dir.path())
+                .expect("enter mutated working directory");
+            saved_dir
+                .close()
+                .expect("remove the saved working directory");
+            panic!("exercise failed restoration while unwinding");
+        }));
+
+        assert!(result.is_err());
+        let reacquire = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = TestRuntimeGuard::acquire_with(Arc::clone(&isolated_lock));
+        }));
+        assert!(
+            reacquire.is_err(),
+            "a failed CWD restoration must disable future guarded access"
+        );
+
+        drop(outer);
+        assert_eq!(
+            std::env::current_dir().expect("outer guard restores current directory"),
+            original_dir
+        );
     }
 }
