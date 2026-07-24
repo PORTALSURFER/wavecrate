@@ -5,10 +5,79 @@ use std::{
     path::{Component, Path},
 };
 
+use serde::{Deserialize, Serialize};
+
 use super::{is_apple_double_sidecar, is_recognized_audio, is_supported_audio};
 
 /// Version of the source format-classification policy persisted with index-only rows.
 pub const SOURCE_FORMAT_POLICY_VERSION: u32 = 1;
+
+/// Whether hidden directories participate in source traversal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HiddenDirectoryPolicy {
+    /// Recursively include hidden directories (the default for existing sources).
+    #[default]
+    Include,
+    /// Exclude hidden directories and everything below them.
+    Exclude,
+}
+
+impl HiddenDirectoryPolicy {
+    /// Stable source-database representation.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Include => "include",
+            Self::Exclude => "exclude",
+        }
+    }
+
+    /// Parse a stored policy, defaulting missing or unknown values to inclusion.
+    pub fn from_stored(value: &str) -> Self {
+        match value {
+            "exclude" => Self::Exclude,
+            _ => Self::Include,
+        }
+    }
+}
+
+/// Shared source traversal policy consumed by all source-entry classifiers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceTraversalPolicy {
+    /// Policy for dot-prefixed (and equivalent configured hidden) directories.
+    pub hidden_directories: HiddenDirectoryPolicy,
+}
+
+impl SourceTraversalPolicy {
+    /// Policy that recursively includes hidden directories.
+    pub const fn include_hidden_directories() -> Self {
+        Self {
+            hidden_directories: HiddenDirectoryPolicy::Include,
+        }
+    }
+
+    /// Policy that excludes hidden directories.
+    pub const fn exclude_hidden_directories() -> Self {
+        Self {
+            hidden_directories: HiddenDirectoryPolicy::Exclude,
+        }
+    }
+
+    /// Stable source-database representation.
+    pub fn as_str(self) -> &'static str {
+        self.hidden_directories.as_str()
+    }
+
+    /// Parse a stored policy, defaulting missing or unknown values to inclusion.
+    pub fn from_stored(value: &str) -> Self {
+        Self {
+            hidden_directories: HiddenDirectoryPolicy::from_stored(value),
+        }
+    }
+
+    fn includes_hidden_directories(self) -> bool {
+        self.hidden_directories == HiddenDirectoryPolicy::Include
+    }
+}
 
 /// A filesystem entry type observed without following links or reparse points.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,6 +141,8 @@ pub enum SourceEntryRejection {
     AppleDouble,
     /// Wavecrate's embedded source database and SQLite sidecars are implementation metadata.
     SourceDatabase,
+    /// A hidden directory excluded by the configured traversal policy.
+    HiddenDirectory,
     /// The entry is neither a regular file nor a directory.
     UnsupportedType,
 }
@@ -90,6 +161,8 @@ pub enum SourceEntryClassification {
         classification: SourceFileClassification,
         /// Whether the file is below a hidden directory.
         below_hidden_directory: bool,
+        /// Whether the file is eligible for indexing under the active policy.
+        indexes_audio: bool,
     },
     /// An entry excluded by the shared source boundary policy.
     Rejected(SourceEntryRejection),
@@ -110,8 +183,8 @@ impl SourceEntryClassification {
         matches!(
             self,
             Self::File {
-                classification: SourceFileClassification::SupportedAudio,
-                below_hidden_directory: false,
+                indexes_audio: true,
+                ..
             }
         )
     }
@@ -138,12 +211,19 @@ impl SourceEntryClassification {
 
 /// Classify a path relative to a sample-source root from no-follow type facts.
 ///
-/// This policy deliberately preserves the browser's visibility of unsupported
-/// files and hidden directories while preventing audio indexing below hidden
-/// directories. Callers retain their own traversal mechanics and diagnostics.
+/// This default policy preserves recursive scanning for existing sources.
 pub fn classify_source_entry(
     relative_path: &Path,
     file_type: SourceEntryFileType,
+) -> SourceEntryClassification {
+    classify_source_entry_with_policy(relative_path, file_type, SourceTraversalPolicy::default())
+}
+
+/// Classify a path using an explicit source traversal policy.
+pub fn classify_source_entry_with_policy(
+    relative_path: &Path,
+    file_type: SourceEntryFileType,
+    policy: SourceTraversalPolicy,
 ) -> SourceEntryClassification {
     match file_type {
         SourceEntryFileType::Link => {
@@ -152,25 +232,36 @@ pub fn classify_source_entry(
         SourceEntryFileType::Other => {
             SourceEntryClassification::Rejected(SourceEntryRejection::UnsupportedType)
         }
-        SourceEntryFileType::Directory => SourceEntryClassification::Directory {
-            hidden: path_name_is_hidden(relative_path),
-        },
+        SourceEntryFileType::Directory => {
+            let hidden = path_name_is_hidden(relative_path);
+            if hidden && !policy.includes_hidden_directories() {
+                SourceEntryClassification::Rejected(SourceEntryRejection::HiddenDirectory)
+            } else {
+                SourceEntryClassification::Directory { hidden }
+            }
+        }
         SourceEntryFileType::File if is_apple_double_sidecar(relative_path) => {
             SourceEntryClassification::Rejected(SourceEntryRejection::AppleDouble)
         }
         SourceEntryFileType::File if is_source_database_artifact(relative_path) => {
             SourceEntryClassification::Rejected(SourceEntryRejection::SourceDatabase)
         }
-        SourceEntryFileType::File => SourceEntryClassification::File {
-            classification: if is_supported_audio(relative_path) {
-                SourceFileClassification::SupportedAudio
-            } else if is_recognized_audio(relative_path) {
-                SourceFileClassification::UnsupportedAudio
-            } else {
-                SourceFileClassification::UnsupportedNonAudio
-            },
-            below_hidden_directory: has_hidden_ancestor(relative_path),
-        },
+        SourceEntryFileType::File => {
+            let supported_audio = is_supported_audio(relative_path);
+            let below_hidden_directory = has_hidden_ancestor(relative_path);
+            SourceEntryClassification::File {
+                classification: if supported_audio {
+                    SourceFileClassification::SupportedAudio
+                } else if is_recognized_audio(relative_path) {
+                    SourceFileClassification::UnsupportedAudio
+                } else {
+                    SourceFileClassification::UnsupportedNonAudio
+                },
+                below_hidden_directory,
+                indexes_audio: supported_audio
+                    && (policy.includes_hidden_directories() || !below_hidden_directory),
+            }
+        }
     }
 }
 
@@ -200,15 +291,24 @@ fn is_source_database_artifact(relative_path: &Path) -> bool {
 pub fn classify_path_without_following(
     path: &Path,
 ) -> Result<SourceEntryClassification, SourceEntryProbeError> {
+    classify_path_without_following_with_policy(path, SourceTraversalPolicy::default())
+}
+
+/// Inspect and classify one path without following links using an explicit policy.
+pub fn classify_path_without_following_with_policy(
+    path: &Path,
+    policy: SourceTraversalPolicy,
+) -> Result<SourceEntryClassification, SourceEntryProbeError> {
     let metadata = fs::symlink_metadata(path).map_err(SourceEntryProbeError::from)?;
     let file_type = metadata.file_type();
-    Ok(classify_source_entry(
+    Ok(classify_source_entry_with_policy(
         path,
         SourceEntryFileType::from_no_followed_type(
             file_type.is_dir(),
             file_type.is_file(),
             file_type.is_symlink(),
         ),
+        policy,
     ))
 }
 
@@ -277,8 +377,12 @@ mod tests {
             classify_source_entry(Path::new("kick.wav"), SourceEntryFileType::File).indexes_audio()
         );
         assert!(
-            !classify_source_entry(Path::new(".cache/kick.wav"), SourceEntryFileType::File)
-                .indexes_audio()
+            !classify_source_entry_with_policy(
+                Path::new(".cache/kick.wav"),
+                SourceEntryFileType::File,
+                SourceTraversalPolicy::exclude_hidden_directories(),
+            )
+            .indexes_audio()
         );
         assert_eq!(
             classify_source_entry(Path::new("linked.wav"), SourceEntryFileType::Link),
@@ -291,6 +395,44 @@ mod tests {
         assert_eq!(
             classify_source_entry(Path::new(".wavecrate.db-wal"), SourceEntryFileType::File),
             SourceEntryClassification::Rejected(SourceEntryRejection::SourceDatabase)
+        );
+    }
+
+    #[test]
+    fn default_includes_nested_hidden_audio_but_exclusion_does_not() {
+        let path = Path::new(".hidden/kick.wav");
+        assert!(classify_source_entry(path, SourceEntryFileType::File).indexes_audio());
+        assert!(
+            classify_source_entry_with_policy(
+                path,
+                SourceEntryFileType::File,
+                SourceTraversalPolicy::include_hidden_directories(),
+            )
+            .indexes_audio()
+        );
+        assert!(
+            !classify_source_entry_with_policy(
+                path,
+                SourceEntryFileType::File,
+                SourceTraversalPolicy::exclude_hidden_directories(),
+            )
+            .indexes_audio()
+        );
+        assert_eq!(
+            classify_source_entry_with_policy(
+                Path::new(".hidden"),
+                SourceEntryFileType::Directory,
+                SourceTraversalPolicy::exclude_hidden_directories(),
+            ),
+            SourceEntryClassification::Rejected(SourceEntryRejection::HiddenDirectory)
+        );
+        assert!(
+            classify_source_entry_with_policy(
+                Path::new(".kick.wav"),
+                SourceEntryFileType::File,
+                SourceTraversalPolicy::exclude_hidden_directories(),
+            )
+            .indexes_audio()
         );
     }
 

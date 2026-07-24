@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use rusqlite::OptionalExtension;
 
 use super::super::util::{map_sql_error, normalize_relative_path};
-use super::super::{SourceDatabase, SourceDbError, SourceManifestEntry, SourceWriteBatch};
+use super::super::{
+    META_SOURCE_TRAVERSAL_POLICY, SourceDatabase, SourceDbError, SourceManifestEntry,
+    SourceTraversalPolicy, SourceWriteBatch,
+};
 
 /// Manifest state published by a committed source-database write batch.
 pub struct ManifestCommitResult {
@@ -16,6 +19,27 @@ pub struct ManifestCommitResult {
 }
 
 impl SourceWriteBatch<'_> {
+    /// Return whether the source traversal policy still matches the scan snapshot.
+    pub fn matches_source_traversal_policy(
+        &self,
+        expected: SourceTraversalPolicy,
+    ) -> Result<bool, SourceDbError> {
+        let value = self
+            .tx
+            .query_row(
+                "SELECT value FROM metadata WHERE key = ?1",
+                [META_SOURCE_TRAVERSAL_POLICY],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?;
+        let actual = value
+            .as_deref()
+            .map(SourceTraversalPolicy::from_stored)
+            .unwrap_or_default();
+        Ok(actual == expected)
+    }
+
     /// Return whether this write transaction began at `expected_revision`.
     ///
     /// The batch owns SQLite's immediate writer reservation, so a successful match remains valid

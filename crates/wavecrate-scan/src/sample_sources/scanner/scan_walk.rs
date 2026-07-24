@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::sample_sources::SourceDatabase;
-use wavecrate_library::sample_sources::SourceIndexDiagnostic;
+use wavecrate_library::sample_sources::{SourceIndexDiagnostic, SourceTraversalPolicy};
 
 use super::scan::{ScanContext, ScanError};
 use super::scan_capability::{SourcePathBinding, SourceRootCapability};
@@ -26,6 +26,7 @@ const APPLY_BATCH_SIZE: usize = 64;
 pub(super) fn walk_phase(
     db: &SourceDatabase,
     root: &Path,
+    policy: SourceTraversalPolicy,
     cancel: Option<&AtomicBool>,
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
     context: &mut ScanContext,
@@ -38,8 +39,11 @@ pub(super) fn walk_phase(
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
     let mut pending_noops = Vec::with_capacity(APPLY_BATCH_SIZE);
     let source_root = SourceRootCapability::open(root)?;
-    let source_tree_snapshot =
-        visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
+    let source_tree_snapshot = visit_dir_with_cancel_check(
+        root,
+        policy,
+        &mut || cancel_requested(cancel),
+        &mut |path| {
             if cancel_requested(cancel) {
                 return Err(ScanError::Canceled);
             }
@@ -138,7 +142,8 @@ pub(super) fn walk_phase(
                 }
             }
             Ok(())
-        })?;
+        },
+    )?;
     if !pending.is_empty() {
         let outcome = apply_batch(db, root, cancel, context, pending, committed.get(), writer)?;
         if outcome.committed {
@@ -666,7 +671,7 @@ struct ApplyBatchOutcome {
 }
 
 fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {
-    if is_supported_scannable_audio_file(root, relative_path) {
+    if is_supported_scannable_audio_file(root, relative_path, context.traversal_policy()) {
         context.existing.remove(relative_path);
     }
 }
@@ -782,7 +787,7 @@ mod tests {
         refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
-    use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
+    use crate::sample_sources::scanner::scan::{ScanContext, ScanError, ScanMode, scan_once};
     use crate::sample_sources::scanner::scan_diff::PreparedFile;
     use crate::sample_sources::scanner::scan_diff_phase::prepare_diff;
     use crate::sample_sources::scanner::scan_fs::read_facts;
@@ -1255,6 +1260,42 @@ mod tests {
 
         assert!(!outcome.committed);
         assert!(context.source_tree_incomplete());
+        assert!(db.entry_for_path(relative).unwrap().is_none());
+    }
+
+    #[test]
+    fn scan_batch_rejects_a_changed_traversal_policy_before_commit() {
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        std::fs::write(&source, b"inside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+        db.set_source_traversal_policy(
+            wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+        )
+        .unwrap();
+
+        let result = apply_batch(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            false,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+        );
+
+        assert!(matches!(result, Err(ScanError::TraversalPolicyChanged)));
         assert!(db.entry_for_path(relative).unwrap().is_none());
     }
 

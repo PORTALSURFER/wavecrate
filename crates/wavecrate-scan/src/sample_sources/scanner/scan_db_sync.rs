@@ -39,7 +39,13 @@ pub(super) fn db_sync_phase(
         }
         let mut batch = db.write_batch()?;
         context.ensure_rename_candidate_generation(&mut batch)?;
-        mark_missing(db, &mut batch, chunk, &mut context.stats)?;
+        mark_missing(
+            db,
+            context.traversal_policy(),
+            &mut batch,
+            chunk,
+            &mut context.stats,
+        )?;
         if cancel_requested(cancel) {
             return Err(ScanError::Canceled);
         }

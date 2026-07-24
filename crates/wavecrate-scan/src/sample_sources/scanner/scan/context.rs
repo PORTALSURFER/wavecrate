@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{SourceIndexEntry, SourceWriteBatch, WavEntry};
-use wavecrate_library::sample_sources::SourceManifestEntry;
+use wavecrate_library::sample_sources::{SourceManifestEntry, SourceTraversalPolicy};
 
 use super::{ScanError, ScanMode, ScanStats};
 
@@ -22,6 +22,7 @@ pub(crate) struct ScanContext {
     manifest_audit: Option<ManifestAuditCheckpoint>,
     source_tree_incomplete: bool,
     uncertain_prefixes: BTreeSet<PathBuf>,
+    traversal_policy: SourceTraversalPolicy,
 }
 
 struct ManifestAuditCheckpoint {
@@ -71,7 +72,19 @@ impl ScanContext {
             manifest_audit: None,
             source_tree_incomplete: false,
             uncertain_prefixes: BTreeSet::new(),
+            traversal_policy: SourceTraversalPolicy::default(),
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn set_traversal_policy(
+        &mut self,
+        policy: SourceTraversalPolicy,
+    ) {
+        self.traversal_policy = policy;
+    }
+
+    pub(in crate::sample_sources::scanner) fn traversal_policy(&self) -> SourceTraversalPolicy {
+        self.traversal_policy
     }
 
     pub(in crate::sample_sources::scanner) fn set_targeted_index_entries(
@@ -323,6 +336,9 @@ impl ScanContext {
         batch: SourceWriteBatch<'_>,
         post_commit_hook: impl FnOnce(),
     ) -> Result<u64, ScanError> {
+        if !batch.matches_source_traversal_policy(self.traversal_policy)? {
+            return Err(ScanError::TraversalPolicyChanged);
+        }
         let result = batch.commit_with_manifest_changes(self.committed_manifest_revision)?;
         post_commit_hook();
         if let Some(snapshot) = result.authoritative_snapshot {

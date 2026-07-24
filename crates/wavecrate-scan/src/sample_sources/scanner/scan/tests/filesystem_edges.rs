@@ -123,7 +123,7 @@ fn full_scan_captures_browser_layout_in_the_authoritative_traversal() {
 }
 
 #[test]
-fn browser_layout_keeps_hidden_non_audio_entries_but_excludes_hidden_audio() {
+fn browser_layout_includes_hidden_entries_by_default() {
     let dir = tempdir().unwrap();
     let hidden = dir.path().join(".hidden");
     std::fs::create_dir_all(&hidden).unwrap();
@@ -139,17 +139,36 @@ fn browser_layout_keeps_hidden_non_audio_entries_but_excludes_hidden_audio() {
         file.relative_path == Path::new(".hidden/notes.txt") && file.file_size == 5
     }));
     assert!(
+        db.entry_for_path(Path::new(".hidden/kick.wav"))
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn configured_hidden_directory_exclusion_removes_hidden_browser_entries() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(hidden.join("kick.wav"), b"kick").unwrap();
+    std::fs::write(hidden.join("notes.txt"), b"notes").unwrap();
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    db.set_source_traversal_policy(
+        wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+    )
+    .unwrap();
+    let stats = scan_once(&db).unwrap();
+    let snapshot = stats.source_tree_snapshot.expect("source tree snapshot");
+
+    assert!(!snapshot.directories.contains(&PathBuf::from(".hidden")));
+    assert!(
         snapshot
             .other_files
             .iter()
-            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
+            .all(|file| !file.relative_path.starts_with(".hidden"))
     );
-    assert!(
-        db.list_files()
-            .unwrap()
-            .iter()
-            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
-    );
+    assert!(db.list_files().unwrap().is_empty());
 }
 
 #[cfg(unix)]

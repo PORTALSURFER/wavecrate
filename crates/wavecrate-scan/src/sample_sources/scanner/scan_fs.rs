@@ -15,7 +15,8 @@ use wavecrate_library::filesystem_identity::{
 };
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
-    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry, is_rejected_source_file_path,
+    SourceIndexDiagnostic, SourceIndexEntry, SourceTraversalPolicy,
+    classify_source_entry_with_policy, is_rejected_source_file_path,
 };
 
 use crate::sample_sources::SourceDatabase;
@@ -193,6 +194,7 @@ pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError>
 
 pub(super) fn visit_dir_with_cancel_check(
     root: &Path,
+    policy: SourceTraversalPolicy,
     should_cancel: &mut impl FnMut() -> bool,
     visitor: &mut impl FnMut(&Path) -> Result<(), ScanError>,
 ) -> Result<SourceTreeSnapshot, ScanError> {
@@ -277,7 +279,11 @@ pub(super) fn visit_dir_with_cancel_check(
                     continue;
                 }
             };
-            match classify_source_entry(&relative, source_entry_file_type(&file_type)) {
+            match classify_source_entry_with_policy(
+                &relative,
+                source_entry_file_type(&file_type),
+                policy,
+            ) {
                 SourceEntryClassification::Directory { .. } => {
                     snapshot.directories.push(relative);
                     stack.push(path);
@@ -542,11 +548,16 @@ fn filesystem_change_marker_from_open_file(file: &fs::File) -> Option<String> {
     (information.ChangeTime != 0).then(|| format!("windows:{}", information.ChangeTime))
 }
 
-pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
+pub(super) fn is_supported_scannable_audio_file(
+    root: &Path,
+    relative_path: &Path,
+    policy: SourceTraversalPolicy,
+) -> bool {
     let absolute_path = root.join(relative_path);
     fs::symlink_metadata(&absolute_path).is_ok_and(|metadata| {
         let file_type = metadata.file_type();
-        classify_source_entry(relative_path, source_entry_file_type(&file_type)).indexes_audio()
+        classify_source_entry_with_policy(relative_path, source_entry_file_type(&file_type), policy)
+            .indexes_audio()
     })
 }
 

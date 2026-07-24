@@ -6,7 +6,9 @@ use std::{
 
 use super::super::FileEntry;
 use super::{
-    entry::{BrowserEntryKind, classify_path_without_following},
+    entry::{
+        BrowserEntryKind, classify_path_without_following_with_policy, source_traversal_policy,
+    },
     file_entry_metadata::file_entry_with_metadata,
 };
 use wavecrate::sample_sources::{
@@ -104,9 +106,13 @@ pub(in crate::native_app::sample_library::folder_browser) fn refreshed_file_entr
             tracing::warn!(source = %source_root.display(), "{error}");
             SourceMetadataMap::new()
         });
+    let policy = source_traversal_policy(source_root, source_database_root);
     paths
         .iter()
-        .filter(|path| classify_path_without_following(path) == Some(BrowserEntryKind::File))
+        .filter(|path| {
+            classify_path_without_following_with_policy(path, policy)
+                == Some(BrowserEntryKind::File)
+        })
         .map(|path| rated_file_entry(path, source_root, &ratings))
         .collect()
 }
