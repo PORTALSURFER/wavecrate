@@ -87,6 +87,16 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
     let db = source.open_db().expect("open hard-link source");
     db.upsert_file(Path::new("alias.wav"), 64, 1)
         .expect("insert hard-link alias manifest row");
+    let mut identity_batch = db.write_batch().expect("open hard-link identity batch");
+    identity_batch
+        .set_file_identity(Path::new("pending.wav"), Some("hard-link-identity"))
+        .expect("assign canonical hard-link identity");
+    identity_batch
+        .set_file_identity(Path::new("alias.wav"), Some("hard-link-identity"))
+        .expect("assign alias hard-link identity");
+    identity_batch
+        .commit()
+        .expect("commit shared hard-link identity");
     drop(db);
 
     let database_root = source.database_root().expect("database root");
@@ -96,14 +106,6 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
         SourceDatabaseConnectionRole::JobWorker,
     )
     .expect("open readiness database");
-    connection
-        .execute(
-            "UPDATE wav_files SET file_identity = 'hard-link-identity'
-             WHERE path IN ('pending.wav', 'alias.wav')",
-            [],
-        )
-        .expect("assign shared hard-link identity");
-
     let Cancellable::Completed((candidates, stats, health)) =
         discover_source_candidates_with_connection_and_progress(
             &source,
@@ -134,7 +136,7 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
         )
         .expect("read duplicate identity marker");
     let marker: serde_json::Value = serde_json::from_str(&marker).expect("decode marker");
-    assert_eq!(marker["revision"].as_i64(), Some(2));
+    assert_eq!(marker["identity_revision"].as_i64(), Some(2));
     assert_eq!(
         marker["identities"][0]["paths"],
         serde_json::json!(["alias.wav", "pending.wav"])
@@ -167,9 +169,15 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
 
     drop(connection);
     std::fs::remove_file(&alias_path).expect("remove hard-link alias");
+    std::fs::write(&alias_path, [2_u8; 64]).expect("replace hard-link alias contents");
     let db = source.open_db().expect("reopen hard-link source");
-    db.remove_file(Path::new("alias.wav"))
-        .expect("remove hard-link alias from manifest");
+    let mut identity_batch = db.write_batch().expect("open repaired identity batch");
+    identity_batch
+        .set_file_identity(Path::new("alias.wav"), Some("repaired-identity"))
+        .expect("assign repaired alias identity");
+    identity_batch
+        .commit()
+        .expect("commit repaired alias identity");
     drop(db);
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,

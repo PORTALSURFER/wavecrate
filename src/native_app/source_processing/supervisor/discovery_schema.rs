@@ -13,11 +13,11 @@ pub(super) struct DuplicateIdentityDiagnostic {
     pub(super) paths: Vec<String>,
 }
 
-/// Return the durable duplicate-identity diagnostic only while it belongs to this manifest
-/// revision. A changed revision invalidates the old terminal diagnosis automatically.
+/// Return the durable duplicate-identity diagnostic only while it belongs to this identity
+/// revision. A changed identity revision invalidates the old terminal diagnosis automatically.
 pub(super) fn duplicate_identity_diagnostic_for_revision(
     connection: &rusqlite::Connection,
-    revision: i64,
+    identity_revision: i64,
 ) -> Result<Option<Vec<DuplicateIdentityDiagnostic>>, String> {
     let Some(raw) = connection
         .query_row(
@@ -33,7 +33,11 @@ pub(super) fn duplicate_identity_diagnostic_for_revision(
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return Ok(None);
     };
-    if value.get("revision").and_then(serde_json::Value::as_i64) != Some(revision) {
+    if value
+        .get("identity_revision")
+        .and_then(serde_json::Value::as_i64)
+        != Some(identity_revision)
+    {
         return Ok(None);
     }
     let Some(identities) = value
@@ -114,11 +118,11 @@ pub(super) fn find_duplicate_identity_diagnostics(
 
 pub(super) fn persist_duplicate_identity_diagnostic(
     connection: &rusqlite::Connection,
-    revision: i64,
+    identity_revision: i64,
     diagnostics: &[DuplicateIdentityDiagnostic],
 ) -> Result<(), String> {
     let value = serde_json::json!({
-        "revision": revision,
+        "identity_revision": identity_revision,
         "identities": diagnostics.iter().map(|diagnostic| serde_json::json!({
             "identity": diagnostic.identity,
             "paths": diagnostic.paths,

@@ -3,7 +3,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use super::super::util::map_sql_error;
 use super::super::{Rating, SampleSoundType, SourceDbError, SourceWriteBatch};
@@ -164,6 +164,19 @@ impl<'conn> SourceWriteBatch<'conn> {
         relative_path: &Path,
         file_identity: Option<&str>,
     ) -> Result<(), SourceDbError> {
+        let previous_identity = self
+            .tx
+            .query_row(
+                "SELECT file_identity FROM wav_files WHERE path = ?1",
+                [relative_path.to_string_lossy().as_ref()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
+        if previous_identity.as_deref() != file_identity {
+            self.identities_revision_dirty = true;
+        }
         self.manifest_touched_paths
             .insert(relative_path.to_path_buf());
         match file_identity {

@@ -1,11 +1,12 @@
 use super::{
     AtomicBool, Cancellable, DiscoveryProgressUpdate, MANIFEST_AUDIT_INTERVAL_SECONDS,
-    META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION, PendingReadinessDelta, ProcessingLane,
-    ReadinessClassification, ReadinessProgress, ReadinessStore, ReadinessView, RuntimeCandidate,
-    RuntimeTask, SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats,
-    SourceHealthSummary, WorkCandidate, active_recording_deferrals, cancelled,
-    clear_duplicate_identity_diagnostic, duplicate_identity_diagnostic_for_revision,
-    earliest_deadline, find_duplicate_identity_diagnostics, legacy_unsupported_decode_failure_text,
+    META_LAST_MANIFEST_AUDIT_AT, META_WAV_IDENTITIES_REVISION, META_WAV_PATHS_REVISION,
+    PendingReadinessDelta, ProcessingLane, ReadinessClassification, ReadinessProgress,
+    ReadinessStore, ReadinessView, RuntimeCandidate, RuntimeTask, SampleSource, SourceAvailability,
+    SourceDiscoveryPhase, SourceDiscoveryStats, SourceHealthSummary, WorkCandidate,
+    active_recording_deferrals, cancelled, clear_duplicate_identity_diagnostic,
+    duplicate_identity_diagnostic_for_revision, earliest_deadline,
+    find_duplicate_identity_diagnostics, legacy_unsupported_decode_failure_text,
     persist_duplicate_identity_diagnostic, publish_current_readiness_delta_with_cancel,
     publish_current_readiness_targets_with_cancel_and_checkpoint, readiness_contract_version,
     retire_legacy_playback_readiness, similarity_prerequisite_blocker_stats,
@@ -206,24 +207,24 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             )),
         )));
     }
-    let manifest_revision = connection
+    let identity_revision = connection
         .query_row(
             "SELECT COALESCE(
                 (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
                 0
              )",
-            [META_WAV_PATHS_REVISION],
+            [META_WAV_IDENTITIES_REVISION],
             |row| row.get::<_, i64>(0),
         )
         .map_err(|error| error.to_string())?;
     if !force_manifest_audit
-        && duplicate_identity_diagnostic_for_revision(connection, manifest_revision)?.is_some()
+        && duplicate_identity_diagnostic_for_revision(connection, identity_revision)?.is_some()
     {
         tracing::warn!(
             target: "wavecrate::source_processing",
             event = "source_processing.duplicate_identity_terminal",
             source_id,
-            manifest_revision,
+            identity_revision,
             "Skipped unchanged readiness reconciliation after a durable duplicate-identity diagnosis"
         );
         return Ok(Cancellable::Completed((
@@ -239,7 +240,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
     if !duplicate_identities.is_empty() {
         persist_duplicate_identity_diagnostic(
             connection,
-            manifest_revision,
+            identity_revision,
             &duplicate_identities,
         )?;
         for diagnostic in &duplicate_identities {
@@ -247,7 +248,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
                 target: "wavecrate::source_processing",
                 event = "source_processing.duplicate_identity_terminal",
                 source_id,
-                manifest_revision,
+                identity_revision,
                 identity = diagnostic.identity.as_str(),
                 alias_count = diagnostic.paths.len(),
                 paths = ?diagnostic.paths,
