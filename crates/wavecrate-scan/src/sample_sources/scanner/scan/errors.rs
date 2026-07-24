@@ -26,6 +26,9 @@ pub enum ScanError {
         /// Current manifest revision observed before commit.
         actual: u64,
     },
+    /// The hidden-directory policy changed while the scan was in progress.
+    #[error("Source traversal policy changed while the scan was in progress")]
+    TraversalPolicyChanged,
     /// A source revision committed before later work stopped.
     #[error("Scan incomplete after committed checkpoint: {error}")]
     Incomplete {

@@ -787,7 +787,7 @@ mod tests {
         refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
-    use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
+    use crate::sample_sources::scanner::scan::{ScanContext, ScanError, ScanMode, scan_once};
     use crate::sample_sources::scanner::scan_diff::PreparedFile;
     use crate::sample_sources::scanner::scan_diff_phase::prepare_diff;
     use crate::sample_sources::scanner::scan_fs::read_facts;
@@ -1260,6 +1260,42 @@ mod tests {
 
         assert!(!outcome.committed);
         assert!(context.source_tree_incomplete());
+        assert!(db.entry_for_path(relative).unwrap().is_none());
+    }
+
+    #[test]
+    fn scan_batch_rejects_a_changed_traversal_policy_before_commit() {
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        std::fs::write(&source, b"inside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+        db.set_source_traversal_policy(
+            wavecrate_library::sample_sources::SourceTraversalPolicy::exclude_hidden_directories(),
+        )
+        .unwrap();
+
+        let result = apply_batch(
+            &db,
+            dir.path(),
+            None,
+            &mut context,
+            vec![prepared],
+            false,
+            &super::super::scan_writer::UncoordinatedScanWriter,
+        );
+
+        assert!(matches!(result, Err(ScanError::TraversalPolicyChanged)));
         assert!(db.entry_for_path(relative).unwrap().is_none());
     }
 

@@ -336,6 +336,9 @@ impl ScanContext {
         batch: SourceWriteBatch<'_>,
         post_commit_hook: impl FnOnce(),
     ) -> Result<u64, ScanError> {
+        if !batch.matches_source_traversal_policy(self.traversal_policy)? {
+            return Err(ScanError::TraversalPolicyChanged);
+        }
         let result = batch.commit_with_manifest_changes(self.committed_manifest_revision)?;
         post_commit_hook();
         if let Some(snapshot) = result.authoritative_snapshot {
