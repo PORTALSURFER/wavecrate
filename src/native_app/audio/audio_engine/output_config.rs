@@ -1,4 +1,10 @@
-use std::time::Instant;
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Instant,
+};
 
 use radiant::prelude as ui;
 
@@ -90,12 +96,26 @@ impl NativeAppState {
         let mut persisted = self.current_settings_core();
         persisted.audio_output = self.audio.output_config.clone();
         let sources = self.library.folder_browser.configured_sample_sources();
+        let generation = self
+            .background
+            .audio_output_persist_generation
+            .load(Ordering::Acquire);
+        let latest_generation = Arc::clone(&self.background.audio_output_persist_generation);
+        let persist_lock = Arc::clone(&self.background.audio_output_persist_lock);
         context
             .business()
             .blocking_io("gui-audio-output-persist")
             .latest(&mut self.background.audio_output_persist_task)
             .run(
-                move |_| persist_audio_output_settings(sources, persisted),
+                move |_| {
+                    persist_audio_output_settings(
+                        sources,
+                        persisted,
+                        generation,
+                        latest_generation,
+                        persist_lock,
+                    )
+                },
                 GuiMessage::AudioOutputPersisted,
             );
     }
@@ -135,11 +155,81 @@ impl NativeAppState {
 fn persist_audio_output_settings(
     sources: Vec<wavecrate::sample_sources::SampleSource>,
     persisted: wavecrate::sample_sources::config::AppSettingsCore,
+    generation: u64,
+    latest_generation: Arc<AtomicU64>,
+    persist_lock: Arc<Mutex<()>>,
 ) -> AudioOutputPersistResult {
-    let result = wavecrate::sample_sources::config::save(&AppConfig {
-        sources,
-        core: persisted.clone(),
-    })
-    .map_err(|err| err.to_string());
+    let result = persist_audio_output_settings_if_current(
+        generation,
+        &latest_generation,
+        &persist_lock,
+        || {
+            wavecrate::sample_sources::config::save(&AppConfig {
+                sources,
+                core: persisted.clone(),
+            })
+            .map_err(|err| err.to_string())
+        },
+    );
     AudioOutputPersistResult { persisted, result }
+}
+
+fn persist_audio_output_settings_if_current(
+    generation: u64,
+    latest_generation: &AtomicU64,
+    persist_lock: &Mutex<()>,
+    persist: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let _guard = persist_lock
+        .lock()
+        .map_err(|_| String::from("audio settings persistence lock poisoned"))?;
+    if latest_generation.load(Ordering::Acquire) != generation {
+        return Ok(());
+    }
+    persist()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+    };
+
+    #[test]
+    fn stale_audio_persist_worker_cannot_overwrite_newer_confirmed_output() {
+        let latest_generation = AtomicU64::new(1);
+        let persist_lock = Mutex::new(());
+        let durable_output = Arc::new(Mutex::new(String::from("old-output")));
+
+        let output_a = Arc::clone(&durable_output);
+        persist_audio_output_settings_if_current(1, &latest_generation, &persist_lock, || {
+            *output_a.lock().expect("durable output lock") = String::from("output-a");
+            Ok(())
+        })
+        .expect("output A should persist while current");
+
+        latest_generation.store(2, Ordering::Release);
+        let output_b = Arc::clone(&durable_output);
+        persist_audio_output_settings_if_current(2, &latest_generation, &persist_lock, || {
+            *output_b.lock().expect("durable output lock") = String::from("output-b");
+            Ok(())
+        })
+        .expect("output B should persist while current");
+
+        let stale_save_attempted = Arc::new(AtomicBool::new(false));
+        let stale_save_attempted_for_worker = Arc::clone(&stale_save_attempted);
+        persist_audio_output_settings_if_current(1, &latest_generation, &persist_lock, || {
+            stale_save_attempted_for_worker.store(true, Ordering::Release);
+            Ok(())
+        })
+        .expect("stale completion should be harmless");
+
+        assert_eq!(
+            durable_output.lock().expect("durable output lock").as_str(),
+            "output-b"
+        );
+        assert!(!stale_save_attempted.load(Ordering::Acquire));
+    }
 }

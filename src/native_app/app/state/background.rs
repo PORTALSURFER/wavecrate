@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
+        atomic::AtomicU64,
         mpsc::{Receiver, Sender},
     },
 };
@@ -36,6 +37,8 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) audio_options_refresh_task: ui::LatestTask,
     pub(in crate::native_app) audio_options_refresh_cancel: Option<ui::CancellationToken>,
     pub(in crate::native_app) audio_output_persist_task: ui::LatestTask,
+    pub(in crate::native_app) audio_output_persist_generation: Arc<AtomicU64>,
+    pub(in crate::native_app) audio_output_persist_lock: Arc<Mutex<()>>,
     pub(in crate::native_app) audio_open: AudioOpenTaskOwner,
     pub(in crate::native_app) folder_tree_refresh_task: ui::LatestTask,
     pub(in crate::native_app) folder_verify_task: ui::LatestTask,
@@ -115,6 +118,8 @@ impl BackgroundTaskState {
             audio_options_refresh_task: ui::LatestTask::new(),
             audio_options_refresh_cancel: None,
             audio_output_persist_task: ui::LatestTask::new(),
+            audio_output_persist_generation: Arc::new(AtomicU64::new(0)),
+            audio_output_persist_lock: Arc::new(Mutex::new(())),
             audio_open: AudioOpenTaskOwner::new(),
             folder_tree_refresh_task: ui::LatestTask::new(),
             folder_verify_task: ui::LatestTask::new(),

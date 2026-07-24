@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use radiant::prelude as ui;
@@ -113,6 +114,9 @@ impl NativeAppState {
             }
         }
         if self.audio.output_config_persist_pending {
+            self.background
+                .audio_output_persist_generation
+                .fetch_add(1, Ordering::AcqRel);
             self.queue_audio_output_persist(context);
         }
         let pending = self.audio.pending_playback_start.take();
