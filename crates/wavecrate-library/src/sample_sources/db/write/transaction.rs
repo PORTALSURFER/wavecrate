@@ -5,6 +5,16 @@ use rusqlite::OptionalExtension;
 use super::super::util::{map_sql_error, normalize_relative_path};
 use super::super::{SourceDatabase, SourceDbError, SourceManifestEntry, SourceWriteBatch};
 
+/// Manifest state published by a committed source-database write batch.
+pub struct ManifestCommitResult {
+    /// Revision assigned to the committed manifest state.
+    pub revision: u64,
+    /// Manifest rows for paths touched by this batch when the cached revision was current.
+    pub touched_path_changes: Vec<(PathBuf, Option<SourceManifestEntry>)>,
+    /// Complete manifest captured in the committing transaction when the cached revision was stale.
+    pub authoritative_snapshot: Option<Vec<SourceManifestEntry>>,
+}
+
 impl SourceWriteBatch<'_> {
     /// Return whether this write transaction began at `expected_revision`.
     ///
@@ -77,14 +87,7 @@ impl SourceWriteBatch<'_> {
     pub fn commit_with_manifest_changes(
         self,
         expected_previous_revision: u64,
-    ) -> Result<
-        (
-            u64,
-            Vec<(PathBuf, Option<SourceManifestEntry>)>,
-            Option<Vec<SourceManifestEntry>>,
-        ),
-        SourceDbError,
-    > {
+    ) -> Result<ManifestCommitResult, SourceDbError> {
         self.prepare_commit()?;
         let revision = manifest_revision(&self.tx)?;
         let (changes, snapshot) = if revision == expected_previous_revision.saturating_add(1) {
@@ -108,7 +111,11 @@ impl SourceWriteBatch<'_> {
             "source_db",
             self.telemetry_label,
         );
-        Ok((revision, changes, snapshot))
+        Ok(ManifestCommitResult {
+            revision,
+            touched_path_changes: changes,
+            authoritative_snapshot: snapshot,
+        })
     }
 
     /// Commit a revision-fenced batch and return only the manifest rows touched by that batch.
@@ -119,7 +126,7 @@ impl SourceWriteBatch<'_> {
     pub fn commit_with_bounded_manifest_changes(
         self,
         expected_previous_revision: u64,
-    ) -> Result<(u64, Vec<(PathBuf, Option<SourceManifestEntry>)>), SourceDbError> {
+    ) -> Result<ManifestCommitResult, SourceDbError> {
         if manifest_revision(&self.tx)? != expected_previous_revision {
             return Err(SourceDbError::Unexpected);
         }
@@ -140,7 +147,11 @@ impl SourceWriteBatch<'_> {
             "source_db",
             self.telemetry_label,
         );
-        Ok((revision, changes))
+        Ok(ManifestCommitResult {
+            revision,
+            touched_path_changes: changes,
+            authoritative_snapshot: None,
+        })
     }
 
     fn prepare_commit(&self) -> Result<(), SourceDbError> {
@@ -332,15 +343,18 @@ mod tests {
         batch
             .upsert_file_with_hash(Path::new("created.wav"), 7, 30, "created-hash")
             .expect("insert created file");
-        let (revision, changes, snapshot) = batch
+        let result = batch
             .commit_with_manifest_changes(expected_previous_revision)
             .expect("commit manifest changes");
 
-        assert_eq!(revision, database.get_revision().expect("current revision"));
-        assert!(snapshot.is_none());
-        assert_eq!(changes.len(), 2);
         assert_eq!(
-            changes[0],
+            result.revision,
+            database.get_revision().expect("current revision")
+        );
+        assert!(result.authoritative_snapshot.is_none());
+        assert_eq!(result.touched_path_changes.len(), 2);
+        assert_eq!(
+            result.touched_path_changes[0],
             (
                 PathBuf::from("created.wav"),
                 Some(SourceManifestEntry {
@@ -352,7 +366,44 @@ mod tests {
                 })
             )
         );
-        assert_eq!(changes[1], (PathBuf::from("removed.wav"), None));
+        assert_eq!(
+            result.touched_path_changes[1],
+            (PathBuf::from("removed.wav"), None)
+        );
+    }
+
+    #[test]
+    fn commit_manifest_changes_returns_authoritative_snapshot_when_revision_advanced() {
+        let directory = tempfile::tempdir().expect("source root");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
+        database
+            .upsert_file(Path::new("existing.wav"), 5, 10)
+            .expect("insert existing file");
+
+        let mut batch = database.write_batch().expect("manifest batch");
+        batch
+            .upsert_file_with_hash(Path::new("created.wav"), 7, 30, "created-hash")
+            .expect("insert created file");
+        let result = batch
+            .commit_with_manifest_changes(0)
+            .expect("commit manifest changes");
+
+        assert_eq!(
+            result.revision,
+            database.get_revision().expect("current revision")
+        );
+        assert!(result.touched_path_changes.is_empty());
+        let snapshot = result
+            .authoritative_snapshot
+            .expect("authoritative manifest snapshot");
+        assert_eq!(
+            snapshot
+                .into_iter()
+                .map(|entry| entry.relative_path)
+                .collect::<Vec<_>>(),
+            vec![PathBuf::from("created.wav"), PathBuf::from("existing.wav")]
+        );
     }
 
     #[test]
@@ -366,15 +417,18 @@ mod tests {
             .upsert_file_with_hash(Path::new(r"nested\kick.wav"), 7, 30, "kick-hash")
             .expect("insert nested file");
 
-        let (_revision, changes, snapshot) = batch
+        let result = batch
             .commit_with_manifest_changes(expected_previous_revision)
             .expect("commit manifest changes");
 
-        assert!(snapshot.is_none());
-        assert_eq!(changes.len(), 1);
-        assert_eq!(changes[0].0, Path::new("nested/kick.wav"));
+        assert!(result.authoritative_snapshot.is_none());
+        assert_eq!(result.touched_path_changes.len(), 1);
         assert_eq!(
-            changes[0]
+            result.touched_path_changes[0].0,
+            Path::new("nested/kick.wav")
+        );
+        assert_eq!(
+            result.touched_path_changes[0]
                 .1
                 .as_ref()
                 .map(|entry| entry.relative_path.as_path()),
