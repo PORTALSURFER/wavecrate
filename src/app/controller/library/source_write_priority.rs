@@ -137,17 +137,60 @@ struct SourceWritePriorityState {
 struct SourceWritePriorityTestScope {
     source_id: SourceId,
     previous: SourceWritePriorityState,
-    _owner: std::sync::MutexGuard<'static, ()>,
+    _owner: SourceWritePriorityTestOwner,
+}
+
+#[cfg(test)]
+struct SourceWritePriorityTestOwner {
+    source_id: SourceId,
+}
+
+#[cfg(test)]
+type SourceWritePriorityTestOwners = (Mutex<HashSet<SourceId>>, std::sync::Condvar);
+
+#[cfg(test)]
+fn source_write_priority_test_owners() -> &'static SourceWritePriorityTestOwners {
+    static OWNERS: OnceLock<SourceWritePriorityTestOwners> = OnceLock::new();
+    OWNERS.get_or_init(|| (Mutex::new(HashSet::new()), std::sync::Condvar::new()))
+}
+
+#[cfg(test)]
+impl SourceWritePriorityTestOwner {
+    fn new(source_id: &SourceId) -> Self {
+        let (owners, released) = source_write_priority_test_owners();
+        let mut owners = owners
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while owners.contains(source_id) {
+            owners = released
+                .wait(owners)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        }
+        owners.insert(source_id.clone());
+        Self {
+            source_id: source_id.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for SourceWritePriorityTestOwner {
+    fn drop(&mut self) {
+        let (owners, released) = source_write_priority_test_owners();
+        let mut owners = owners
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let owned = owners.remove(&self.source_id);
+        drop(owners);
+        debug_assert!(owned, "source write-priority scope must own its source");
+        released.notify_all();
+    }
 }
 
 #[cfg(test)]
 impl SourceWritePriorityTestScope {
     fn new(source_id: &SourceId) -> Self {
-        static OWNER: OnceLock<Mutex<()>> = OnceLock::new();
-        let owner = OWNER
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let owner = SourceWritePriorityTestOwner::new(source_id);
         let previous = take_source_state(source_id);
         Self {
             source_id: source_id.clone(),
@@ -229,6 +272,7 @@ impl CompletedBrowserRenameTestGuard {
 mod tests {
     use super::*;
     use std::sync::mpsc;
+    use std::time::Duration;
 
     #[test]
     fn file_op_guard_is_visible_to_worker_clients_and_cleans_up_after_panic() {
@@ -264,5 +308,51 @@ mod tests {
 
         assert!(unwind.is_err());
         assert_eq!(completed_browser_rename_target(&source_id, old), None);
+    }
+
+    #[test]
+    fn same_source_test_scopes_are_exclusive() {
+        let source_id = SourceId::from_string("same-source-scope-ownership");
+        let first_scope = FileOpWritePriorityGuard::new(&source_id);
+        let worker_source_id = source_id.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let _scope = FileOpWritePriorityGuard::new(&worker_source_id);
+            acquired_tx.send(()).unwrap();
+        });
+
+        started_rx.recv().unwrap();
+        assert!(file_op_write_priority_active(&source_id));
+        assert!(matches!(
+            acquired_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        drop(first_scope);
+        acquired_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        worker.join().unwrap();
+        assert!(!file_op_write_priority_active(&source_id));
+    }
+
+    #[test]
+    fn distinct_source_test_scopes_acquire_concurrently() {
+        let first_source_id = SourceId::from_string("distinct-source-scope-a");
+        let second_source_id = SourceId::from_string("distinct-source-scope-b");
+        let first_scope = FileOpWritePriorityGuard::new(&first_source_id);
+        let worker_source_id = second_source_id.clone();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _scope = FileOpWritePriorityGuard::new(&worker_source_id);
+            acquired_tx.send(()).unwrap();
+        });
+
+        acquired_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(file_op_write_priority_active(&first_source_id));
+        worker.join().unwrap();
+        drop(first_scope);
+        assert!(!file_op_write_priority_active(&first_source_id));
+        assert!(!file_op_write_priority_active(&second_source_id));
     }
 }
