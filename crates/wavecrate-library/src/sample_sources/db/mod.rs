@@ -11,6 +11,7 @@ mod content_audit;
 mod error;
 /// Persistent file operation journal for crash recovery.
 pub mod file_ops_journal;
+mod index_entries;
 mod open;
 mod open_profiles;
 /// Private rename-recovery metadata retained after immediate file pruning.
@@ -53,6 +54,7 @@ pub use pending_renames::{PendingRenameDiagnostics, PendingRenameEntry, PendingR
 pub use rename_metadata::RenameMetadataSnapshot;
 pub use types::{
     BrowserFileMetadata, BrowserMetadataSnapshot, Rating, SampleCollection, SampleSoundType,
+    SourceIndexClassification, SourceIndexDiagnostic, SourceIndexEntry, SourceIndexSnapshot,
     SourceManifestEntry, SourceTag, SourceTagUsage, WavEntry,
 };
 pub use util::normalize_relative_path;
@@ -81,6 +83,8 @@ pub const META_DEFERRED_MAINTENANCE_REVISION: &str = "deferred_maintenance_revis
 pub const META_DEFERRED_MAINTENANCE_SCHEMA: &str = "deferred_maintenance_schema_v1";
 /// Metadata key storing the last revision that changed the ordered wav path set.
 pub const META_WAV_PATHS_REVISION: &str = "wav_paths_revision_v1";
+/// Metadata key storing the revision of the index-only unsupported file set.
+pub const META_SOURCE_INDEX_REVISION: &str = "source_index_revision_v1";
 /// Env var that enables read-only source DB opening by default.
 pub const SOURCE_DB_READ_ONLY_ENV: &str = "WAVECRATE_SOURCE_DB_READ_ONLY";
 
@@ -116,6 +120,7 @@ pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
     db_path: PathBuf,
     paths_revision_dirty: bool,
+    index_revision_dirty: bool,
     manifest_touched_paths: BTreeSet<PathBuf>,
     telemetry_label: &'static str,
 }

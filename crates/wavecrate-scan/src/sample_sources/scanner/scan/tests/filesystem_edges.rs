@@ -65,6 +65,7 @@ fn scan_skips_symlink_files() {
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.total_files, 1);
     assert_eq!(stats.added, 1);
+    assert!(db.list_source_index_entries().unwrap().is_empty());
 }
 
 #[test]
@@ -92,6 +93,7 @@ fn scan_skips_appledouble_sidecar_files() {
         paths,
         vec![PathBuf::from("drums/snare.wav"), PathBuf::from("kick.wav")]
     );
+    assert!(db.list_source_index_entries().unwrap().is_empty());
 }
 
 #[test]

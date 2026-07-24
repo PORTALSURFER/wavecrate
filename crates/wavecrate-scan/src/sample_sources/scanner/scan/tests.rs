@@ -8,6 +8,7 @@ mod basics;
 #[cfg(unix)]
 mod filesystem_edges;
 mod hard_rescan;
+mod index_entries;
 mod rename_reconciliation;
 mod rename_retention;
 mod targeted_sync;

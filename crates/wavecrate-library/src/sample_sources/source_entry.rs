@@ -5,7 +5,10 @@ use std::{
     path::{Component, Path},
 };
 
-use super::{is_apple_double_sidecar, is_supported_audio};
+use super::{is_apple_double_sidecar, is_recognized_audio, is_supported_audio};
+
+/// Version of the source format-classification policy persisted with index-only rows.
+pub const SOURCE_FORMAT_POLICY_VERSION: u32 = 1;
 
 /// A filesystem entry type observed without following links or reparse points.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,6 +47,22 @@ pub enum SourceEntryKind {
     File,
 }
 
+/// Format support assigned to one regular file by the shared source policy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SourceFileClassification {
+    /// A file whose format is eligible for the supported sample manifest.
+    SupportedAudio,
+    /// A recognized audio container that Wavecrate does not currently support.
+    UnsupportedAudio,
+    /// A regular file that is not recognized as audio.
+    UnsupportedNonAudio,
+    /// Audio whose format is supported but whose practical constraints reject indexing.
+    ///
+    /// The current format policy has no such limit. The explicit state lets
+    /// format inspection record one without conflating it with inaccessible I/O.
+    PracticallyUnsupportedAudio,
+}
+
 /// Why a source entry is not visible to source traversals.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceEntryRejection {
@@ -51,6 +70,8 @@ pub enum SourceEntryRejection {
     Link,
     /// AppleDouble sidecars are implementation metadata, not source files.
     AppleDouble,
+    /// Wavecrate's embedded source database and SQLite sidecars are implementation metadata.
+    SourceDatabase,
     /// The entry is neither a regular file nor a directory.
     UnsupportedType,
 }
@@ -65,8 +86,8 @@ pub enum SourceEntryClassification {
     },
     /// A regular file, including its source-index eligibility.
     File {
-        /// Whether the file has a supported sample-audio format.
-        supported_audio: bool,
+        /// Audio-format support assigned by the shared source policy.
+        classification: SourceFileClassification,
         /// Whether the file is below a hidden directory.
         below_hidden_directory: bool,
     },
@@ -89,7 +110,7 @@ impl SourceEntryClassification {
         matches!(
             self,
             Self::File {
-                supported_audio: true,
+                classification: SourceFileClassification::SupportedAudio,
                 below_hidden_directory: false,
             }
         )
@@ -100,10 +121,18 @@ impl SourceEntryClassification {
         matches!(
             self,
             Self::File {
-                supported_audio: true,
+                classification: SourceFileClassification::SupportedAudio,
                 ..
             }
         )
+    }
+
+    /// Return the regular-file classification, if this is a visible file.
+    pub fn file_classification(self) -> Option<SourceFileClassification> {
+        match self {
+            Self::File { classification, .. } => Some(classification),
+            Self::Directory { .. } | Self::Rejected(_) => None,
+        }
     }
 }
 
@@ -129,11 +158,34 @@ pub fn classify_source_entry(
         SourceEntryFileType::File if is_apple_double_sidecar(relative_path) => {
             SourceEntryClassification::Rejected(SourceEntryRejection::AppleDouble)
         }
+        SourceEntryFileType::File if is_source_database_artifact(relative_path) => {
+            SourceEntryClassification::Rejected(SourceEntryRejection::SourceDatabase)
+        }
         SourceEntryFileType::File => SourceEntryClassification::File {
-            supported_audio: is_supported_audio(relative_path),
+            classification: if is_supported_audio(relative_path) {
+                SourceFileClassification::SupportedAudio
+            } else if is_recognized_audio(relative_path) {
+                SourceFileClassification::UnsupportedAudio
+            } else {
+                SourceFileClassification::UnsupportedNonAudio
+            },
             below_hidden_directory: has_hidden_ancestor(relative_path),
         },
     }
+}
+
+fn is_source_database_artifact(relative_path: &Path) -> bool {
+    let Some(name) = relative_path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    [".wavecrate.db", ".wavecrate_samples.db"]
+        .iter()
+        .any(|database_name| {
+            name == *database_name
+                || ["-wal", "-shm", "-journal"]
+                    .iter()
+                    .any(|suffix| name == format!("{database_name}{suffix}"))
+        })
 }
 
 /// Inspect and classify one path without following links or reparse points.
@@ -228,6 +280,10 @@ mod tests {
             classify_source_entry(Path::new("socket"), SourceEntryFileType::Other),
             SourceEntryClassification::Rejected(SourceEntryRejection::UnsupportedType)
         );
+        assert_eq!(
+            classify_source_entry(Path::new(".wavecrate.db-wal"), SourceEntryFileType::File),
+            SourceEntryClassification::Rejected(SourceEntryRejection::SourceDatabase)
+        );
     }
 
     #[test]
@@ -236,5 +292,19 @@ mod tests {
         assert_eq!(entry.visible_kind(), Some(SourceEntryKind::File));
         assert!(!entry.has_supported_audio());
         assert!(!entry.indexes_audio());
+    }
+
+    #[test]
+    fn unsupported_audio_and_non_audio_are_distinct() {
+        assert_eq!(
+            classify_source_entry(Path::new("loop.flac"), SourceEntryFileType::File)
+                .file_classification(),
+            Some(SourceFileClassification::UnsupportedAudio)
+        );
+        assert_eq!(
+            classify_source_entry(Path::new("notes.txt"), SourceEntryFileType::File)
+                .file_classification(),
+            Some(SourceFileClassification::UnsupportedNonAudio)
+        );
     }
 }

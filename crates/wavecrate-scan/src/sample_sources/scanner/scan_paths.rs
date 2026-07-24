@@ -8,7 +8,8 @@ use std::{
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
 use cap_std::fs::{Dir, OpenOptions};
 use wavecrate_library::sample_sources::{
-    SourceEntryClassification, SourceEntryFileType, classify_source_entry,
+    SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
+    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry,
 };
 
 use crate::sample_sources::{SourceDatabase, WavEntry};
@@ -18,6 +19,7 @@ use super::{
     scan_db_sync::db_sync_phase,
     scan_diff_phase::prepare_diff_from_facts,
     scan_fs::ensure_root_dir,
+    scan_index::{inaccessible_index_entry, index_entry_from_file_facts},
     scan_walk::apply_prepared_chunk,
     scan_writer::{ScanWriter, UncoordinatedScanWriter},
 };
@@ -57,6 +59,8 @@ pub fn sync_paths_with_progress_and_writer(
     let TargetedScanTargets {
         current_files,
         existing,
+        current_index_entries,
+        existing_index_entries,
         uncertain_prefixes,
     } = targets;
     let mut context = ScanContext::from_existing(
@@ -64,6 +68,10 @@ pub fn sync_paths_with_progress_and_writer(
         ScanMode::Targeted,
         manifest_revision,
         manifest_before.clone(),
+    );
+    context.set_targeted_index_entries(
+        existing_index_entries.into_values(),
+        current_index_entries.into_values(),
     );
     context.mark_uncertain_prefixes(uncertain_prefixes);
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
@@ -116,6 +124,8 @@ pub fn sync_paths_with_progress_and_writer(
 struct TargetedScanTargets {
     current_files: Vec<TargetedFile>,
     existing: HashMap<PathBuf, WavEntry>,
+    current_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
+    existing_index_entries: BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: BTreeSet<PathBuf>,
 }
 
@@ -138,6 +148,8 @@ fn collect_targets(
         })?;
     let mut current_files = BTreeMap::new();
     let mut existing = HashMap::new();
+    let mut current_index_entries = BTreeMap::new();
+    let mut existing_index_entries = BTreeMap::new();
     let mut uncertain_prefixes = BTreeSet::new();
     for relative_path in normalized_targets(paths) {
         if let Some(cancel) = cancel
@@ -146,18 +158,22 @@ fn collect_targets(
             return Err(ScanError::Canceled);
         }
         collect_existing_rows(db, &relative_path, &mut existing)?;
+        collect_existing_index_entries(db, &relative_path, &mut existing_index_entries)?;
         collect_current_files(
             &source_root,
             root,
             &relative_path,
             cancel,
             &mut current_files,
+            &mut current_index_entries,
             &mut uncertain_prefixes,
         )?;
     }
     Ok(TargetedScanTargets {
         current_files: current_files.into_values().collect(),
         existing,
+        current_index_entries,
+        existing_index_entries,
         uncertain_prefixes,
     })
 }
@@ -195,12 +211,24 @@ fn collect_existing_rows(
     Ok(())
 }
 
+fn collect_existing_index_entries(
+    db: &SourceDatabase,
+    relative_path: &Path,
+    existing: &mut BTreeMap<PathBuf, SourceIndexEntry>,
+) -> Result<(), ScanError> {
+    for entry in db.list_source_index_entries_under_path(relative_path)? {
+        existing.entry(entry.relative_path.clone()).or_insert(entry);
+    }
+    Ok(())
+}
+
 fn collect_current_files(
     source_root: &Dir,
     root: &Path,
     relative_path: &Path,
     cancel: Option<&AtomicBool>,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
+    current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
     let Some((parent, name)) =
@@ -220,6 +248,13 @@ fn collect_current_files(
                 "Failed to read targeted sync entry metadata"
             );
             uncertain_prefixes.insert(relative_path.to_path_buf());
+            current_index_entries.insert(
+                relative_path.to_path_buf(),
+                inaccessible_index_entry(
+                    relative_path.to_path_buf(),
+                    SourceIndexDiagnostic::EntryTypeUnavailable,
+                ),
+            );
             return Ok(());
         }
     };
@@ -245,6 +280,7 @@ fn collect_current_files(
                 relative_path,
                 cancel,
                 current_files,
+                current_index_entries,
                 uncertain_prefixes,
             )?;
         }
@@ -257,10 +293,22 @@ fn collect_current_files(
                 root,
                 relative_path,
                 current_files,
+                current_index_entries,
                 uncertain_prefixes,
             )?;
         }
-        SourceEntryClassification::File { .. } | SourceEntryClassification::Rejected(_) => {}
+        classification @ SourceEntryClassification::File { .. } => {
+            collect_current_index_file(
+                &parent,
+                Path::new(&name),
+                root,
+                relative_path,
+                classification,
+                current_index_entries,
+                uncertain_prefixes,
+            )?;
+        }
+        SourceEntryClassification::Rejected(_) => {}
     }
     Ok(())
 }
@@ -318,6 +366,7 @@ fn collect_current_files_in_dir(
     start_relative: &Path,
     cancel: Option<&AtomicBool>,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
+    current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
     let mut stack = vec![(start_dir, start_relative.to_path_buf())];
@@ -364,6 +413,14 @@ fn collect_current_files_in_dir(
                         "Failed to read targeted sync file type"
                     );
                     uncertain_prefixes.insert(relative_dir.join(name_path));
+                    let relative_path = relative_dir.join(name_path);
+                    current_index_entries.insert(
+                        relative_path.clone(),
+                        inaccessible_index_entry(
+                            relative_path,
+                            SourceIndexDiagnostic::EntryTypeUnavailable,
+                        ),
+                    );
                     continue;
                 }
             };
@@ -400,11 +457,22 @@ fn collect_current_files_in_dir(
                         root,
                         &relative_path,
                         current_files,
+                        current_index_entries,
                         uncertain_prefixes,
                     )?;
                 }
-                SourceEntryClassification::File { .. } | SourceEntryClassification::Rejected(_) => {
+                classification @ SourceEntryClassification::File { .. } => {
+                    collect_current_index_file(
+                        &dir,
+                        name_path,
+                        root,
+                        &relative_path,
+                        classification,
+                        current_index_entries,
+                        uncertain_prefixes,
+                    )?;
                 }
+                SourceEntryClassification::Rejected(_) => {}
             }
         }
     }
@@ -417,6 +485,7 @@ fn collect_current_file(
     root: &Path,
     relative_path: &Path,
     current_files: &mut BTreeMap<PathBuf, TargetedFile>,
+    current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
     uncertain_prefixes: &mut BTreeSet<PathBuf>,
 ) -> Result<(), ScanError> {
     let absolute_path = root.join(relative_path);
@@ -441,11 +510,36 @@ fn collect_current_file(
                 .is_ok_and(|metadata| metadata.is_symlink())
             {
                 uncertain_prefixes.insert(relative_path.to_path_buf());
+                current_index_entries.insert(
+                    relative_path.to_path_buf(),
+                    inaccessible_index_entry(
+                        relative_path.to_path_buf(),
+                        SourceIndexDiagnostic::OpenUnavailable,
+                    ),
+                );
             }
             return Ok(());
         }
     };
-    let facts = super::scan_fs::read_facts_from_open_file(root, &absolute_path, &file)?;
+    let facts = match super::scan_fs::read_facts_from_open_file(root, &absolute_path, &file) {
+        Ok(facts) => facts,
+        Err(error) => {
+            tracing::warn!(
+                path = %absolute_path.display(),
+                %error,
+                "Skipping targeted sync file with unavailable metadata"
+            );
+            uncertain_prefixes.insert(relative_path.to_path_buf());
+            current_index_entries.insert(
+                relative_path.to_path_buf(),
+                inaccessible_index_entry(
+                    relative_path.to_path_buf(),
+                    SourceIndexDiagnostic::MetadataUnavailable,
+                ),
+            );
+            return Ok(());
+        }
+    };
     current_files
         .entry(relative_path.to_path_buf())
         .or_insert(TargetedFile {
@@ -453,6 +547,81 @@ fn collect_current_file(
             facts,
             file,
         });
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_current_index_file(
+    parent: &Dir,
+    name: &Path,
+    root: &Path,
+    relative_path: &Path,
+    classification: SourceEntryClassification,
+    current_index_entries: &mut BTreeMap<PathBuf, SourceIndexEntry>,
+    uncertain_prefixes: &mut BTreeSet<PathBuf>,
+) -> Result<(), ScanError> {
+    let Some(file_classification) = classification.file_classification() else {
+        return Ok(());
+    };
+    if file_classification == SourceFileClassification::SupportedAudio {
+        return Ok(());
+    }
+    let absolute_path = root.join(relative_path);
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = match parent.open_with(name, &options) {
+        Ok(file) => file.into_std(),
+        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => {
+            if !parent
+                .symlink_metadata(name)
+                .is_ok_and(|metadata| metadata.is_symlink())
+            {
+                tracing::warn!(
+                    path = %absolute_path.display(),
+                    error = %source,
+                    "Targeted index-only file could not be opened without following links"
+                );
+                uncertain_prefixes.insert(relative_path.to_path_buf());
+                current_index_entries.insert(
+                    relative_path.to_path_buf(),
+                    inaccessible_index_entry(
+                        relative_path.to_path_buf(),
+                        SourceIndexDiagnostic::OpenUnavailable,
+                    ),
+                );
+            }
+            return Ok(());
+        }
+    };
+    let facts = match super::scan_fs::read_facts_from_open_file(root, &absolute_path, &file) {
+        Ok(facts) => facts,
+        Err(error) => {
+            tracing::warn!(
+                path = %absolute_path.display(),
+                %error,
+                "Targeted index-only file metadata is unavailable"
+            );
+            uncertain_prefixes.insert(relative_path.to_path_buf());
+            current_index_entries.insert(
+                relative_path.to_path_buf(),
+                inaccessible_index_entry(
+                    relative_path.to_path_buf(),
+                    SourceIndexDiagnostic::MetadataUnavailable,
+                ),
+            );
+            return Ok(());
+        }
+    };
+    if let Some(entry) = index_entry_from_file_facts(
+        relative_path.to_path_buf(),
+        file_classification,
+        facts.size,
+        facts.modified_ns,
+        facts.file_identity,
+    ) {
+        current_index_entries.insert(relative_path.to_path_buf(), entry);
+    }
     Ok(())
 }
 

@@ -14,13 +14,15 @@ use wavecrate_library::filesystem_identity::{
     filesystem_change_marker, stable_filesystem_identity,
 };
 use wavecrate_library::sample_sources::{
-    SourceEntryClassification, SourceEntryFileType, classify_source_entry,
+    SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
+    SourceIndexDiagnostic, SourceIndexEntry, classify_source_entry,
 };
 
 use crate::sample_sources::SourceDatabase;
 
 use super::scan::ScanError;
 use super::scan::{SourceTreeFile, SourceTreeSnapshot};
+use super::scan_index::{inaccessible_index_entry, index_entry_from_file_facts};
 
 const MAX_LAYOUT_DIAGNOSTICS: usize = 16;
 
@@ -29,6 +31,7 @@ thread_local! {
     static FORCED_DIRECTORY_READ_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
     static FORCED_DIRECTORY_ENTRY_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
     static FORCED_FILE_TYPE_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
+    static FORCED_FILE_METADATA_FAILURES: RefCell<BTreeSet<PathBuf>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Deterministically emulate an unreadable directory for scanner regression
@@ -52,12 +55,19 @@ pub(crate) fn force_file_type_failure(path: &Path) -> ForcedTraversalFailure {
     ForcedTraversalFailure::new(path, ForcedFailureKind::FileType)
 }
 
+/// Deterministically emulate an unreadable file-metadata observation.
+#[cfg(test)]
+pub(crate) fn force_file_metadata_failure(path: &Path) -> ForcedTraversalFailure {
+    ForcedTraversalFailure::new(path, ForcedFailureKind::FileMetadata)
+}
+
 #[cfg(test)]
 #[derive(Clone, Copy)]
 enum ForcedFailureKind {
     DirectoryRead,
     DirectoryEntry,
     FileType,
+    FileMetadata,
 }
 
 #[cfg(test)]
@@ -94,6 +104,7 @@ fn forced_failures(
         ForcedFailureKind::DirectoryRead => &FORCED_DIRECTORY_READ_FAILURES,
         ForcedFailureKind::DirectoryEntry => &FORCED_DIRECTORY_ENTRY_FAILURES,
         ForcedFailureKind::FileType => &FORCED_FILE_TYPE_FAILURES,
+        ForcedFailureKind::FileMetadata => &FORCED_FILE_METADATA_FAILURES,
     }
 }
 
@@ -128,6 +139,18 @@ pub(super) fn forced_file_type_error(path: &Path) -> Option<std::io::Error> {
             std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
                 "forced file type failure",
+            )
+        })
+    })
+}
+
+#[cfg(test)]
+fn forced_file_metadata_error(path: &Path) -> Option<std::io::Error> {
+    FORCED_FILE_METADATA_FAILURES.with(|failures| {
+        failures.borrow().contains(path).then(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "forced file metadata failure",
             )
         })
     })
@@ -239,6 +262,12 @@ pub(super) fn visit_dir_with_cancel_check(
                         format!("read file type {}: {err}", display_relative(root, &path)),
                     );
                     record_uncertain_prefix(&mut snapshot, root, &path);
+                    if let Ok(relative_path) = path.strip_prefix(root) {
+                        snapshot.index_entries.push(inaccessible_index_entry(
+                            relative_path.to_path_buf(),
+                            SourceIndexDiagnostic::EntryTypeUnavailable,
+                        ));
+                    }
                     continue;
                 }
             };
@@ -254,19 +283,33 @@ pub(super) fn visit_dir_with_cancel_check(
                 classification @ SourceEntryClassification::File { .. } => {
                     if classification.indexes_audio() {
                         visitor(&path)?;
-                    } else if !classification.has_supported_audio() {
-                        match entry.metadata() {
-                            Ok(metadata) => snapshot.other_files.push(SourceTreeFile {
-                                relative_path: relative,
-                                file_size: metadata.len(),
-                            }),
-                            Err(err) => record_layout_diagnostic(
-                                &mut snapshot,
-                                format!(
-                                    "read file metadata {}: {err}",
-                                    display_relative(root, &path)
-                                ),
-                            ),
+                    } else if let Some(file_classification) = classification.file_classification()
+                        && file_classification != SourceFileClassification::SupportedAudio
+                    {
+                        match source_index_entry(root, &path, file_classification) {
+                            Ok(index_entry) => {
+                                if let Some(file_size) = index_entry.file_size {
+                                    snapshot.other_files.push(SourceTreeFile {
+                                        relative_path: relative,
+                                        file_size,
+                                    });
+                                }
+                                snapshot.index_entries.push(index_entry);
+                            }
+                            Err(err) => {
+                                record_layout_diagnostic(
+                                    &mut snapshot,
+                                    format!(
+                                        "read file metadata {}: {err}",
+                                        display_relative(root, &path)
+                                    ),
+                                );
+                                record_uncertain_prefix(&mut snapshot, root, &path);
+                                snapshot.index_entries.push(inaccessible_index_entry(
+                                    relative,
+                                    SourceIndexDiagnostic::MetadataUnavailable,
+                                ));
+                            }
                         }
                     }
                 }
@@ -278,8 +321,46 @@ pub(super) fn visit_dir_with_cancel_check(
     snapshot
         .other_files
         .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    snapshot
+        .index_entries
+        .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     snapshot.uncertain_prefixes.sort();
     Ok(snapshot)
+}
+
+fn source_index_entry(
+    root: &Path,
+    path: &Path,
+    classification: SourceFileClassification,
+) -> Result<SourceIndexEntry, std::io::Error> {
+    #[cfg(test)]
+    if let Some(error) = forced_file_metadata_error(path) {
+        return Err(error);
+    }
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_file() {
+        return Err(std::io::Error::other(
+            "entry changed type during metadata inspection",
+        ));
+    }
+    let modified = metadata.modified()?;
+    let modified_ns = modified
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+        .min(i64::MAX as u128) as i64;
+    let relative_path = path
+        .strip_prefix(root)
+        .map(Path::to_path_buf)
+        .map_err(|_| std::io::Error::other("entry is outside the source root"))?;
+    index_entry_from_file_facts(
+        relative_path,
+        classification,
+        metadata.len(),
+        modified_ns,
+        stable_filesystem_identity(path, &metadata),
+    )
+    .ok_or_else(|| std::io::Error::other("supported audio is not an index-only entry"))
 }
 
 fn record_uncertain_prefix(snapshot: &mut SourceTreeSnapshot, root: &Path, path: &Path) {

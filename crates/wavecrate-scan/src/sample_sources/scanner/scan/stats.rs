@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use wavecrate_library::sample_sources::SourceManifestEntry;
 use wavecrate_library::sample_sources::db::{ContentAuditReport, PendingRenameDiagnostics};
+use wavecrate_library::sample_sources::{SourceIndexEntry, SourceManifestEntry};
 
 /// One non-audio regular file observed during the authoritative source traversal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +19,9 @@ pub struct SourceTreeSnapshot {
     pub directories: Vec<PathBuf>,
     /// Visible regular files that are not authoritative supported-audio manifest rows.
     pub other_files: Vec<SourceTreeFile>,
+    /// Typed index-only file facts captured by this traversal.
+    #[doc(hidden)]
+    pub index_entries: Vec<SourceIndexEntry>,
     /// Bounded diagnostics for entries that could not be classified or enumerated.
     pub diagnostics: Vec<String>,
     /// Relative directory or entry prefixes whose descendants were not

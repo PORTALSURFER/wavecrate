@@ -13,14 +13,15 @@ pub mod readiness;
 mod source_entry;
 
 pub use audio_support::{
-    is_apple_double_sidecar, is_supported_audio, supported_audio_where_clause,
+    is_apple_double_sidecar, is_recognized_audio, is_supported_audio, supported_audio_where_clause,
 };
 pub use db::normalize_relative_path;
 pub use db::{
     BrowserFileMetadata, BrowserMetadataSnapshot, DB_FILE_NAME, Rating, SampleCollection,
     SourceCollectionWrite, SourceContentHashWrite, SourceDatabase, SourceDatabaseConnectionRole,
-    SourceDbError, SourceFileWrite, SourceManifestEntry, SourceTag, SourceTagUsage, SourceTagWrite,
-    SourceWriteCommand, WavEntry,
+    SourceDbError, SourceFileWrite, SourceIndexClassification, SourceIndexDiagnostic,
+    SourceIndexEntry, SourceIndexSnapshot, SourceManifestEntry, SourceTag, SourceTagUsage,
+    SourceTagWrite, SourceWriteCommand, WavEntry,
 };
 pub use library::{
     HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity, HarvestFileKey,
@@ -28,8 +29,9 @@ pub use library::{
     LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, NewHarvestDerivation,
 };
 pub use source_entry::{
-    SourceEntryClassification, SourceEntryFileType, SourceEntryKind, SourceEntryProbeError,
-    SourceEntryRejection, classify_path_without_following, classify_source_entry,
+    SOURCE_FORMAT_POLICY_VERSION, SourceEntryClassification, SourceEntryFileType, SourceEntryKind,
+    SourceEntryProbeError, SourceEntryRejection, SourceFileClassification,
+    classify_path_without_following, classify_source_entry,
 };
 
 /// Identifier for a configured sample source.
