@@ -43,7 +43,10 @@ impl SourceWriteBatch<'_> {
     /// Callers use it for transactionally coherent auxiliary lifecycle state whose publication
     /// must not impersonate a new source-manifest generation.
     pub fn commit_auxiliary_state(self) -> Result<(), SourceDbError> {
-        if self.paths_revision_dirty || !self.manifest_touched_paths.is_empty() {
+        if self.paths_revision_dirty
+            || self.identities_revision_dirty
+            || !self.manifest_touched_paths.is_empty()
+        {
             return Err(SourceDbError::Unexpected);
         }
         if self.index_revision_dirty {
@@ -158,6 +161,9 @@ impl SourceWriteBatch<'_> {
         SourceDatabase::bump_revision(&self.tx)?;
         if self.paths_revision_dirty {
             SourceDatabase::bump_wav_paths_revision(&self.tx)?;
+        }
+        if self.identities_revision_dirty {
+            SourceDatabase::bump_wav_identities_revision(&self.tx)?;
         }
         if self.index_revision_dirty {
             SourceDatabase::bump_source_index_revision(&self.tx)?;
