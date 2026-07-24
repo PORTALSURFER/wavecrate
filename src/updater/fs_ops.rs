@@ -257,8 +257,7 @@ fn remove_path_if_exists(path: &Path, kind: StagedKind) -> Result<(), UpdateErro
         Err(err) => return Err(err.into()),
     };
     if metadata.file_type().is_symlink() {
-        fs::remove_file(path)?;
-        return Ok(());
+        return remove_symlink(path, &metadata.file_type());
     }
     match kind {
         StagedKind::File => {
@@ -267,6 +266,29 @@ fn remove_path_if_exists(path: &Path, kind: StagedKind) -> Result<(), UpdateErro
         StagedKind::Dir => {
             fs::remove_dir_all(path)?;
         }
+    }
+    Ok(())
+}
+
+fn remove_symlink(path: &Path, file_type: &fs::FileType) -> Result<(), UpdateError> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+
+        return remove_symlink_path(path, file_type.is_symlink_dir());
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = file_type;
+        remove_symlink_path(path, false)
+    }
+}
+
+fn remove_symlink_path(path: &Path, directory_link: bool) -> Result<(), UpdateError> {
+    if directory_link {
+        fs::remove_dir(path)?;
+    } else {
+        fs::remove_file(path)?;
     }
     Ok(())
 }
@@ -430,6 +452,38 @@ mod tests {
 
         assert!(!remnant.exists());
         assert_eq!(fs::read_to_string(outside).unwrap(), "keep");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remnant_cleanup_removes_directory_symlink_without_touching_target() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempdir().unwrap();
+        let outside = tmp.path().join("outside");
+        let remnant = tmp.path().join("resources.old");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("keep.txt"), "keep").unwrap();
+        symlink(&outside, &remnant).unwrap();
+
+        remove_path_if_exists(&remnant, StagedKind::Dir).unwrap();
+
+        assert!(!remnant.exists());
+        assert_eq!(
+            fs::read_to_string(outside.join("keep.txt")).unwrap(),
+            "keep"
+        );
+    }
+
+    #[test]
+    fn directory_link_cleanup_uses_directory_unlink_operation() {
+        let tmp = tempdir().unwrap();
+        let remnant = tmp.path().join("resources.old");
+        fs::create_dir(&remnant).unwrap();
+
+        remove_symlink_path(&remnant, true).unwrap();
+
+        assert!(!remnant.exists());
     }
 
     #[test]
