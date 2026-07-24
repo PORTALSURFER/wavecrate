@@ -7,6 +7,8 @@ use wavecrate_library::sample_sources::SourceManifestEntry;
 
 use super::{ScanError, ScanMode, ScanStats};
 
+const MANIFEST_AUDIT_CHECKPOINT_SIZE: usize = 64;
+
 pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
     pub(crate) stats: ScanStats,
@@ -196,11 +198,10 @@ impl ScanContext {
 
     pub(in crate::sample_sources::scanner) fn record_manifest_audit_paths(
         &mut self,
-        db: &SourceDatabase,
         paths: impl IntoIterator<Item = PathBuf>,
-    ) -> Result<(), ScanError> {
+    ) {
         let Some(audit) = self.manifest_audit.as_mut() else {
-            return Ok(());
+            return;
         };
         for path in paths {
             if audit.previously_checked.insert(path.clone()) {
@@ -208,11 +209,33 @@ impl ScanContext {
                 self.stats.total_files = self.stats.total_files.saturating_add(1);
             }
         }
-        if audit.pending.len() >= 64 {
-            db.checkpoint_manifest_audit_paths(&audit.pending)?;
-            audit.pending.clear();
-        }
-        Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn manifest_audit_checkpoint_due(&self) -> bool {
+        self.manifest_audit
+            .as_ref()
+            .is_some_and(|audit| audit.pending.len() >= MANIFEST_AUDIT_CHECKPOINT_SIZE)
+    }
+
+    pub(in crate::sample_sources::scanner) fn discard_manifest_audit_paths(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) {
+        let Some(audit) = self.manifest_audit.as_mut() else {
+            return;
+        };
+        let paths = paths.into_iter().collect::<HashSet<_>>();
+        let mut discarded = 0_usize;
+        audit.pending.retain(|path| {
+            if paths.contains(path) {
+                audit.previously_checked.remove(path);
+                discarded += 1;
+                false
+            } else {
+                true
+            }
+        });
+        self.stats.total_files = self.stats.total_files.saturating_sub(discarded);
     }
 
     pub(in crate::sample_sources::scanner) fn flush_manifest_audit_checkpoint(

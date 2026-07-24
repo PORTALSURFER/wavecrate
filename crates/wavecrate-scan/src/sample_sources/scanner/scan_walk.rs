@@ -36,6 +36,7 @@ pub(super) fn walk_phase(
     // resumes from the durable partial index without presenting it as a complete generation.
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
+    let mut pending_noops = Vec::with_capacity(APPLY_BATCH_SIZE);
     let source_root = SourceRootCapability::open(root)?;
     let source_tree_snapshot =
         visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
@@ -93,8 +94,21 @@ pub(super) fn walk_phase(
                 prepared = refreshed;
             }
             if !prepared.requires_apply {
-                skip_noop(context, &prepared);
-                context.record_manifest_audit_paths(db, [relative_path])?;
+                if context.resumable_manifest_audit_active() {
+                    context.record_manifest_audit_paths([relative_path]);
+                    pending_noops.push(prepared);
+                    if context.manifest_audit_checkpoint_due() {
+                        flush_manifest_audit_checkpoint_with_noops(
+                            db,
+                            root,
+                            &source_root,
+                            context,
+                            &mut pending_noops,
+                        )?;
+                    }
+                } else {
+                    skip_noop(context, &prepared);
+                }
                 publish_manifest_audit_progress(context, root, path, on_progress);
                 return Ok(());
             }
@@ -107,7 +121,16 @@ pub(super) fn walk_phase(
                     committed.set(true);
                 }
                 let last_path = outcome.audited_paths.last().cloned();
-                context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+                context.record_manifest_audit_paths(outcome.audited_paths);
+                if context.manifest_audit_checkpoint_due() {
+                    flush_manifest_audit_checkpoint_with_noops(
+                        db,
+                        root,
+                        &source_root,
+                        context,
+                        &mut pending_noops,
+                    )?;
+                }
                 if let Some(last_path) = last_path {
                     publish_manifest_audit_progress(
                         context,
@@ -125,12 +148,18 @@ pub(super) fn walk_phase(
             committed.set(true);
         }
         let last_path = outcome.audited_paths.last().cloned();
-        context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+        context.record_manifest_audit_paths(outcome.audited_paths);
         if let Some(last_path) = last_path {
             publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
         }
     }
-    context.flush_manifest_audit_checkpoint(db)?;
+    flush_manifest_audit_checkpoint_with_noops(
+        db,
+        root,
+        &source_root,
+        context,
+        &mut pending_noops,
+    )?;
     context.mark_uncertain_prefixes(source_tree_snapshot.uncertain_prefixes.clone());
     context.observe_index_entries(source_tree_snapshot.index_entries.clone());
     context.stats.source_tree_snapshot =
@@ -148,6 +177,68 @@ fn finalize_source_tree_snapshot(
         ));
     }
     source_tree_snapshot
+}
+
+fn flush_manifest_audit_checkpoint_with_noops(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    context: &mut ScanContext,
+    pending_noops: &mut Vec<PreparedFile>,
+) -> Result<(), ScanError> {
+    flush_manifest_audit_checkpoint_with_noops_hook(
+        db,
+        root,
+        source_root,
+        context,
+        pending_noops,
+        |_| {},
+    )
+}
+
+fn flush_manifest_audit_checkpoint_with_noops_hook(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    context: &mut ScanContext,
+    pending_noops: &mut Vec<PreparedFile>,
+    mut precheckpoint: impl FnMut(&Path),
+) -> Result<(), ScanError> {
+    for prepared in pending_noops.iter() {
+        precheckpoint(&prepared.facts.relative);
+    }
+    let retained = std::mem::take(pending_noops);
+    let mut valid = Vec::with_capacity(retained.len());
+    let mut invalid_paths = Vec::new();
+    for prepared in retained {
+        let relative_path = prepared.facts.relative.clone();
+        let Some(file) = prepared.source_file.as_ref() else {
+            context.existing.remove(&relative_path);
+            invalid_paths.push(relative_path);
+            context.mark_source_tree_incomplete();
+            continue;
+        };
+        let absolute = root.join(&relative_path);
+        let descriptor_matches = read_facts_from_open_file(root, &absolute, file)
+            .is_ok_and(|facts| prepared_still_current(&prepared, &facts));
+        let binding = source_root
+            .path_binding(&relative_path, file)
+            .unwrap_or(SourcePathBinding::Changed);
+        if descriptor_matches && binding == SourcePathBinding::Matches {
+            skip_noop(context, &prepared);
+            valid.push(prepared);
+            continue;
+        }
+        if binding != SourcePathBinding::Retire {
+            context.existing.remove(&relative_path);
+        }
+        invalid_paths.push(relative_path);
+        context.mark_source_tree_incomplete();
+    }
+    context.discard_manifest_audit_paths(invalid_paths);
+    context.flush_manifest_audit_checkpoint(db)?;
+    drop(valid);
+    Ok(())
 }
 
 fn publish_manifest_audit_progress(
@@ -686,8 +777,9 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 mod tests {
     use super::{
         PrepareForApply, SourceRootCapability, apply_batch, apply_batch_with_precommit_hook,
-        finalize_source_tree_snapshot, prepare_diff_from_capability, prepare_for_apply,
-        prepare_for_apply_with_post_hash_hook, refresh_noop_preparation_or_skip,
+        finalize_source_tree_snapshot, flush_manifest_audit_checkpoint_with_noops_hook,
+        prepare_diff_from_capability, prepare_for_apply, prepare_for_apply_with_post_hash_hook,
+        refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
     use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
@@ -808,6 +900,128 @@ mod tests {
         assert!(refreshed.is_none());
         assert!(context.source_tree_incomplete());
         assert!(context.existing.contains_key(relative));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn manifest_audit_noop_rejects_a_final_link_before_checkpoint() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let relative = Path::new("one.wav");
+        let source = dir.path().join(relative);
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(relative).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(relative.to_path_buf(), entry)]),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        context.resume_manifest_audit(&db, 100).unwrap();
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+        let prepared = refresh_noop_preparation_or_skip(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            prepared,
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        context.record_manifest_audit_paths([relative.to_path_buf()]);
+        let mut pending_noops = vec![prepared];
+
+        flush_manifest_audit_checkpoint_with_noops_hook(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            &mut pending_noops,
+            |_| {
+                std::fs::remove_file(&source).unwrap();
+                symlink(&outside_file, &source).unwrap();
+            },
+        )
+        .unwrap();
+
+        assert!(
+            !db.begin_or_resume_manifest_audit(101)
+                .unwrap()
+                .contains(&relative.to_path_buf())
+        );
+        assert!(context.existing.contains_key(relative));
+        assert!(context.source_tree_incomplete());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn manifest_audit_noop_rejects_a_link_ancestor_before_checkpoint() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        let relative = Path::new("nested/one.wav");
+        std::fs::write(nested.join("one.wav"), b"inside").unwrap();
+        let outside = tempdir().unwrap();
+        std::fs::write(outside.path().join("one.wav"), b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(relative).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(relative.to_path_buf(), entry)]),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        context.resume_manifest_audit(&db, 100).unwrap();
+        let source_root = SourceRootCapability::open(dir.path()).unwrap();
+        let prepared = prepare_diff_from_capability(&source_root, dir.path(), relative, &context)
+            .unwrap()
+            .unwrap();
+        let prepared = refresh_noop_preparation_or_skip(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            prepared,
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        context.record_manifest_audit_paths([relative.to_path_buf()]);
+        let mut pending_noops = vec![prepared];
+
+        flush_manifest_audit_checkpoint_with_noops_hook(
+            &db,
+            dir.path(),
+            &source_root,
+            &mut context,
+            &mut pending_noops,
+            |_| {
+                std::fs::rename(&nested, dir.path().join("moved")).unwrap();
+                symlink(outside.path(), &nested).unwrap();
+            },
+        )
+        .unwrap();
+
+        assert!(
+            !db.begin_or_resume_manifest_audit(101)
+                .unwrap()
+                .contains(&relative.to_path_buf())
+        );
+        assert!(context.existing.contains_key(relative));
+        assert!(context.source_tree_incomplete());
     }
 
     #[test]
