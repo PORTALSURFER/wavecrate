@@ -271,19 +271,72 @@ fn failed_type_probes_never_persist_internal_database_or_appledouble_paths() {
 
     let full_sidecar_failure = force_file_type_failure(&sidecar);
     let full_database_failure = force_file_type_failure(&database_path);
-    scan_once(&database).unwrap();
+    assert!(matches!(
+        scan_once(&database),
+        Err(ScanError::Incomplete { .. })
+    ));
     assert!(database.list_source_index_entries().unwrap().is_empty());
     drop((full_sidecar_failure, full_database_failure));
 
     let targeted_sidecar_failure = force_file_type_failure(&sidecar);
     let targeted_database_failure = force_file_type_failure(&database_path);
-    sync_paths(
-        &database,
-        &[sidecar_relative.clone(), database_relative.clone()],
-    )
-    .unwrap();
+    assert!(matches!(
+        sync_paths(
+            &database,
+            &[sidecar_relative.clone(), database_relative.clone()],
+        ),
+        Err(ScanError::Incomplete { .. })
+    ));
     assert!(database.list_source_index_entries().unwrap().is_empty());
     drop((targeted_sidecar_failure, targeted_database_failure));
+}
+
+#[test]
+fn failed_type_probes_preserve_descendants_below_reserved_name_directories() {
+    let directory = tempdir().unwrap();
+    let reserved_directories = [
+        PathBuf::from("nested/.wavecrate.db"),
+        PathBuf::from("._assets"),
+    ];
+    for reserved in &reserved_directories {
+        std::fs::create_dir_all(directory.path().join(reserved)).unwrap();
+        std::fs::write(directory.path().join(reserved).join("sample.wav"), b"wav").unwrap();
+        std::fs::write(directory.path().join(reserved).join("notes.txt"), b"notes").unwrap();
+    }
+    let database = SourceDatabase::open_for_scan(directory.path()).unwrap();
+    scan_once(&database).unwrap();
+    let expected_manifest = database.list_manifest_entries().unwrap();
+    let expected_index = database.list_source_index_entries().unwrap();
+
+    let full_failures = reserved_directories
+        .iter()
+        .map(|path| force_file_type_failure(&directory.path().join(path)))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        scan_once(&database),
+        Err(ScanError::Incomplete { .. })
+    ));
+    assert_eq!(database.list_manifest_entries().unwrap(), expected_manifest);
+    assert_eq!(
+        database.list_source_index_entries().unwrap(),
+        expected_index
+    );
+    drop(full_failures);
+
+    let targeted_failures = reserved_directories
+        .iter()
+        .map(|path| force_file_type_failure(&directory.path().join(path)))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        sync_paths(&database, &reserved_directories),
+        Err(ScanError::Incomplete { .. })
+    ));
+    assert_eq!(database.list_manifest_entries().unwrap(), expected_manifest);
+    assert_eq!(
+        database.list_source_index_entries().unwrap(),
+        expected_index
+    );
+    drop(targeted_failures);
 }
 
 #[test]

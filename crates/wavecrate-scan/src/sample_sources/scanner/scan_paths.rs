@@ -243,6 +243,7 @@ fn collect_current_files(
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(source) => {
             if is_rejected_source_file_path(relative_path) {
+                uncertain_prefixes.insert(relative_path.to_path_buf());
                 return Ok(());
             }
             tracing::warn!(
@@ -412,6 +413,7 @@ fn collect_current_files_in_dir(
                 Err(err) => {
                     let relative_path = relative_dir.join(name_path);
                     if is_rejected_source_file_path(&relative_path) {
+                        uncertain_prefixes.insert(relative_path);
                         continue;
                     }
                     tracing::warn!(

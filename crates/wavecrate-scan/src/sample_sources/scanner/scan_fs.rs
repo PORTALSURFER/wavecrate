@@ -257,6 +257,7 @@ pub(super) fn visit_dir_with_cancel_check(
                 Ok(file_type) => file_type,
                 Err(err) => {
                     if is_rejected_source_file_path(&relative) {
+                        record_uncertain_prefix(&mut snapshot, root, &path);
                         continue;
                     }
                     warn!(
