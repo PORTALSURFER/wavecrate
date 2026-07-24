@@ -33,6 +33,40 @@ fn scan_tolerates_vanishing_nested_directories() {
 }
 
 #[test]
+fn full_scan_rejects_a_root_swap_before_the_first_checkpoint() {
+    let parent = tempdir().unwrap();
+    let root = parent.path().join("source");
+    std::fs::create_dir(&root).unwrap();
+    for index in 0..64 {
+        std::fs::write(
+            root.join(format!("sample-{index}.wav")),
+            format!("old-{index}"),
+        )
+        .unwrap();
+    }
+    let db = SourceDatabase::open_for_scan(&root).unwrap();
+    let mut swapped = false;
+    let result = scan_with_progress(&db, ScanMode::Quick, None, &mut |count, _| {
+        if count == 64 && !swapped {
+            swapped = true;
+            let old_root = parent.path().join("old-source");
+            std::fs::rename(&root, &old_root).unwrap();
+            std::fs::create_dir(&root).unwrap();
+            for index in 0..64 {
+                std::fs::write(
+                    root.join(format!("sample-{index}.wav")),
+                    format!("new-{index}"),
+                )
+                .unwrap();
+            }
+        }
+    });
+
+    assert!(matches!(result, Err(ScanError::StaleRootGeneration { .. })));
+    assert!(db.list_files().unwrap().is_empty());
+}
+
+#[test]
 fn scan_skips_symlink_directories() {
     use std::os::unix::fs as unix_fs;
 

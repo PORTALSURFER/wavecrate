@@ -23,6 +23,36 @@ fn targeted_sync_updates_only_requested_file() {
     assert!(stats.committed_delta.revision > 0);
 }
 
+#[cfg(unix)]
+#[test]
+fn targeted_sync_rejects_a_root_swap_before_commit() {
+    let parent = tempdir().unwrap();
+    let root = parent.path().join("source");
+    std::fs::create_dir(&root).unwrap();
+    let path = root.join("one.wav");
+    std::fs::write(&path, b"old").unwrap();
+    let db = SourceDatabase::open_for_scan(&root).unwrap();
+    scan_once(&db).unwrap();
+    let before = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+
+    let mut swapped = false;
+    let result = sync_paths_with_progress(&db, &[PathBuf::from("one.wav")], None, &mut |_, _| {
+        if !swapped {
+            swapped = true;
+            let old_root = parent.path().join("old-source");
+            std::fs::rename(&root, &old_root).unwrap();
+            std::fs::create_dir(&root).unwrap();
+            std::fs::write(root.join("one.wav"), b"new").unwrap();
+        }
+    });
+
+    assert!(matches!(result, Err(ScanError::StaleRootGeneration { .. })));
+    let after = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+    assert_eq!(after.file_size, before.file_size);
+    assert_eq!(after.modified_ns, before.modified_ns);
+    assert_eq!(after.content_hash, before.content_hash);
+}
+
 #[test]
 fn targeted_sync_detects_same_size_edit_with_restored_mtime() {
     let dir = tempdir().unwrap();

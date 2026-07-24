@@ -26,6 +26,12 @@ pub enum ScanError {
         /// Current manifest revision observed before commit.
         actual: u64,
     },
+    /// The configured source path no longer names the retained root directory.
+    #[error("Source root generation changed while scanning: {root}")]
+    StaleRootGeneration {
+        /// Configured source root whose identity changed or became unavailable.
+        root: PathBuf,
+    },
     /// The hidden-directory policy changed while the scan was in progress.
     #[error("Source traversal policy changed while the scan was in progress")]
     TraversalPolicyChanged,

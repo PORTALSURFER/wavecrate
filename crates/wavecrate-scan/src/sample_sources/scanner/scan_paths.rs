@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{Dir, OpenOptions};
 use wavecrate_library::sample_sources::{
     SourceEntryClassification, SourceEntryFileType, SourceFileClassification,
@@ -17,7 +17,8 @@ use crate::sample_sources::{SourceDatabase, WavEntry};
 
 use super::{
     scan::{ScanContext, ScanError, ScanMode, ScanStats},
-    scan_db_sync::db_sync_phase,
+    scan_capability::SourceRootCapability,
+    scan_db_sync::{complete_scan_generation, db_sync_phase},
     scan_diff_phase::prepare_diff_from_facts,
     scan_fs::ensure_root_dir,
     scan_index::{inaccessible_index_entry, index_entry_from_file_facts},
@@ -56,8 +57,10 @@ pub fn sync_paths_with_progress_and_writer(
 ) -> Result<ScanStats, ScanError> {
     let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
     let policy = db.source_traversal_policy()?;
-    let targets = collect_targets(db, &root, paths, cancel, policy)?;
+    let targets = collect_targets(db, &root, &source_root, paths, cancel, policy)?;
     let TargetedScanTargets {
         current_files,
         existing,
@@ -99,6 +102,7 @@ pub fn sync_paths_with_progress_and_writer(
                 committed |= apply_prepared_chunk(
                     db,
                     &root,
+                    &source_root,
                     cancel,
                     &mut context,
                     chunk,
@@ -108,18 +112,28 @@ pub fn sync_paths_with_progress_and_writer(
             }
         }
         if !prepared.is_empty() {
-            let _ =
-                apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed, writer)?;
+            let _ = apply_prepared_chunk(
+                db,
+                &root,
+                &source_root,
+                cancel,
+                &mut context,
+                prepared,
+                committed,
+                writer,
+            )?;
         }
-        let committed_snapshot = db_sync_phase(db, &mut context, cancel, writer)?;
+        let committed_snapshot = db_sync_phase(db, &source_root, &mut context, cancel, writer)?;
         super::scan::reconcile_scan_renames(
             db,
+            &source_root,
             &mut context,
             &manifest_before,
             committed_snapshot,
             cancel,
             writer,
-        )
+        )?;
+        complete_scan_generation(db, &source_root, &mut context, cancel, writer)
     })();
     super::scan::finish_scan_result(manifest_before, context, result)
 }
@@ -141,15 +155,12 @@ struct TargetedFile {
 fn collect_targets(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     paths: &[PathBuf],
     cancel: Option<&AtomicBool>,
     policy: SourceTraversalPolicy,
 ) -> Result<TargetedScanTargets, ScanError> {
-    let source_root =
-        Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
-            path: root.to_path_buf(),
-            source,
-        })?;
+    let source_root_dir = source_root.clone_root_dir()?;
     let mut current_files = BTreeMap::new();
     let mut existing = HashMap::new();
     let mut current_index_entries = BTreeMap::new();
@@ -164,7 +175,7 @@ fn collect_targets(
         collect_existing_rows(db, &relative_path, &mut existing)?;
         collect_existing_index_entries(db, &relative_path, &mut existing_index_entries)?;
         collect_current_files(
-            &source_root,
+            &source_root_dir,
             root,
             &relative_path,
             cancel,
