@@ -389,6 +389,25 @@ fn copy_flash_frame_refreshes_projection_while_countdown_changes() {
 }
 
 #[test]
+fn selection_flash_frame_refreshes_projection_while_countdown_changes() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("selection-flash.wav");
+    state
+        .library
+        .folder_browser
+        .flash_marked_item(selected_file);
+
+    let before = state.capture_frame_surface_inputs();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(
+        state.frame_scope_since(before),
+        RepaintScope::Projection,
+        "selection flash should refresh browser chrome without recomputing layout"
+    );
+}
+
+#[test]
 fn normalization_progress_frame_uses_paint_only_when_progress_is_stable() {
     let mut state = gui_state_for_span_tests();
     state.background.normalization_progress = Some(

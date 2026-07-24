@@ -1397,6 +1397,8 @@ The sample browser should support:
 
 The focused row is the primary keyboard target. The selected set is the batch-operation target. The playing file may differ from the focused row during preview or handoff workflows, but the UI should make that clear.
 
+Marking a sample or folder with the `X` hotkey should briefly flash the marked item in the active browser view. Removing an item from the selected set should not show the positive marking flash.
+
 When multiple sample files are selected, Wavecrate should visually indicate metadata differences across the selection. Shared values should be shown normally, while fields with mixed values should show a clear mixed-state indicator rather than pretending all selected files share the focused file's metadata. This should apply to common metadata such as tags, label, prefix, BPM, Tuning/Scale, rating, temporary color collections, Playback Type, Sound Type, Character tags, and generated-name inputs where relevant.
 
 If the user edits a mixed metadata field while multiple files are selected, the committed value should apply to all selected files for that field. The edit should be one undoable batch metadata transaction with a clear summary of affected, skipped, and failed files.
