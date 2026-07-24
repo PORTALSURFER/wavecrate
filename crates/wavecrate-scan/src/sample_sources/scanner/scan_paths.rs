@@ -18,7 +18,7 @@ use crate::sample_sources::{SourceDatabase, WavEntry};
 use super::{
     scan::{ScanContext, ScanError, ScanMode, ScanStats},
     scan_capability::SourceRootCapability,
-    scan_db_sync::db_sync_phase,
+    scan_db_sync::{complete_scan_generation, db_sync_phase},
     scan_diff_phase::prepare_diff_from_facts,
     scan_fs::ensure_root_dir,
     scan_index::{inaccessible_index_entry, index_entry_from_file_facts},
@@ -132,7 +132,8 @@ pub fn sync_paths_with_progress_and_writer(
             committed_snapshot,
             cancel,
             writer,
-        )
+        )?;
+        complete_scan_generation(db, &source_root, &mut context, cancel, writer)
     })();
     super::scan::finish_scan_result(manifest_before, context, result)
 }

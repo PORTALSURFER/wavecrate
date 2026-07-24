@@ -9,7 +9,7 @@ use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::SourceManifestEntry;
 
 use super::super::scan_capability::SourceRootCapability;
-use super::super::scan_db_sync::db_sync_phase;
+use super::super::scan_db_sync::{complete_scan_generation, db_sync_phase};
 use super::super::scan_fs::ensure_root_dir;
 use super::super::scan_hash::ContentAuditBudget;
 use super::super::scan_walk::walk_phase;
@@ -378,7 +378,8 @@ fn scan_with_writer(
             )?;
         }
         Ok(committed_snapshot)
-    });
+    })
+    .and_then(|_| complete_scan_generation(db, &source_root, &mut context, cancel, writer));
     finish_scan_result(manifest_before, context, result)
 }
 
