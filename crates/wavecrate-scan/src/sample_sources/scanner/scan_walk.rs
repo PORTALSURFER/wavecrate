@@ -11,6 +11,7 @@ use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority
 use cap_std::fs::{Dir, OpenOptions};
 
 use crate::sample_sources::SourceDatabase;
+use wavecrate_library::sample_sources::SourceIndexDiagnostic;
 
 use super::scan::{ScanContext, ScanError};
 use super::scan_diff::{PreparedFile, apply_diff};
@@ -19,6 +20,7 @@ use super::scan_fs::{
     compute_content_hash, compute_content_hash_with_reader, is_supported_scannable_audio_file,
     read_facts, read_facts_from_open_file, visit_dir_with_cancel_check,
 };
+use super::scan_index::inaccessible_index_entry;
 use super::scan_writer::{ScanWritePhase, ScanWriter};
 
 const APPLY_BATCH_SIZE: usize = 64;
@@ -50,21 +52,22 @@ pub(super) fn walk_phase(
             }
             let mut prepared = match prepare_diff(root, path, context) {
                 Ok(prepared) => prepared,
-                Err(error) if committed.get() => {
+                Err(error) => {
                     context.mark_source_tree_incomplete();
-                    if let Ok(relative) = path.strip_prefix(root)
-                        && is_supported_scannable_audio_file(root, relative)
-                    {
-                        context.existing.remove(relative);
-                    }
+                    context.existing.remove(&relative_path);
+                    context.mark_uncertain_prefixes([relative_path.clone()]);
+                    context.observe_index_entries([inaccessible_index_entry(
+                        relative_path,
+                        SourceIndexDiagnostic::MetadataUnavailable,
+                    )]);
                     tracing::warn!(
                         path = %path.display(),
                         error = %error,
-                        "Skipping file that changed after an earlier scan batch committed"
+                        committed = committed.get(),
+                        "Persisting an inaccessible supported file for retry"
                     );
                     return Ok(());
                 }
-                Err(error) => return Err(error),
             };
             if !context.resumable_manifest_audit_active() {
                 context.stats.total_files += 1;

@@ -415,6 +415,13 @@ fn display_relative(root: &Path, path: &Path) -> String {
 
 pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanError> {
     let relative = strip_relative(root, path)?;
+    #[cfg(test)]
+    if let Some(source) = forced_file_metadata_error(path) {
+        return Err(ScanError::Io {
+            path: path.to_path_buf(),
+            source,
+        });
+    }
     let meta = path.metadata().map_err(|source| ScanError::Io {
         path: path.to_path_buf(),
         source,
@@ -446,6 +453,13 @@ pub(super) fn read_facts_from_open_file(
     file: &fs::File,
 ) -> Result<FileFacts, ScanError> {
     let relative = strip_relative(root, path)?;
+    #[cfg(test)]
+    if let Some(source) = forced_file_metadata_error(path) {
+        return Err(ScanError::Io {
+            path: path.to_path_buf(),
+            source,
+        });
+    }
     let meta = file.metadata().map_err(|source| ScanError::Io {
         path: path.to_path_buf(),
         source,

@@ -193,6 +193,71 @@ fn inaccessible_observation_is_typed_without_deleting_a_prior_index_row() {
 }
 
 #[test]
+fn full_scan_moves_an_inaccessible_supported_file_out_of_the_live_manifest_until_recovery() {
+    let directory = tempdir().unwrap();
+    let relative = Path::new("supported.wav");
+    let path = directory.path().join(relative);
+    std::fs::write(&path, b"wav").unwrap();
+    let database = SourceDatabase::open_for_scan(directory.path()).unwrap();
+    scan_once(&database).unwrap();
+    database.set_tag(relative, Rating::KEEP_1).unwrap();
+
+    let failure = force_file_metadata_failure(&path);
+    let ScanError::Incomplete { .. } = scan_once(&database).unwrap_err() else {
+        panic!("inaccessible supported audio must leave a retryable scan");
+    };
+    let unavailable = database.entry_for_path(relative).unwrap().unwrap();
+    assert!(unavailable.missing);
+    assert_eq!(unavailable.tag, Rating::KEEP_1);
+    assert_eq!(
+        database.list_source_index_entries().unwrap(),
+        vec![SourceIndexEntry {
+            relative_path: relative.to_path_buf(),
+            classification: SourceIndexClassification::Inaccessible,
+            file_size: None,
+            modified_ns: None,
+            file_identity: None,
+            diagnostic: Some(SourceIndexDiagnostic::MetadataUnavailable),
+            format_policy_version: SOURCE_FORMAT_POLICY_VERSION,
+        }]
+    );
+
+    drop(failure);
+    scan_once(&database).unwrap();
+    let recovered = database.entry_for_path(relative).unwrap().unwrap();
+    assert!(!recovered.missing);
+    assert_eq!(recovered.tag, Rating::KEEP_1);
+    assert!(database.list_source_index_entries().unwrap().is_empty());
+}
+
+#[test]
+fn targeted_sync_persists_and_recovers_a_supported_file_availability_diagnostic() {
+    let directory = tempdir().unwrap();
+    let relative = Path::new("supported.wav");
+    let path = directory.path().join(relative);
+    std::fs::write(&path, b"wav").unwrap();
+    let database = SourceDatabase::open_for_scan(directory.path()).unwrap();
+    scan_once(&database).unwrap();
+
+    let failure = force_file_metadata_failure(&path);
+    let ScanError::Incomplete { .. } =
+        sync_paths(&database, &[relative.to_path_buf()]).unwrap_err()
+    else {
+        panic!("targeted unavailability must leave a retryable scan");
+    };
+    assert!(database.entry_for_path(relative).unwrap().unwrap().missing);
+    assert_eq!(
+        database.list_source_index_entries().unwrap()[0].classification,
+        SourceIndexClassification::Inaccessible
+    );
+
+    drop(failure);
+    sync_paths(&database, &[relative.to_path_buf()]).unwrap();
+    assert!(!database.entry_for_path(relative).unwrap().unwrap().missing);
+    assert!(database.list_source_index_entries().unwrap().is_empty());
+}
+
+#[test]
 fn supported_scan_promotes_a_legacy_index_only_row_without_metadata_inheritance() {
     let directory = tempdir().unwrap();
     let path = Path::new("promoted.wav");

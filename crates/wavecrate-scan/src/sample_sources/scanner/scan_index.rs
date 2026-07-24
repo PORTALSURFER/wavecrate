@@ -67,32 +67,50 @@ pub(super) fn reconcile_index_entries(
         .into_iter()
         .map(|entry| entry.relative_path)
         .collect::<BTreeSet<_>>();
+    let unavailable_manifest_paths = observed
+        .values()
+        .filter(|entry| entry.classification == SourceIndexClassification::Inaccessible)
+        .map(|entry| &entry.relative_path)
+        .filter(|path| live_manifest_paths.contains(*path))
+        .cloned()
+        .collect::<BTreeSet<_>>();
 
     let removals = existing
         .keys()
         .filter(|path| {
-            live_manifest_paths.contains(*path)
+            (live_manifest_paths.contains(*path) && !unavailable_manifest_paths.contains(*path))
                 || (!observed.contains_key(*path) && !context.preserves_missing_row(path))
         })
         .cloned()
         .collect::<Vec<_>>();
     let upserts = observed
         .into_values()
-        .filter(|entry| !live_manifest_paths.contains(&entry.relative_path))
+        .filter(|entry| {
+            !live_manifest_paths.contains(&entry.relative_path)
+                || entry.classification == SourceIndexClassification::Inaccessible
+        })
         .filter(|entry| existing.get(&entry.relative_path) != Some(entry))
         .collect::<Vec<SourceIndexEntry>>();
 
-    if removals.is_empty() && upserts.is_empty() {
+    if removals.is_empty() && upserts.is_empty() && unavailable_manifest_paths.is_empty() {
         return Ok(());
     }
     let _writer = writer.lock(ScanWritePhase::Manifest);
     let mut batch = database.write_batch()?;
+    for path in &unavailable_manifest_paths {
+        batch.set_missing(path, true)?;
+        context.stats.missing = context.stats.missing.saturating_add(1);
+    }
     for path in removals {
         batch.remove_source_index_entry(&path)?;
     }
     for entry in upserts {
         batch.upsert_source_index_entry(&entry)?;
     }
-    batch.commit_auxiliary_state()?;
+    if unavailable_manifest_paths.is_empty() {
+        batch.commit_auxiliary_state()?;
+    } else {
+        context.commit_batch(batch)?;
+    }
     Ok(())
 }
