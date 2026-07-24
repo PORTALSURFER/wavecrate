@@ -233,6 +233,7 @@ impl NativeAppState {
                 .current
                 .apply_interaction(WaveformInteraction::Frame);
             self.library.folder_browser.advance_copy_flash_frame();
+            self.library.folder_browser.advance_selection_flash_frame();
             self.library
                 .folder_browser
                 .advance_protected_source_error_flash_frame();
@@ -269,6 +270,7 @@ impl NativeAppState {
             .current
             .apply_interaction(WaveformInteraction::Frame);
         self.library.folder_browser.advance_copy_flash_frame();
+        self.library.folder_browser.advance_selection_flash_frame();
         self.library
             .folder_browser
             .advance_protected_source_error_flash_frame();

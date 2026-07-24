@@ -309,6 +309,7 @@ impl FolderBrowserState {
             } else {
                 0
             },
+            selection_flash: self.marked_item_flash_active(&folder.id),
             drag_active,
             drag_source,
             drop_candidate,
