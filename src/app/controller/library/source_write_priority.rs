@@ -311,8 +311,17 @@ mod tests {
     }
 
     #[test]
-    fn same_source_test_scopes_are_exclusive() {
+    fn parallel_isolation_sentinel_scoped_global_control_lifecycle_under_contention() {
         let source_id = SourceId::from_string("same-source-scope-ownership");
+        if std::env::var_os("WAVECRATE_ISOLATION_INJECT_GLOBAL_HOOK_LEAK").is_some() {
+            let leaked = FileOpWritePriorityGuard::new(&source_id);
+            std::mem::forget(leaked);
+            assert!(
+                !file_op_write_priority_active(&source_id),
+                "WAVECRATE_ISOLATION:mutable_global_control_leak file-op priority guard leaked"
+            );
+        }
+
         let first_scope = FileOpWritePriorityGuard::new(&source_id);
         let worker_source_id = source_id.clone();
         let (started_tx, started_rx) = mpsc::channel();
