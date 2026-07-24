@@ -17,6 +17,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TextIO
 
+from parallel_isolation_windows_job import (
+    WindowsJob,
+    bootstrap_command,
+    run_bootstrap,
+)
 
 SCHEMA_VERSION = 1
 PROCESS_LEAK_ENV = "WAVECRATE_ISOLATION_INJECT_PROCESS_LEAK"
@@ -254,31 +259,7 @@ def failure_evidence(output: str) -> str:
     return evidence[:500]
 
 
-def terminate_process_tree(process: subprocess.Popen[str]) -> None:
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        return
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    try:
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-
-
 def process_group_has_survivors(process_group: int) -> bool:
-    if os.name == "nt":
-        return False
     try:
         os.killpg(process_group, 0)
     except ProcessLookupError:
@@ -286,6 +267,43 @@ def process_group_has_survivors(process_group: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def terminate_posix_process_group(process: subprocess.Popen[str]) -> None:
+    process_group = process.pid
+    if not process_group_has_survivors(process_group):
+        return
+    try:
+        os.killpg(process_group, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + 1
+    while process_group_has_survivors(process_group) and time.monotonic() < deadline:
+        process.poll()
+        time.sleep(0.02)
+    if process_group_has_survivors(process_group):
+        try:
+            os.killpg(process_group, signal.SIGKILL)
+        except (PermissionError, ProcessLookupError):
+            if process.poll() is None:
+                process.kill()
+
+
+def collect_terminated_output(
+    process: subprocess.Popen[str], previous_output: str | None
+) -> str:
+    try:
+        output, _ = process.communicate(timeout=2)
+        return output or previous_output or ""
+    except subprocess.TimeoutExpired as timeout:
+        process.kill()
+        try:
+            output, _ = process.communicate(timeout=1)
+            return output or timeout.output or previous_output or ""
+        except subprocess.TimeoutExpired as final_timeout:
+            if process.stdout is not None:
+                process.stdout.close()
+            return final_timeout.output or timeout.output or previous_output or ""
 
 
 def run_fresh_process(
@@ -297,8 +315,11 @@ def run_fresh_process(
 ) -> ProcessResult:
     started = time.monotonic()
     popen_kwargs: dict[str, object] = {}
+    owned_job: WindowsJob | None = None
     if os.name == "nt":
+        command = bootstrap_command(command, Path(__file__).resolve())
         popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        popen_kwargs["stdin"] = subprocess.PIPE
     else:
         popen_kwargs["start_new_session"] = True
 
@@ -311,13 +332,42 @@ def run_fresh_process(
         text=True,
         **popen_kwargs,
     )
+    if os.name == "nt":
+        try:
+            owned_job = WindowsJob(process)
+        except OSError as error:
+            process.kill()
+            output = collect_terminated_output(process, None)
+            return ProcessResult(
+                status="ownership_error",
+                exit_code=process.returncode,
+                duration_ms=round((time.monotonic() - started) * 1000),
+                failures=[
+                    Failure(
+                        test_name=None,
+                        failure_class="worker_ownership_error",
+                        disposition="unexpected",
+                        evidence=f"could not create an owned Windows process tree: {error}",
+                    )
+                ],
+                output=output,
+            )
+        assert process.stdin is not None
+        process.stdin.write("1")
+        process.stdin.close()
+        process.stdin = None
+
     try:
         output, _ = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired as timeout:
-        terminate_process_tree(process)
-        remainder, _ = process.communicate()
-        output = (timeout.output or "") + (remainder or "")
+        if owned_job is not None:
+            owned_job.terminate()
+        else:
+            terminate_posix_process_group(process)
+        output = collect_terminated_output(process, timeout.output)
         duration_ms = round((time.monotonic() - started) * 1000)
+        if owned_job is not None:
+            owned_job.close()
         return ProcessResult(
             status="timeout",
             exit_code=None,
@@ -335,8 +385,17 @@ def run_fresh_process(
 
     duration_ms = round((time.monotonic() - started) * 1000)
     failures = extract_failures(output, process.returncode)
-    if process_group_has_survivors(process.pid):
-        terminate_process_tree(process)
+    leaked_worker = (
+        owned_job.active_processes() > 0
+        if owned_job is not None
+        else process_group_has_survivors(process.pid)
+    )
+    if leaked_worker:
+        if owned_job is not None:
+            owned_job.terminate()
+            owned_job.close()
+        else:
+            terminate_posix_process_group(process)
         failures.append(
             Failure(
                 test_name=None,
@@ -352,6 +411,8 @@ def run_fresh_process(
             failures=failures,
             output=output,
         )
+    if owned_job is not None:
+        owned_job.close()
     return ProcessResult(
         status="passed" if process.returncode == 0 else "failed",
         exit_code=process.returncode,
@@ -412,6 +473,33 @@ def result_payload(
         "first_failure_class": first_failure.failure_class if first_failure else None,
         "failure_class_counts": dict(sorted(failure_class_counts.items())),
         "failures": [asdict(failure) for failure in result.failures],
+    }
+
+
+def summary_payload(
+    *,
+    status: str,
+    completed_iterations: int,
+    test_binary: Path,
+    report_path: Path,
+    result: ProcessResult | None,
+) -> dict[str, object]:
+    failures = result.failures if result else []
+    first_failure = failures[0] if failures else None
+    failure_class_counts = Counter(failure.failure_class for failure in failures)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "phase": "summary",
+        "status": status,
+        "completed_iterations": completed_iterations,
+        "test_binary": str(test_binary),
+        "report": str(report_path),
+        "exit_code": result.exit_code if result else 0,
+        "first_test_name": first_failure.test_name if first_failure else None,
+        "first_failure_class": first_failure.failure_class if first_failure else None,
+        "failure_class_counts": dict(sorted(failure_class_counts.items())),
+        "failures": [asdict(failure) for failure in failures],
+        "quarantined_coverage": list(QUARANTINED_TESTS),
     }
 
 
@@ -526,6 +614,16 @@ def main() -> int:
                 ),
             )
             if result.status != "expected_failure_detected":
+                emit(
+                    report,
+                    summary_payload(
+                        status="failed",
+                        completed_iterations=0,
+                        test_binary=test_binary,
+                        report_path=report_path,
+                        result=result,
+                    ),
+                )
                 print_failure_output(result)
                 print(f"[parallel_isolation] report={report_path}", file=sys.stderr)
                 return 1
@@ -549,20 +647,29 @@ def main() -> int:
                 ),
             )
             if result.status != "passed":
+                emit(
+                    report,
+                    summary_payload(
+                        status="failed",
+                        completed_iterations=iteration,
+                        test_binary=test_binary,
+                        report_path=report_path,
+                        result=result,
+                    ),
+                )
                 print_failure_output(result)
                 print(f"[parallel_isolation] report={report_path}", file=sys.stderr)
                 return 1
 
         emit(
             report,
-            {
-                "schema_version": SCHEMA_VERSION,
-                "phase": "summary",
-                "status": "passed",
-                "completed_iterations": args.iterations,
-                "test_binary": str(test_binary),
-                "report": str(report_path),
-            },
+            summary_payload(
+                status="passed",
+                completed_iterations=args.iterations,
+                test_binary=test_binary,
+                report_path=report_path,
+                result=None,
+            ),
         )
 
     print(f"[parallel_isolation] report={report_path}")
@@ -570,4 +677,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--windows-job-bootstrap":
+        raise SystemExit(run_bootstrap(sys.argv[2]))
     raise SystemExit(main())
