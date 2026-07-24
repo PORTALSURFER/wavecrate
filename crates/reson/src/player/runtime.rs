@@ -20,6 +20,9 @@ use super::{AudioPlayer, EditFadeRange, PlaybackMetronomeConfig};
 use crate::output::ResolvedOutput;
 
 const DEFAULT_PLAYBACK_COMMAND_QUEUE: usize = 8;
+// Keep one bounded cancellation slot available for a priority command that
+// must evict a queued play after ordinary coalescing has saturated records.
+const CRITICAL_CANCELLATION_RESERVE: usize = 1;
 const F32_SAMPLE_BYTES: usize = std::mem::size_of::<f32>();
 const NORMALIZED_GAIN_READ_SAMPLES: usize = 4096;
 
@@ -633,7 +636,7 @@ impl PlaybackRuntimeCommandQueue {
                     | PlaybackRuntimeCommand::CancelPendingPlayback
                     | PlaybackRuntimeCommand::Shutdown => find_noncritical_command(
                         &state.commands,
-                        self.can_record_cancellations(&state, 1),
+                        self.can_record_critical_cancellations(&state, 1),
                     ),
                     _ => None,
                 };
@@ -641,7 +644,7 @@ impl PlaybackRuntimeCommandQueue {
                     if matches!(
                         state.commands.get(index),
                         Some(PlaybackRuntimeCommand::Play { .. })
-                    ) && !self.can_record_cancellations(&state, 1)
+                    ) && !self.can_record_critical_cancellations(&state, 1)
                     {
                         return Err(PlaybackRuntimeSubmitError::QueueFull);
                     }
@@ -661,7 +664,7 @@ impl PlaybackRuntimeCommandQueue {
                         .iter()
                         .filter(|command| matches!(command, PlaybackRuntimeCommand::Play { .. }))
                         .count();
-                    if !self.can_record_cancellations(&state, play_count) {
+                    if !self.can_record_critical_cancellations(&state, play_count) {
                         return Err(PlaybackRuntimeSubmitError::QueueFull);
                     }
                     while let Some(evicted) = state.commands.pop_front() {
@@ -689,7 +692,28 @@ impl PlaybackRuntimeCommandQueue {
         state: &PlaybackRuntimeCommandQueueState,
         additional: usize,
     ) -> bool {
-        state.cancelled.len().saturating_add(additional) <= self.capacity
+        self.can_record_cancellations_with_capacity(state, additional, self.capacity)
+    }
+
+    fn can_record_critical_cancellations(
+        &self,
+        state: &PlaybackRuntimeCommandQueueState,
+        additional: usize,
+    ) -> bool {
+        self.can_record_cancellations_with_capacity(
+            state,
+            additional,
+            self.capacity.saturating_add(CRITICAL_CANCELLATION_RESERVE),
+        )
+    }
+
+    fn can_record_cancellations_with_capacity(
+        &self,
+        state: &PlaybackRuntimeCommandQueueState,
+        additional: usize,
+        capacity: usize,
+    ) -> bool {
+        state.cancelled.len().saturating_add(additional) <= capacity
     }
 
     fn record_cancellation(
@@ -701,7 +725,9 @@ impl PlaybackRuntimeCommandQueue {
         let PlaybackRuntimeCommand::Play { id, .. } = command else {
             return;
         };
-        debug_assert!(state.cancelled.len() < self.capacity);
+        debug_assert!(
+            state.cancelled.len() < self.capacity.saturating_add(CRITICAL_CANCELLATION_RESERVE)
+        );
         state.cancelled.push_back((id, reason));
     }
 
@@ -806,12 +832,13 @@ fn find_noncritical_command(
             )
         })
         .or_else(|| {
-            can_cancel_play.then(|| {
+            if can_cancel_play {
                 commands
                     .iter()
                     .position(|command| matches!(command, PlaybackRuntimeCommand::Play { .. }))
-                    .expect("noncritical play command")
-            })
+            } else {
+                None
+            }
         })
 }
 
@@ -2042,6 +2069,28 @@ mod tests {
     }
 
     #[test]
+    fn playback_runtime_does_not_panic_when_critical_queue_is_full() {
+        let queue = PlaybackRuntimeCommandQueue::new(1);
+        queue
+            .try_submit(PlaybackRuntimeCommand::Stop {
+                id: PlaybackRequestId(1),
+            })
+            .expect("stop admission");
+
+        assert_eq!(
+            queue.try_submit(PlaybackRuntimeCommand::CancelPendingPlayback),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        queue
+            .try_submit(PlaybackRuntimeCommand::Shutdown)
+            .expect("shutdown should replace critical-only work");
+        assert!(matches!(
+            queue.recv(),
+            Some(PlaybackRuntimeCommand::Shutdown)
+        ));
+    }
+
+    #[test]
     fn playback_runtime_rejects_play_replacement_when_cancellation_backlog_is_full() {
         let queue = PlaybackRuntimeCommandQueue::new(2);
         queue
@@ -2075,6 +2124,37 @@ mod tests {
                     PlaybackRequestId(2),
                     PlaybackRuntimeCancellation::Superseded
                 ),
+            ]
+        );
+    }
+
+    #[test]
+    fn playback_runtime_priority_commands_use_reserved_cancellation_capacity() {
+        let queue = PlaybackRuntimeCommandQueue::new(1);
+        queue
+            .try_submit(play_command(PlaybackRequestId(1), 0.1))
+            .expect("first play admission");
+        queue
+            .try_submit(play_command(PlaybackRequestId(2), 0.2))
+            .expect("play replacement admission");
+
+        queue
+            .try_submit(PlaybackRuntimeCommand::Stop {
+                id: PlaybackRequestId(3),
+            })
+            .expect("stop should evict a play using reserved cancellation capacity");
+        assert!(matches!(
+            queue.recv(),
+            Some(PlaybackRuntimeCommand::Stop { id }) if id == PlaybackRequestId(3)
+        ));
+        assert_eq!(
+            queue.take_cancellations(),
+            vec![
+                (
+                    PlaybackRequestId(1),
+                    PlaybackRuntimeCancellation::Superseded
+                ),
+                (PlaybackRequestId(2), PlaybackRuntimeCancellation::Stopped),
             ]
         );
     }
