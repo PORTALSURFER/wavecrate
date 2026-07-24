@@ -49,6 +49,7 @@ pub(super) struct VisitedDirectories {
 
 pub(super) enum DirectoryVisit {
     New,
+    AlreadyVisited,
     Repeated,
     IdentityUnavailable,
 }
@@ -78,6 +79,9 @@ impl VisitedDirectories {
             }
         };
         if let Some(first_path) = self.identities.get(&identity) {
+            if first_path == relative_path {
+                return DirectoryVisit::AlreadyVisited;
+            }
             let kind = if first_path.as_os_str().is_empty() || relative_path.starts_with(first_path)
             {
                 DirectoryRepeatKind::Cycle
@@ -412,6 +416,7 @@ pub(super) fn visit_dir_with_cancel_check(
                                 snapshot.directories.push(relative.clone());
                                 stack.push((child, relative));
                             }
+                            DirectoryVisit::AlreadyVisited => {}
                             DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
                                 record_uncertain_prefix(&mut snapshot, root, &path);
                             }

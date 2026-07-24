@@ -337,6 +337,7 @@ fn collect_current_files(
                     uncertain_prefixes,
                     visited,
                 )?,
+                DirectoryVisit::AlreadyVisited => {}
                 DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
                     uncertain_prefixes.insert(relative_path.to_path_buf());
                 }
@@ -398,7 +399,7 @@ fn open_target_parent(
         traversed.push(part);
         dir = match dir.open_dir_nofollow(part) {
             Ok(next_dir) => match visited.observe(&next_dir, &root.join(&traversed), &traversed) {
-                DirectoryVisit::New => next_dir,
+                DirectoryVisit::New | DirectoryVisit::AlreadyVisited => next_dir,
                 DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
                     uncertain_prefixes.insert(relative_path.to_path_buf());
                     return Ok(None);
@@ -523,6 +524,7 @@ fn collect_current_files_in_dir(
                     };
                     match visited.observe(&child_dir, &path, &relative_path) {
                         DirectoryVisit::New => stack.push((child_dir, relative_path)),
+                        DirectoryVisit::AlreadyVisited => {}
                         DirectoryVisit::Repeated | DirectoryVisit::IdentityUnavailable => {
                             uncertain_prefixes.insert(relative_path);
                         }

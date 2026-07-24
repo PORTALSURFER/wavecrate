@@ -410,6 +410,29 @@ fn targeted_sync_reconciles_each_directory_identity_once() {
 }
 
 #[test]
+fn targeted_sync_processes_sibling_files_sharing_a_parent_target() {
+    let source = tempdir().unwrap();
+    let nested = source.path().join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::write(nested.join("first.wav"), b"first").unwrap();
+    std::fs::write(nested.join("second.wav"), b"second").unwrap();
+    let db = SourceDatabase::open_for_scan(source.path()).unwrap();
+
+    let stats = sync_paths(
+        &db,
+        &[
+            PathBuf::from("nested/first.wav"),
+            PathBuf::from("nested/second.wav"),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(stats.total_files, 2);
+    assert_eq!(db.count_files().unwrap(), 2);
+    assert!(stats.traversal_diagnostics.is_empty());
+}
+
+#[test]
 fn targeted_sync_rejects_a_file_below_a_repeated_ancestor() {
     let source = tempdir().unwrap();
     let alias = source.path().join("alias");
