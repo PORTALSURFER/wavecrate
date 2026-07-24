@@ -25,8 +25,8 @@ use wavecrate::sample_sources::{
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessMembership,
         ReadinessProgress, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
         ReadinessStage, ReadinessStageCounts, ReadinessStore, ReadinessTarget,
-        ReadinessTargetDeltaPublication, ReadinessTargetPublication, ReadinessWorkMutationOutcome,
-        SourceAvailability,
+        ReadinessTargetDeltaPublication, ReadinessTargetPublication, ReadinessView,
+        ReadinessWorkMutationOutcome, SourceAvailability,
     },
     scanner::{
         CommittedSourceDelta, ContentAuditActivity, ContentAuditBudget, ContentAuditStorage,
