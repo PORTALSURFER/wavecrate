@@ -424,6 +424,16 @@ For every current eligible file, the readiness stages are:
 
 This is exactly three file-scoped targets per current eligible file plus one source-scoped similarity target. Playback-cache residency is not a fifth readiness stage.
 
+Stable filesystem identity is an ownership key, not a uniqueness assertion over visible manifest
+paths. If two supported live paths are hard links to the same filesystem object, the current
+readiness executor must not collapse one path into a silently incomplete browser record. Until
+path-alias-aware analysis and browser projections are implemented, discovery records a bounded,
+actionable `duplicate_manifest_identity` terminal diagnostic containing the affected relative
+paths, parks that unchanged manifest revision without a five-second retry, and rechecks only after
+the manifest revision changes or an explicit manifest repair is requested. It remains parked if
+the duplicate condition persists. Distinct identities are never merged based on size, timestamps,
+or content hash.
+
 Each target and completion must carry the committed source generation, a non-empty file content generation or source-membership generation, and the stage's artifact-contract version. Desired-state publications also carry a per-source monotonic readiness revision; a writer whose revision is not newer than the persisted revision is stale even when its source generation is equal, so delayed lifecycle writers cannot reactivate an offline or disabled source. The source generation is a publication and diagnostic fence, not a blanket invalidation token for file-scoped artifacts: an unchanged stable file identity remains current across unrelated manifest changes when its stage version and stage-relevant content/path generation still match. Source-scoped similarity work must additionally match the current source generation and membership generation. A late completion may publish only when the values relevant to its scope still match the current desired target. Timestamps, total row counts, source-prep markers, or the existence of some artifacts are diagnostic inputs only; they must never make a source look ready when a current eligible identity lacks an exact artifact or when stale/deleted identities are still the only covered rows.
 
 The readiness classifier must distinguish current, pending, running with a lease, retryable failure with a retry deadline, permanent failure, unsupported terminal state, offline, disabled, deleted, and stale-by-generation. Unsupported, deleted, and permanent-failure targets remain observable but do not spin. Offline and disabled sources retain desired state without being scheduled until they become active and available. Expired leases and due retryable failures become actionable deficits after restart or worker interruption.

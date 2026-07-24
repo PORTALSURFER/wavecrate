@@ -79,6 +79,138 @@ fn zero_byte_audio_is_terminally_non_analyzable_and_never_enters_the_work_queue(
 }
 
 #[test]
+fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() {
+    let (_directory, source) = unhashed_source("hard-link-identity-terminal");
+    let canonical_path = source.root.join("pending.wav");
+    let alias_path = source.root.join("alias.wav");
+    std::fs::hard_link(&canonical_path, &alias_path).expect("create hard-link alias");
+    let db = source.open_db().expect("open hard-link source");
+    db.upsert_file(Path::new("alias.wav"), 64, 1)
+        .expect("insert hard-link alias manifest row");
+    drop(db);
+
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open readiness database");
+    connection
+        .execute(
+            "UPDATE wav_files SET file_identity = 'hard-link-identity'
+             WHERE path IN ('pending.wav', 'alias.wav')",
+            [],
+        )
+        .expect("assign shared hard-link identity");
+
+    let Cancellable::Completed((candidates, stats, health)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            100,
+            false,
+            false,
+            None,
+            false,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .expect("classify hard-link identity")
+    else {
+        panic!("hard-link discovery unexpectedly cancelled");
+    };
+    assert!(candidates.is_empty());
+    assert_eq!(stats.earliest_retry_at, None);
+    let health = health.expect("hard-link terminal health");
+    assert_eq!(health.retry_at_for_test(), None);
+    assert_eq!(health.failure_codes_for_test(), ["duplicate_manifest_identity"]);
+
+    let marker: String = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [wavecrate_library::sample_sources::db::META_READINESS_DUPLICATE_IDENTITY],
+            |row| row.get(0),
+        )
+        .expect("read duplicate identity marker");
+    let marker: serde_json::Value = serde_json::from_str(&marker).expect("decode marker");
+    assert_eq!(marker["revision"].as_i64(), Some(2));
+    assert_eq!(
+        marker["identities"][0]["paths"],
+        serde_json::json!(["alias.wav", "pending.wav"])
+    );
+
+    let Cancellable::Completed((candidates, stats, health)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            101,
+            false,
+            false,
+            None,
+            true,
+            &AtomicBool::new(false),
+            &mut |_| panic!("unchanged duplicate identity must not run a safety probe"),
+        )
+        .expect("park unchanged hard-link identity")
+    else {
+        panic!("hard-link rediscovery unexpectedly cancelled");
+    };
+    assert!(candidates.is_empty());
+    assert_eq!(stats, SourceDiscoveryStats::default());
+    assert_eq!(
+        health
+            .expect("parked terminal health")
+            .retry_at_for_test(),
+        None
+    );
+
+    drop(connection);
+    std::fs::remove_file(&alias_path).expect("remove hard-link alias");
+    let db = source.open_db().expect("reopen hard-link source");
+    db.remove_file(Path::new("alias.wav"))
+        .expect("remove hard-link alias from manifest");
+    drop(db);
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("reopen repaired readiness database");
+    let Cancellable::Completed((candidates, _stats, health)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            102,
+            false,
+            false,
+            None,
+            false,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .expect("resume after hard-link repair")
+    else {
+        panic!("repaired discovery unexpectedly cancelled");
+    };
+    assert!(candidates.iter().any(|candidate| {
+        matches!(&candidate.task, RuntimeTask::Readiness(_))
+    }));
+    assert!(health
+        .expect("repaired source health")
+        .failure_codes_for_test()
+        .is_empty());
+    let marker_exists: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM metadata WHERE key = ?1)",
+            [wavecrate_library::sample_sources::db::META_READINESS_DUPLICATE_IDENTITY],
+            |row| row.get(0),
+        )
+        .expect("check cleared duplicate identity marker");
+    assert!(!marker_exists);
+}
+
+#[test]
 fn deferred_full_hash_blocks_all_content_derived_targets_until_identity_is_exact() {
     let (_directory, source) = unhashed_source("deferred-full-hash");
     let database_root = source.database_root().expect("database root");

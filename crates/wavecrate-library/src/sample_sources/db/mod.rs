@@ -83,6 +83,8 @@ pub const META_DEFERRED_MAINTENANCE_REVISION: &str = "deferred_maintenance_revis
 pub const META_DEFERRED_MAINTENANCE_SCHEMA: &str = "deferred_maintenance_schema_v1";
 /// Metadata key storing the last revision that changed the ordered wav path set.
 pub const META_WAV_PATHS_REVISION: &str = "wav_paths_revision_v1";
+/// Metadata key storing a revision-fenced readiness diagnostic for duplicate file identities.
+pub const META_READINESS_DUPLICATE_IDENTITY: &str = "readiness_duplicate_identity_v1";
 /// Metadata key storing the revision of the index-only unsupported file set.
 pub const META_SOURCE_INDEX_REVISION: &str = "source_index_revision_v1";
 /// Env var that enables read-only source DB opening by default.
