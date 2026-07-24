@@ -7,11 +7,14 @@ use std::{
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicU64, Ordering},
-        mpsc::{self, Receiver, SyncSender, TryRecvError},
+        mpsc::TryRecvError,
     },
     thread,
     time::Duration,
 };
+
+#[cfg(test)]
+use std::sync::mpsc;
 
 use super::{AudioPlayer, EditFadeRange, PlaybackMetronomeConfig};
 use crate::output::ResolvedOutput;
@@ -433,7 +436,66 @@ impl PlaybackRuntimeHandle {
 /// Handle plus event receiver for a spawned playback command runtime.
 pub struct PlaybackRuntime {
     pub handle: PlaybackRuntimeHandle,
-    pub events: Receiver<PlaybackRuntimeEvent>,
+    pub events: PlaybackRuntimeEventReceiver,
+}
+
+/// Error returned when the playback runtime event receiver is disconnected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlaybackRuntimeEventRecvError;
+
+/// Error returned when a playback runtime event is not available before a timeout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaybackRuntimeEventRecvTimeoutError {
+    Timeout,
+    Disconnected,
+}
+
+/// Non-blocking receiver for bounded playback runtime events.
+pub struct PlaybackRuntimeEventReceiver {
+    queue: Arc<PlaybackRuntimeEventQueue>,
+}
+
+impl PlaybackRuntimeEventReceiver {
+    fn new(queue: Arc<PlaybackRuntimeEventQueue>) -> Self {
+        Self { queue }
+    }
+
+    /// Receive the next event, waiting only for an event or runtime shutdown.
+    pub fn recv(&self) -> Result<PlaybackRuntimeEvent, PlaybackRuntimeEventRecvError> {
+        self.queue.recv()
+    }
+
+    /// Receive the next event without waiting longer than `timeout`.
+    pub fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<PlaybackRuntimeEvent, PlaybackRuntimeEventRecvTimeoutError> {
+        self.queue.recv_timeout(timeout)
+    }
+
+    /// Iterate over events currently available without waiting.
+    pub fn try_iter(&self) -> PlaybackRuntimeEventIter<'_> {
+        PlaybackRuntimeEventIter { receiver: self }
+    }
+}
+
+impl Drop for PlaybackRuntimeEventReceiver {
+    fn drop(&mut self) {
+        self.queue.close_receiver();
+    }
+}
+
+/// Iterator over currently available playback runtime events.
+pub struct PlaybackRuntimeEventIter<'a> {
+    receiver: &'a PlaybackRuntimeEventReceiver,
+}
+
+impl Iterator for PlaybackRuntimeEventIter<'_> {
+    type Item = PlaybackRuntimeEvent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.receiver.queue.try_recv()
+    }
 }
 
 impl PlaybackRuntime {
@@ -529,6 +591,13 @@ impl PlaybackRuntimeCommandQueue {
             .iter()
             .position(|queued| same_coalescing_class(queued, &command))
         {
+            if matches!(
+                state.commands.get(index),
+                Some(PlaybackRuntimeCommand::Play { .. })
+            ) && !self.can_record_cancellations(&state, 1)
+            {
+                return Err(PlaybackRuntimeSubmitError::QueueFull);
+            }
             let replaced = std::mem::replace(
                 state
                     .commands
@@ -566,6 +635,13 @@ impl PlaybackRuntimeCommandQueue {
                     _ => None,
                 };
                 if let Some(index) = eviction {
+                    if matches!(
+                        state.commands.get(index),
+                        Some(PlaybackRuntimeCommand::Play { .. })
+                    ) && !self.can_record_cancellations(&state, 1)
+                    {
+                        return Err(PlaybackRuntimeSubmitError::QueueFull);
+                    }
                     let evicted = state.commands.remove(index).expect("evicted command");
                     let reason = match &command {
                         PlaybackRuntimeCommand::Stop { .. }
@@ -577,6 +653,14 @@ impl PlaybackRuntimeCommandQueue {
                     };
                     self.record_cancellation(evicted, reason, &mut state);
                 } else if matches!(&command, PlaybackRuntimeCommand::Shutdown) {
+                    let play_count = state
+                        .commands
+                        .iter()
+                        .filter(|command| matches!(command, PlaybackRuntimeCommand::Play { .. }))
+                        .count();
+                    if !self.can_record_cancellations(&state, play_count) {
+                        return Err(PlaybackRuntimeSubmitError::QueueFull);
+                    }
                     while let Some(evicted) = state.commands.pop_front() {
                         self.record_cancellation(
                             evicted,
@@ -597,6 +681,14 @@ impl PlaybackRuntimeCommandQueue {
         Ok(())
     }
 
+    fn can_record_cancellations(
+        &self,
+        state: &PlaybackRuntimeCommandQueueState,
+        additional: usize,
+    ) -> bool {
+        state.cancelled.len().saturating_add(additional) <= self.capacity
+    }
+
     fn record_cancellation(
         &self,
         command: PlaybackRuntimeCommand,
@@ -606,9 +698,7 @@ impl PlaybackRuntimeCommandQueue {
         let PlaybackRuntimeCommand::Play { id, .. } = command else {
             return;
         };
-        if state.cancelled.len() >= self.capacity {
-            state.cancelled.pop_front();
-        }
+        debug_assert!(state.cancelled.len() < self.capacity);
         state.cancelled.push_back((id, reason));
     }
 
@@ -708,6 +798,128 @@ fn find_noncritical_command(commands: &VecDeque<PlaybackRuntimeCommand>) -> Opti
                 | PlaybackRuntimeCommand::SetPlaybackGain { .. }
         )
     })
+}
+
+struct PlaybackRuntimeEventQueue {
+    capacity: usize,
+    state: Mutex<PlaybackRuntimeEventQueueState>,
+    wake: Condvar,
+}
+
+struct PlaybackRuntimeEventQueueState {
+    events: VecDeque<PlaybackRuntimeEvent>,
+    sender_open: bool,
+    receiver_open: bool,
+}
+
+impl PlaybackRuntimeEventQueue {
+    fn new(capacity: usize) -> Self {
+        Self {
+            capacity: capacity.max(1),
+            state: Mutex::new(PlaybackRuntimeEventQueueState {
+                events: VecDeque::new(),
+                sender_open: true,
+                receiver_open: true,
+            }),
+            wake: Condvar::new(),
+        }
+    }
+
+    fn try_send(&self, event: PlaybackRuntimeEvent) -> bool {
+        let mut state = self.state.lock().expect("playback event queue lock");
+        if !state.receiver_open {
+            return false;
+        }
+        if state.events.len() >= self.capacity {
+            // Progress is disposable. Started/failed/stopped events are kept
+            // ahead of progress and cancellation notifications, but the
+            // admission path must remain non-blocking even if every retained
+            // slot already contains a terminal event.
+            if is_progress_event(&event) {
+                return false;
+            }
+            if let Some(index) = state.events.iter().position(is_progress_event) {
+                state.events.remove(index);
+            } else if let Some(index) = state
+                .events
+                .iter()
+                .position(|queued| matches!(queued, PlaybackRuntimeEvent::Cancelled { .. }))
+            {
+                state.events.remove(index);
+            } else {
+                return false;
+            }
+        }
+        state.events.push_back(event);
+        self.wake.notify_one();
+        true
+    }
+
+    fn try_recv(&self) -> Option<PlaybackRuntimeEvent> {
+        self.state
+            .lock()
+            .expect("playback event queue lock")
+            .events
+            .pop_front()
+    }
+
+    fn recv(&self) -> Result<PlaybackRuntimeEvent, PlaybackRuntimeEventRecvError> {
+        let mut state = self.state.lock().expect("playback event queue lock");
+        loop {
+            if let Some(event) = state.events.pop_front() {
+                return Ok(event);
+            }
+            if !state.sender_open {
+                return Err(PlaybackRuntimeEventRecvError);
+            }
+            state = self.wake.wait(state).expect("playback event queue wait");
+        }
+    }
+
+    fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<PlaybackRuntimeEvent, PlaybackRuntimeEventRecvTimeoutError> {
+        let started = std::time::Instant::now();
+        let mut state = self.state.lock().expect("playback event queue lock");
+        loop {
+            if let Some(event) = state.events.pop_front() {
+                return Ok(event);
+            }
+            if !state.sender_open {
+                return Err(PlaybackRuntimeEventRecvTimeoutError::Disconnected);
+            }
+            let remaining = timeout.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return Err(PlaybackRuntimeEventRecvTimeoutError::Timeout);
+            }
+            let (next_state, wait_result) = self
+                .wake
+                .wait_timeout(state, remaining)
+                .expect("playback event queue wait");
+            state = next_state;
+            if wait_result.timed_out() {
+                return Err(PlaybackRuntimeEventRecvTimeoutError::Timeout);
+            }
+        }
+    }
+
+    fn close_sender(&self) {
+        let mut state = self.state.lock().expect("playback event queue lock");
+        state.sender_open = false;
+        self.wake.notify_all();
+    }
+
+    fn close_receiver(&self) {
+        let mut state = self.state.lock().expect("playback event queue lock");
+        state.receiver_open = false;
+        state.events.clear();
+        self.wake.notify_all();
+    }
+}
+
+fn is_progress_event(event: &PlaybackRuntimeEvent) -> bool {
+    matches!(event, PlaybackRuntimeEvent::Progress { .. })
 }
 
 trait PlaybackRuntimeExecutor: Send + 'static {
@@ -831,24 +1043,25 @@ fn spawn_executor(
 ) -> Result<PlaybackRuntime, std::io::Error> {
     let queue_capacity = config.queue_capacity.max(1);
     let command_queue = Arc::new(PlaybackRuntimeCommandQueue::new(queue_capacity));
-    let (event_sender, event_receiver) = mpsc::sync_channel(queue_capacity);
+    let event_queue = Arc::new(PlaybackRuntimeEventQueue::new(queue_capacity));
     let handle = PlaybackRuntimeHandle {
         commands: Arc::clone(&command_queue),
         next_id: Arc::new(AtomicU64::new(1)),
     };
+    let runtime_event_queue = Arc::clone(&event_queue);
     thread::Builder::new()
         .name(String::from("reson-playback-runtime"))
-        .spawn(move || run_playback_runtime(executor, command_queue, event_sender))?;
+        .spawn(move || run_playback_runtime(executor, command_queue, runtime_event_queue))?;
     Ok(PlaybackRuntime {
         handle,
-        events: event_receiver,
+        events: PlaybackRuntimeEventReceiver::new(event_queue),
     })
 }
 
 fn run_playback_runtime(
     mut executor: impl PlaybackRuntimeExecutor,
     commands: Arc<PlaybackRuntimeCommandQueue>,
-    events: SyncSender<PlaybackRuntimeEvent>,
+    events: Arc<PlaybackRuntimeEventQueue>,
 ) {
     let mut pending = VecDeque::new();
     let mut latest_span_retarget_id = None;
@@ -905,9 +1118,13 @@ fn run_playback_runtime(
             } => {
                 executor.set_playback_gain(gain, normalization);
             }
-            CoalescedCommand::Shutdown => return,
+            CoalescedCommand::Shutdown => {
+                commands.close();
+                break;
+            }
         }
     }
+    events.close_sender();
 }
 
 fn next_runtime_command(
@@ -946,13 +1163,16 @@ enum CoalescedCommand {
 fn coalesce_command(
     command: PlaybackRuntimeCommand,
     commands: &PlaybackRuntimeCommandQueue,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
 ) -> CoalescedCommand {
     for (id, reason) in commands.take_cancellations() {
         send_cancelled(id, reason, events);
     }
     loop {
+        if pending.len() >= commands.capacity {
+            return command_to_coalesced(coalesce_pending_command(command, pending, events));
+        }
         match commands.try_recv() {
             Ok(next) => pending.push_back(next),
             Err(TryRecvError::Empty) => {
@@ -970,7 +1190,7 @@ fn coalesce_command(
 fn coalesce_pending_command(
     command: PlaybackRuntimeCommand,
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) -> PlaybackRuntimeCommand {
     match command {
         current @ PlaybackRuntimeCommand::Play { .. } => {
@@ -1005,7 +1225,7 @@ fn coalesce_pending_command(
 fn coalesce_play_command(
     mut current: PlaybackRuntimeCommand,
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) -> PlaybackRuntimeCommand {
     loop {
         match pending.front() {
@@ -1150,7 +1370,7 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
 fn cancel_command(
     command: PlaybackRuntimeCommand,
     reason: PlaybackRuntimeCancellation,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) {
     if let PlaybackRuntimeCommand::Play { id, .. } = command {
         send_cancelled(id, reason, events);
@@ -1160,7 +1380,7 @@ fn cancel_command(
 fn cancel_pending_commands(
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
     reason: PlaybackRuntimeCancellation,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) {
     while let Some(command) = pending.pop_front() {
         cancel_command(command, reason, events);
@@ -1169,7 +1389,7 @@ fn cancel_pending_commands(
 
 fn cancel_pending_play_commands(
     pending: &mut VecDeque<PlaybackRuntimeCommand>,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) {
     let mut retained = VecDeque::new();
     while let Some(command) = pending.pop_front() {
@@ -1186,20 +1406,13 @@ fn cancel_pending_play_commands(
 fn send_cancelled(
     id: PlaybackRequestId,
     reason: PlaybackRuntimeCancellation,
-    events: &SyncSender<PlaybackRuntimeEvent>,
+    events: &PlaybackRuntimeEventQueue,
 ) {
     send_runtime_event(events, PlaybackRuntimeEvent::Cancelled { id, reason });
 }
 
-fn send_runtime_event(events: &SyncSender<PlaybackRuntimeEvent>, event: PlaybackRuntimeEvent) {
-    match event {
-        progress @ PlaybackRuntimeEvent::Progress { .. } => {
-            let _ = events.try_send(progress);
-        }
-        event => {
-            let _ = events.send(event);
-        }
-    }
+fn send_runtime_event(events: &PlaybackRuntimeEventQueue, event: PlaybackRuntimeEvent) {
+    let _ = events.try_send(event);
 }
 
 fn runtime_playback_gain_for_source(
@@ -1656,7 +1869,7 @@ mod tests {
     }
 
     #[test]
-    fn playback_runtime_accepts_rapid_play_burst_while_executor_is_busy() {
+    fn playback_runtime_bounds_rapid_play_burst_while_executor_is_busy() {
         let (entered_tx, entered_rx) = mpsc::channel();
         let (release_tx, release_rx) = mpsc::channel();
         let executor = BlockingExecutor::new(entered_tx, release_rx);
@@ -1667,12 +1880,28 @@ mod tests {
         let first = runtime.handle.try_play(test_request(0.0)).expect("first");
         entered_rx.recv().expect("executor entered first play");
         let mut latest = first;
+        let mut latest_start = 0.0;
+        let mut rejected = 0;
         for index in 1..64 {
-            latest = runtime
-                .handle
-                .try_play(test_request(index as f64 / 100.0))
-                .expect("rapid play burst should not be rejected");
+            let start = index as f64 / 100.0;
+            match runtime.handle.try_play(test_request(start)) {
+                Ok(id) => {
+                    latest = id;
+                    latest_start = start;
+                }
+                Err(PlaybackRuntimeSubmitError::QueueFull) => {
+                    rejected += 1;
+                    break;
+                }
+                Err(PlaybackRuntimeSubmitError::Closed) => {
+                    panic!("runtime closed during rapid play burst")
+                }
+            }
         }
+        assert!(
+            rejected > 0,
+            "rapid play burst should reach its bounded limit"
+        );
         release_tx.send(()).expect("release executor");
 
         assert!(matches!(
@@ -1705,7 +1934,7 @@ mod tests {
                     end: 1.0
                 },
                 PlaybackRuntimeMode::OneShot {
-                    start: 0.63,
+                    start: latest_start,
                     end: 1.0
                 }
             ]
@@ -1762,6 +1991,80 @@ mod tests {
     }
 
     #[test]
+    fn playback_runtime_queue_full_is_explicit_for_non_coalescible_classes() {
+        let queue = PlaybackRuntimeCommandQueue::new(1);
+        queue
+            .try_submit(PlaybackRuntimeCommand::Stop {
+                id: PlaybackRequestId(1),
+            })
+            .expect("critical command admission");
+
+        assert_eq!(
+            queue.try_submit(play_command(PlaybackRequestId(2), 0.2)),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        assert_eq!(
+            queue.try_submit(PlaybackRuntimeCommand::PollProgress {
+                id: PlaybackRequestId(3),
+            }),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        assert_eq!(
+            queue.try_submit(retarget_command(PlaybackRequestId(4), 0.2, 0.8)),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        assert_eq!(
+            queue.try_submit(PlaybackRuntimeCommand::SetVolume { volume: 0.5 }),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        assert_eq!(
+            queue.try_submit(PlaybackRuntimeCommand::SetPlaybackGain {
+                gain: 0.5,
+                normalization: None,
+            }),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+    }
+
+    #[test]
+    fn playback_runtime_rejects_play_replacement_when_cancellation_backlog_is_full() {
+        let queue = PlaybackRuntimeCommandQueue::new(2);
+        queue
+            .try_submit(play_command(PlaybackRequestId(1), 0.1))
+            .expect("first play admission");
+        queue
+            .try_submit(play_command(PlaybackRequestId(2), 0.2))
+            .expect("first superseding play admission");
+        queue
+            .try_submit(PlaybackRuntimeCommand::PollProgress {
+                id: PlaybackRequestId(3),
+            })
+            .expect("poll admission");
+        queue
+            .try_submit(play_command(PlaybackRequestId(4), 0.4))
+            .expect("second superseding play admission");
+
+        assert_eq!(
+            queue.try_submit(play_command(PlaybackRequestId(5), 0.5)),
+            Err(PlaybackRuntimeSubmitError::QueueFull)
+        );
+        assert_eq!(queue.retained_len(), 2);
+        assert_eq!(
+            queue.take_cancellations(),
+            vec![
+                (
+                    PlaybackRequestId(1),
+                    PlaybackRuntimeCancellation::Superseded
+                ),
+                (
+                    PlaybackRequestId(2),
+                    PlaybackRuntimeCancellation::Superseded
+                ),
+            ]
+        );
+    }
+
+    #[test]
     fn playback_runtime_stays_bounded_under_blocked_poll_and_retarget_traffic() {
         let (entered_tx, entered_rx) = mpsc::channel();
         let (release_tx, release_rx) = mpsc::channel();
@@ -1814,22 +2117,23 @@ mod tests {
 
     #[test]
     fn playback_runtime_event_queue_drops_progress_but_delivers_terminal_events() {
-        let (sender, receiver) = mpsc::sync_channel(1);
+        let queue = Arc::new(PlaybackRuntimeEventQueue::new(1));
+        let receiver = PlaybackRuntimeEventReceiver::new(Arc::clone(&queue));
         send_runtime_event(
-            &sender,
+            &queue,
             PlaybackRuntimeEvent::Progress {
                 id: PlaybackRequestId(1),
                 progress: PlaybackRuntimeProgress::default(),
             },
         );
         send_runtime_event(
-            &sender,
+            &queue,
             PlaybackRuntimeEvent::Progress {
                 id: PlaybackRequestId(2),
                 progress: PlaybackRuntimeProgress::default(),
             },
         );
-        let terminal_sender = sender.clone();
+        let terminal_sender = Arc::clone(&queue);
         let terminal = thread::spawn(move || {
             send_runtime_event(
                 &terminal_sender,
@@ -1838,10 +2142,6 @@ mod tests {
                 },
             );
         });
-        assert!(matches!(
-            receiver.recv(),
-            Ok(PlaybackRuntimeEvent::Progress { .. })
-        ));
         terminal.join().expect("terminal event sender");
         assert!(matches!(
             receiver.recv().expect("terminal event"),
@@ -1864,6 +2164,27 @@ mod tests {
             handle.try_play(test_request(0.0)),
             Err(PlaybackRuntimeSubmitError::Closed)
         );
+    }
+
+    #[test]
+    fn playback_runtime_closes_retained_handles_after_shutdown() {
+        let runtime = spawn_executor(
+            FakeExecutor::new(vec![]),
+            PlaybackRuntimeConfig { queue_capacity: 1 },
+        )
+        .expect("spawn runtime");
+        let handle = runtime.handle.clone();
+        runtime.handle.try_shutdown().expect("shutdown");
+
+        for _ in 0..100 {
+            match handle.try_play(test_request(0.0)) {
+                Err(PlaybackRuntimeSubmitError::Closed) => return,
+                Err(PlaybackRuntimeSubmitError::QueueFull) | Ok(_) => {
+                    thread::yield_now();
+                }
+            }
+        }
+        panic!("retained handle should close after runtime shutdown");
     }
 
     #[test]
@@ -2088,9 +2409,10 @@ mod tests {
         for command in queued {
             command_receiver.try_submit(command).expect("queue command");
         }
-        let (event_sender, event_receiver) = mpsc::sync_channel(capacity.max(8));
+        let event_queue = Arc::new(PlaybackRuntimeEventQueue::new(capacity.max(8)));
+        let event_receiver = PlaybackRuntimeEventReceiver::new(Arc::clone(&event_queue));
         let mut pending = VecDeque::new();
-        let coalesced = coalesce_command(current, &command_receiver, &event_sender, &mut pending);
+        let coalesced = coalesce_command(current, &command_receiver, &event_queue, &mut pending);
         let events = event_receiver.try_iter().collect();
         (coalesced, pending.into_iter().collect(), events)
     }

@@ -183,10 +183,11 @@ Playback command submission and runtime event delivery are bounded,
 non-blocking handoffs. The configured playback queue capacity applies to both
 queues; repeated polls, retargets, play intents, volume, and gain updates
 coalesce, while stop, cancel, and shutdown admission takes precedence over
-disposable work. Runtime progress is lossy under pressure, but terminal
-playback events remain deliverable. Wavecrate applies a fixed per-frame event
-budget so recovery cannot turn one stalled-runtime backlog into an unbounded UI
-frame.
+disposable work. Runtime progress is lossy under pressure; terminal playback
+events evict progress and lower-priority cancellation events, and terminal
+capacity exhaustion remains non-blocking and bounded. Wavecrate applies a
+fixed per-frame event budget so recovery cannot turn one stalled-runtime
+backlog into an unbounded UI frame.
 
 Opportunistic metadata updates such as listen-history writes should never delay sample selection, validation, cache loading, or playback. They should use low-priority background work, short database busy timeouts, and skip/retry behavior when source databases are locked by higher-value work.
 

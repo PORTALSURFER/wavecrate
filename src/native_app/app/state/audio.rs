@@ -1,12 +1,11 @@
 use std::{
     collections::HashSet,
-    sync::mpsc::Receiver,
     time::{Duration, Instant},
 };
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
-    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeProgress,
+    PlaybackRuntimeEventReceiver, PlaybackRuntimeHandle, PlaybackRuntimeProgress,
     PlaybackRuntimeStreamPolicy, ResolvedOutput,
 };
 use wavecrate::sample_sources::config::AppSettingsCore;
@@ -47,7 +46,7 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) sample_playback_session: Option<SamplePlaybackSession>,
     pub(in crate::native_app) next_sample_playback_generation: u64,
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
-    pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
+    pub(in crate::native_app) playback_events: Option<PlaybackRuntimeEventReceiver>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
     pub(in crate::native_app) pending_playback_progress_polls: HashSet<u64>,
