@@ -204,6 +204,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         missing: bool,
     ) -> Result<(), SourceDbError> {
         self.paths_revision_dirty = true;
+        self.identities_revision_dirty = true;
         self.manifest_touched_paths
             .insert(relative_path.to_path_buf());
         self.clear_pending_rename_for_live_path(relative_path)?;
@@ -287,6 +288,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         relative_path: &Path,
         missing: bool,
     ) -> Result<(), SourceDbError> {
+        self.identities_revision_dirty = true;
         self.manifest_touched_paths
             .insert(relative_path.to_path_buf());
         update_flag_statement(&self.tx, UPDATE_MISSING_SQL, relative_path, missing)

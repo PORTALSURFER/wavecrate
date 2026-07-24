@@ -136,7 +136,7 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
         )
         .expect("read duplicate identity marker");
     let marker: serde_json::Value = serde_json::from_str(&marker).expect("decode marker");
-    assert_eq!(marker["identity_revision"].as_i64(), Some(2));
+    assert_eq!(marker["identity_revision"].as_i64(), Some(4));
     assert_eq!(
         marker["identities"][0]["paths"],
         serde_json::json!(["alias.wav", "pending.wav"])
@@ -168,10 +168,48 @@ fn hard_link_identity_is_parked_without_retry_until_manifest_revision_changes() 
     );
 
     drop(connection);
+    let db = source.open_db().expect("open missing-row repair source");
+    db.set_missing(Path::new("alias.wav"), true)
+        .expect("mark duplicate alias missing");
+    drop(db);
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("reopen missing-row repair database");
+    let Cancellable::Completed((candidates, _stats, health)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            102,
+            false,
+            false,
+            None,
+            false,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .expect("resume after missing-row repair")
+    else {
+        panic!("missing-row repair discovery unexpectedly cancelled");
+    };
+    assert!(candidates.iter().any(|candidate| {
+        matches!(&candidate.task, RuntimeTask::Readiness(_))
+    }));
+    assert!(health
+        .expect("missing-row repaired source health")
+        .failure_codes_for_test()
+        .is_empty());
+
+    drop(connection);
     std::fs::remove_file(&alias_path).expect("remove hard-link alias");
     std::fs::write(&alias_path, [2_u8; 64]).expect("replace hard-link alias contents");
     let db = source.open_db().expect("reopen hard-link source");
     let mut identity_batch = db.write_batch().expect("open repaired identity batch");
+    identity_batch
+        .set_missing(Path::new("alias.wav"), false)
+        .expect("restore repaired alias row");
     identity_batch
         .set_file_identity(Path::new("alias.wav"), Some("repaired-identity"))
         .expect("assign repaired alias identity");
