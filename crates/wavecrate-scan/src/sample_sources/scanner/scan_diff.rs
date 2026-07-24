@@ -17,11 +17,9 @@ pub(super) struct PreparedFile {
     pub(super) requires_apply: bool,
     pub(super) identity_replaced: bool,
     pub(super) content_hash: Option<String>,
-    /// A targeted-sync descriptor opened through the source-root capability.
-    /// It is consumed during preparation so hashing cannot re-resolve a path
-    /// that was replaced by a link after classification.
-    pub(super) targeted_file: Option<std::fs::File>,
-    pub(super) targeted_handle_verified: bool,
+    /// A descriptor opened through the source-root capability and retained through apply.
+    pub(super) source_file: Option<std::fs::File>,
+    pub(super) source_handle_verified: bool,
 }
 
 pub(super) fn apply_diff(

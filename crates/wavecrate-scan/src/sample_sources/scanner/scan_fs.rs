@@ -477,15 +477,10 @@ pub(super) fn read_facts_from_open_file(
         relative,
         size: meta.len(),
         modified_ns,
-        // On Windows these helpers reopen the supplied path to query handle
-        // metadata. A targeted path may have changed after its no-follow open,
-        // so keep the capability guarantee by omitting the optional markers.
-        // The targeted mode already hashes existing rows and records the
-        // descriptor-derived size and modification time.
         file_identity: {
             #[cfg(windows)]
             {
-                None
+                stable_filesystem_identity_from_open_file(file)
             }
             #[cfg(not(windows))]
             {
@@ -495,7 +490,7 @@ pub(super) fn read_facts_from_open_file(
         change_marker: {
             #[cfg(windows)]
             {
-                None
+                filesystem_change_marker_from_open_file(file)
             }
             #[cfg(not(windows))]
             {
@@ -503,6 +498,47 @@ pub(super) fn read_facts_from_open_file(
             }
         },
     })
+}
+
+#[cfg(windows)]
+fn stable_filesystem_identity_from_open_file(file: &fs::File) -> Option<String> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle},
+    };
+
+    let mut information = BY_HANDLE_FILE_INFORMATION::default();
+    unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }.ok()?;
+    let file_index =
+        (u64::from(information.nFileIndexHigh) << 32) | u64::from(information.nFileIndexLow);
+    let creation_time = (u64::from(information.ftCreationTime.dwHighDateTime) << 32)
+        | u64::from(information.ftCreationTime.dwLowDateTime);
+    Some(format!(
+        "windows:{}:{}:{}",
+        information.dwVolumeSerialNumber, file_index, creation_time
+    ))
+}
+
+#[cfg(windows)]
+fn filesystem_change_marker_from_open_file(file: &fs::File) -> Option<String> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{FILE_BASIC_INFO, FileBasicInfo, GetFileInformationByHandleEx},
+    };
+
+    let mut information = FILE_BASIC_INFO::default();
+    unsafe {
+        GetFileInformationByHandleEx(
+            HANDLE(file.as_raw_handle()),
+            FileBasicInfo,
+            (&mut information as *mut FILE_BASIC_INFO).cast(),
+            std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+        )
+    }
+    .ok()?;
+    (information.ChangeTime != 0).then(|| format!("windows:{}", information.ChangeTime))
 }
 
 pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
@@ -519,18 +555,6 @@ fn source_entry_file_type(file_type: &fs::FileType) -> SourceEntryFileType {
         file_type.is_file(),
         file_type.is_symlink(),
     )
-}
-
-/// Hash the entire file contents for change detection, honoring cancellation when requested.
-pub(super) fn compute_content_hash(
-    path: &Path,
-    cancel: Option<&AtomicBool>,
-) -> Result<String, ScanError> {
-    let mut file = fs::File::open(path).map_err(|source| ScanError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    compute_content_hash_with_reader(path, &mut file, cancel)
 }
 
 pub(super) fn compute_content_hash_with_reader(

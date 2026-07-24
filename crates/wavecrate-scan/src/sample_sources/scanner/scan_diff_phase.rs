@@ -54,7 +54,7 @@ pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -
         requires_apply,
         identity_replaced,
         content_hash: None,
-        targeted_file: None,
-        targeted_handle_verified: false,
+        source_file: None,
+        source_handle_verified: false,
     }
 }

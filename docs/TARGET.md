@@ -1305,6 +1305,8 @@ Relinking should validate the chosen folder, reopen or reconcile the source data
 
 Scanning should be recursive by default. Wavecrate should skip hidden or system folders only when configured to do so, and it should avoid traversing dangerous or redundant filesystem structures such as cycles, inaccessible junctions, or repeated symlink targets. The authoritative scanner and native browser projection must classify source entries without following links: directory and file symlinks, junctions, and equivalent reparse-point links stay outside both the manifest and browser tree. Entry-type inspection failures should be logged and skipped without making the source unavailable or exposing paths beyond its configured root.
 
+Every scanner content-hash path, including full scans, periodic content audits, deferred hashing, exact-path hashing, and targeted watcher reconciliation, must open through a source-root capability without following the final component or any ancestor. Filesystem facts, content reads, and post-read revalidation must use the retained descriptor for one object, and the manifest path must still bind to that object immediately before publication. A path that disappears, becomes linked, or is replaced remains retired or retryable without reading the replacement target, and content reads must remain outside source-database writer ownership.
+
 The final scanner should not silently impose arbitrary product limits on folder depth, number of child folders, or number of files per source. Any defensive scan limit used to protect responsiveness should be explicit, configurable where practical, logged, and visible as a partial-scan warning with a clear rescan or settings path.
 
 The scanner should classify discovered files as:

@@ -3,22 +3,20 @@
 use std::{
     cell::Cell,
     io::{Seek, SeekFrom},
-    path::{Component, Path, PathBuf},
+    path::Path,
     sync::atomic::{AtomicBool, Ordering},
 };
-
-use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
-use cap_std::fs::{Dir, OpenOptions};
 
 use crate::sample_sources::SourceDatabase;
 use wavecrate_library::sample_sources::SourceIndexDiagnostic;
 
 use super::scan::{ScanContext, ScanError};
+use super::scan_capability::{SourcePathBinding, SourceRootCapability};
 use super::scan_diff::{PreparedFile, apply_diff};
 use super::scan_diff_phase::prepare_diff;
 use super::scan_fs::{
-    compute_content_hash, compute_content_hash_with_reader, is_supported_scannable_audio_file,
-    read_facts, read_facts_from_open_file, visit_dir_with_cancel_check,
+    compute_content_hash_with_reader, is_supported_scannable_audio_file, read_facts_from_open_file,
+    visit_dir_with_cancel_check,
 };
 use super::scan_index::inaccessible_index_entry;
 use super::scan_writer::{ScanWritePhase, ScanWriter};
@@ -272,10 +270,19 @@ fn apply_batch(
     tolerate_file_errors: bool,
     writer: &impl ScanWriter,
 ) -> Result<ApplyBatchOutcome, ScanError> {
+    let source_root = SourceRootCapability::open(root)?;
     let mut ready = Vec::with_capacity(prepared.len());
+    let mut post_hash = |_: &Path| {};
     for file in prepared {
         let relative_path = file.facts.relative.clone();
-        let outcome = match prepare_for_apply(db, root, cancel, file) {
+        let outcome = match prepare_for_apply_with_capability(
+            db,
+            root,
+            &source_root,
+            cancel,
+            file,
+            &mut post_hash,
+        ) {
             Ok(outcome) => outcome,
             Err(ScanError::Canceled) => return Err(ScanError::Canceled),
             Err(error) if tolerate_file_errors => {
@@ -314,31 +321,27 @@ fn apply_batch(
     let mut audited_paths = Vec::with_capacity(ready.len());
     for file in ready {
         let relative_path = file.facts.relative.clone();
-        if file.targeted_handle_verified {
-            let file_handle = file
-                .targeted_file
-                .as_ref()
-                .expect("verified targeted files retain their descriptor through apply");
-            match targeted_path_binding(root, &relative_path, file_handle)? {
-                TargetedPathBinding::Matches => {}
-                // A link or absence is a definite deletion: leave its old row
-                // in `existing` for the missing phase to retire.
-                TargetedPathBinding::Retire => continue,
-                TargetedPathBinding::Changed => {
-                    context.mark_source_tree_incomplete();
-                    context.existing.remove(&relative_path);
-                    continue;
-                }
-            }
-        } else {
-            let absolute = root.join(&relative_path);
-            match read_facts(root, &absolute) {
-                Ok(current) if prepared_still_current(&file, &current) => {}
-                _ => {
-                    context.mark_source_tree_incomplete();
-                    skip_changed_or_unavailable(context, root, &relative_path);
-                    continue;
-                }
+        let file_handle = file
+            .source_file
+            .as_ref()
+            .expect("prepared source files retain their descriptor through apply");
+        let absolute = root.join(&relative_path);
+        let descriptor_still_current = read_facts_from_open_file(root, &absolute, file_handle)
+            .is_ok_and(|current| prepared_still_current(&file, &current));
+        if !descriptor_still_current {
+            context.mark_source_tree_incomplete();
+            context.existing.remove(&relative_path);
+            continue;
+        }
+        match source_root.path_binding(&relative_path, file_handle)? {
+            SourcePathBinding::Matches => {}
+            // A link or absence is a definite deletion: leave its old row in
+            // `existing` for the missing phase to retire.
+            SourcePathBinding::Retire => continue,
+            SourcePathBinding::Changed => {
+                context.mark_source_tree_incomplete();
+                context.existing.remove(&relative_path);
+                continue;
             }
         }
         apply_diff(db, &mut batch, file, context)?;
@@ -372,6 +375,7 @@ enum PrepareForApply {
     Skip,
 }
 
+#[cfg(test)]
 fn prepare_for_apply(
     db: &SourceDatabase,
     root: &Path,
@@ -381,81 +385,49 @@ fn prepare_for_apply(
     prepare_for_apply_with_post_hash_hook(db, root, cancel, prepared, |_| {})
 }
 
+#[cfg(test)]
 fn prepare_for_apply_with_post_hash_hook(
     db: &SourceDatabase,
     root: &Path,
     cancel: Option<&AtomicBool>,
-    mut prepared: PreparedFile,
+    prepared: PreparedFile,
     mut post_hash: impl FnMut(&Path),
 ) -> Result<PrepareForApply, ScanError> {
-    if prepared.targeted_handle_verified {
-        return prepare_targeted_for_apply(db, root, cancel, prepared, &mut post_hash);
-    }
-    let absolute = root.join(&prepared.facts.relative);
-    if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
-        return Ok(PrepareForApply::Gone);
-    }
-    let Ok(before_hash) = read_facts(root, &absolute) else {
-        return Ok(if absolute.exists() {
-            PrepareForApply::Skip
-        } else {
-            PrepareForApply::Gone
-        });
-    };
-    if !facts_match(&prepared, &before_hash) {
-        return Ok(PrepareForApply::Skip);
-    }
-    let current_needs_hash = db
-        .entry_for_path(&prepared.facts.relative)?
-        .is_none_or(|entry| {
-            entry.file_size != prepared.facts.size
-                || entry.modified_ns != prepared.facts.modified_ns
-                || entry.content_hash.is_none()
-        });
-    if prepared.hash_required && (prepared.needs_hash || current_needs_hash) {
-        prepared.facts = before_hash;
-        prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
-        post_hash(&absolute);
-        let Ok(after_hash) = read_facts(root, &absolute) else {
-            return Ok(if absolute.exists() {
-                PrepareForApply::Skip
-            } else {
-                PrepareForApply::Gone
-            });
-        };
-        if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
-            return Ok(PrepareForApply::Gone);
-        }
-        if !prepared.facts.same_content_snapshot(&after_hash) {
-            return Ok(PrepareForApply::Skip);
-        }
-    }
-    Ok(PrepareForApply::Ready(prepared))
+    let source_root = SourceRootCapability::open(root)?;
+    prepare_for_apply_with_capability(db, root, &source_root, cancel, prepared, &mut post_hash)
 }
 
-fn prepare_targeted_for_apply(
+fn prepare_for_apply_with_capability(
     db: &SourceDatabase,
     root: &Path,
+    source_root: &SourceRootCapability,
     cancel: Option<&AtomicBool>,
     mut prepared: PreparedFile,
     post_hash: &mut impl FnMut(&Path),
 ) -> Result<PrepareForApply, ScanError> {
     let absolute = root.join(&prepared.facts.relative);
+    if !prepared.source_handle_verified {
+        let Some(file) = source_root.open_regular_file(&prepared.facts.relative)? else {
+            return Ok(PrepareForApply::Gone);
+        };
+        prepared.source_file = Some(file);
+        prepared.source_handle_verified = true;
+    }
     let before_hash = read_facts_from_open_file(
         root,
         &absolute,
         prepared
-            .targeted_file
+            .source_file
             .as_ref()
-            .expect("verified targeted files retain their open descriptor until preparation"),
+            .expect("verified source files retain their open descriptor until preparation"),
     )?;
     if !facts_match(&prepared, &before_hash) {
         return Ok(PrepareForApply::Skip);
     }
     let file = prepared
-        .targeted_file
+        .source_file
         .as_mut()
-        .expect("verified targeted files retain their open descriptor until preparation");
+        .expect("verified source files retain their open descriptor until preparation");
     let current_needs_hash = db
         .entry_for_path(&prepared.facts.relative)?
         .is_none_or(|entry| {
@@ -477,143 +449,10 @@ fn prepare_targeted_for_apply(
             return Ok(PrepareForApply::Skip);
         }
         prepared.facts = after_hash;
+    } else {
+        prepared.facts = before_hash;
     }
     Ok(PrepareForApply::Ready(prepared))
-}
-
-/// Confirm that the path used as the manifest key is still bound to the same
-/// no-follow file descriptor that targeted discovery classified and hashed.
-enum TargetedPathBinding {
-    Matches,
-    Retire,
-    Changed,
-}
-
-fn targeted_path_binding(
-    root: &Path,
-    relative_path: &Path,
-    expected: &std::fs::File,
-) -> Result<TargetedPathBinding, ScanError> {
-    let source_root =
-        Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
-            path: root.to_path_buf(),
-            source,
-        })?;
-    let Some((parent, name)) = open_target_parent_nofollow(&source_root, root, relative_path)?
-    else {
-        return Ok(TargetedPathBinding::Retire);
-    };
-    let mut options = OpenOptions::new();
-    options.read(true).follow(FollowSymlinks::No);
-    let current = match parent.open_with(&name, &options) {
-        Ok(file) => file.into_std(),
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(TargetedPathBinding::Retire);
-        }
-        Err(source) => {
-            if parent
-                .symlink_metadata(&name)
-                .is_ok_and(|metadata| metadata.is_symlink())
-            {
-                return Ok(TargetedPathBinding::Retire);
-            }
-            tracing::warn!(
-                path = %root.join(relative_path).display(),
-                error = %source,
-                "Skipping targeted sync path that no longer opens without following links"
-            );
-            return Ok(TargetedPathBinding::Changed);
-        }
-    };
-    if !current.metadata().is_ok_and(|metadata| metadata.is_file()) {
-        return Ok(TargetedPathBinding::Retire);
-    }
-    let matches = same_open_file(expected, &current).map_err(|source| ScanError::Io {
-        path: root.join(relative_path),
-        source,
-    })?;
-    Ok(if matches {
-        TargetedPathBinding::Matches
-    } else {
-        TargetedPathBinding::Changed
-    })
-}
-
-fn open_target_parent_nofollow(
-    source_root: &Dir,
-    root: &Path,
-    relative_path: &Path,
-) -> Result<Option<(Dir, PathBuf)>, ScanError> {
-    let Some(name) = relative_path.file_name() else {
-        return Ok(None);
-    };
-    let mut dir = source_root.try_clone().map_err(|source| ScanError::Io {
-        path: root.to_path_buf(),
-        source,
-    })?;
-    let mut traversed = PathBuf::new();
-    for component in relative_path
-        .parent()
-        .into_iter()
-        .flat_map(Path::components)
-    {
-        let Component::Normal(part) = component else {
-            continue;
-        };
-        traversed.push(part);
-        dir = match dir.open_dir_nofollow(part) {
-            Ok(dir) => dir,
-            Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                if dir
-                    .symlink_metadata(part)
-                    .is_ok_and(|metadata| metadata.is_symlink())
-                {
-                    return Ok(None);
-                }
-                return Err(ScanError::Io {
-                    path: root.join(&traversed),
-                    source,
-                });
-            }
-        };
-    }
-    Ok(Some((dir, PathBuf::from(name))))
-}
-
-#[cfg(unix)]
-fn same_open_file(left: &std::fs::File, right: &std::fs::File) -> std::io::Result<bool> {
-    use std::os::unix::fs::MetadataExt;
-
-    let left = left.metadata()?;
-    let right = right.metadata()?;
-    Ok(left.dev() == right.dev() && left.ino() == right.ino())
-}
-
-#[cfg(windows)]
-fn same_open_file(left: &std::fs::File, right: &std::fs::File) -> std::io::Result<bool> {
-    use std::os::windows::io::AsRawHandle;
-    use windows::Win32::{
-        Foundation::HANDLE,
-        Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle},
-    };
-
-    let information = |file: &std::fs::File| {
-        let mut information = BY_HANDLE_FILE_INFORMATION::default();
-        unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }
-            .map_err(std::io::Error::other)?;
-        Ok::<_, std::io::Error>((
-            information.dwVolumeSerialNumber,
-            information.nFileIndexHigh,
-            information.nFileIndexLow,
-        ))
-    };
-    Ok(information(left)? == information(right)?)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_open_file(_left: &std::fs::File, _right: &std::fs::File) -> std::io::Result<bool> {
-    Ok(false)
 }
 
 fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
@@ -662,8 +501,8 @@ mod tests {
             requires_apply: true,
             identity_replaced: false,
             content_hash: None,
-            targeted_file: None,
-            targeted_handle_verified: false,
+            source_file: None,
+            source_handle_verified: false,
         };
 
         assert!(prepared.requires_apply);
@@ -754,8 +593,8 @@ mod tests {
             requires_apply: true,
             identity_replaced: false,
             content_hash: None,
-            targeted_file: None,
-            targeted_handle_verified: false,
+            source_file: None,
+            source_handle_verified: false,
         };
 
         let outcome =
@@ -764,6 +603,67 @@ mod tests {
             })
             .unwrap();
 
+        assert!(matches!(outcome, PrepareForApply::Skip));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_scan_hash_open_rejects_an_outside_link_replacement_after_classification() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("one.wav");
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let prepared = prepare_diff(dir.path(), &source, &context).unwrap();
+
+        std::fs::remove_file(&source).unwrap();
+        symlink(&outside_file, &source).unwrap();
+
+        assert!(matches!(
+            prepare_for_apply(&db, dir.path(), None, prepared).unwrap(),
+            PrepareForApply::Gone
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn full_scan_hash_rejects_an_outside_link_replacement_during_hashing() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().unwrap();
+        let source = dir.path().join("one.wav");
+        let outside = tempdir().unwrap();
+        let outside_file = outside.path().join("outside.wav");
+        std::fs::write(&source, b"inside").unwrap();
+        std::fs::write(&outside_file, b"outside").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let prepared = PreparedFile {
+            facts: read_facts(dir.path(), &source).unwrap(),
+            hash_required: true,
+            needs_hash: true,
+            requires_apply: true,
+            identity_replaced: false,
+            content_hash: None,
+            source_file: None,
+            source_handle_verified: false,
+        };
+
+        let outcome =
+            prepare_for_apply_with_post_hash_hook(&db, dir.path(), None, prepared, |path| {
+                std::fs::remove_file(path).unwrap();
+                symlink(&outside_file, path).unwrap();
+            })
+            .unwrap();
         assert!(matches!(outcome, PrepareForApply::Skip));
     }
 
@@ -784,8 +684,11 @@ mod tests {
         symlink(&outside_file, &source).unwrap();
 
         assert!(matches!(
-            super::targeted_path_binding(dir.path(), Path::new("one.wav"), &expected).unwrap(),
-            super::TargetedPathBinding::Retire
+            super::SourceRootCapability::open(dir.path())
+                .unwrap()
+                .path_binding(Path::new("one.wav"), &expected)
+                .unwrap(),
+            super::SourcePathBinding::Retire
         ));
     }
 
@@ -807,9 +710,11 @@ mod tests {
         symlink(outside.path(), &nested).unwrap();
 
         assert!(matches!(
-            super::targeted_path_binding(dir.path(), Path::new("nested/one.wav"), &expected,)
+            super::SourceRootCapability::open(dir.path())
+                .unwrap()
+                .path_binding(Path::new("nested/one.wav"), &expected)
                 .unwrap(),
-            super::TargetedPathBinding::Retire
+            super::SourcePathBinding::Retire
         ));
     }
 
@@ -842,8 +747,8 @@ mod tests {
             requires_apply: true,
             identity_replaced: false,
             content_hash: None,
-            targeted_file: Some(file),
-            targeted_handle_verified: true,
+            source_file: Some(file),
+            source_handle_verified: true,
         };
 
         std::fs::remove_file(&source).unwrap();

@@ -1,5 +1,6 @@
 mod manifest;
 mod scan;
+mod scan_capability;
 mod scan_db_sync;
 mod scan_diff;
 mod scan_diff_phase;
