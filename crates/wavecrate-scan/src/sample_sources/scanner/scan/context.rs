@@ -294,16 +294,15 @@ impl ScanContext {
         batch: SourceWriteBatch<'_>,
         post_commit_hook: impl FnOnce(),
     ) -> Result<u64, ScanError> {
-        let (revision, changes, snapshot) =
-            batch.commit_with_manifest_changes(self.committed_manifest_revision)?;
+        let result = batch.commit_with_manifest_changes(self.committed_manifest_revision)?;
         post_commit_hook();
-        if let Some(snapshot) = snapshot {
+        if let Some(snapshot) = result.authoritative_snapshot {
             self.committed_manifest = snapshot
                 .into_iter()
                 .map(|entry| (entry.relative_path.clone(), entry))
                 .collect();
         } else {
-            for (path, entry) in changes {
+            for (path, entry) in result.touched_path_changes {
                 if let Some(entry) = entry {
                     self.committed_manifest.insert(path, entry);
                 } else {
@@ -311,9 +310,9 @@ impl ScanContext {
                 }
             }
         }
-        self.committed_manifest_revision = revision;
-        self.last_committed_revision = Some(revision);
-        Ok(revision)
+        self.committed_manifest_revision = result.revision;
+        self.last_committed_revision = Some(result.revision);
+        Ok(result.revision)
     }
 
     pub(in crate::sample_sources::scanner) fn committed_snapshot(

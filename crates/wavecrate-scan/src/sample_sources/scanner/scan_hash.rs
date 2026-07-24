@@ -601,13 +601,17 @@ fn verify_content_batch_with_hooks(
                 Ok(stats)
             };
         }
-        let (revision, changes) = batch.commit_with_bounded_manifest_changes(manifest_revision)?;
-        let changed_after = changes
+        let result = batch.commit_with_bounded_manifest_changes(manifest_revision)?;
+        let changed_after = result
+            .touched_path_changes
             .into_iter()
             .filter_map(|(_, entry)| entry)
             .collect::<Vec<_>>();
-        stats.committed_delta =
-            super::manifest::build_committed_delta(&changed_before, &changed_after, revision);
+        stats.committed_delta = super::manifest::build_committed_delta(
+            &changed_before,
+            &changed_after,
+            result.revision,
+        );
         stats.manifest_updates = changed_after;
     } else {
         stats.committed_delta.revision = db.get_revision()?;
@@ -626,10 +630,9 @@ fn verify_content_batch_with_hooks(
             });
         }
         batch.complete_content_audit_rotation(now, stats.committed_delta.revision)?;
-        let (revision, changes) =
-            batch.commit_with_bounded_manifest_changes(stats.committed_delta.revision)?;
-        debug_assert!(changes.is_empty());
-        stats.committed_delta.revision = revision;
+        let result = batch.commit_with_bounded_manifest_changes(stats.committed_delta.revision)?;
+        debug_assert!(result.touched_path_changes.is_empty());
+        stats.committed_delta.revision = result.revision;
     }
     stats.content_audit = Some({
         let _writer = writer.lock(ScanWritePhase::Manifest);

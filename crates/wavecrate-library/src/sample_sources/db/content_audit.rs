@@ -295,8 +295,7 @@ impl SourceDatabase {
             return Ok(Vec::new());
         }
         let pool_limit = limit.saturating_mul(2);
-        let sql = format!(
-            "SELECT wav.path, wav.file_identity, wav.content_hash,
+        let sql = "SELECT wav.path, wav.file_identity, wav.content_hash,
                     wav.file_size, wav.modified_ns, wav.extension, wav.missing
              FROM source_content_audit_entries AS audit
                   INDEXED BY idx_source_content_audit_retry_due
@@ -305,7 +304,7 @@ impl SourceDatabase {
                AND COALESCE(audit.retry_at, 0) <= ?1
              ORDER BY COALESCE(audit.retry_at, 0) ASC, audit.path ASC
              LIMIT ?2"
-        );
+            .to_string();
         let mut statement = self.connection.prepare(&sql).map_err(map_sql_error)?;
         let rows = statement
             .query_map(
