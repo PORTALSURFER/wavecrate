@@ -47,14 +47,29 @@ pub fn audit_source(
     cancel: Option<&AtomicBool>,
     max_hashes: usize,
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None, None, false)?;
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
+    let mut stats = scan_with_writer_using_root(
+        db,
+        &root,
+        &source_root,
+        ScanMode::Quick,
+        cancel,
+        None,
+        None,
+        false,
+        &UncoordinatedScanWriter,
+    )?;
     let mut stats = merge_audit_verification(
         &mut stats,
-        super::super::scan_hash::verify_content_batch(
+        super::super::scan_hash::verify_content_batch_with_source_root(
             db,
+            &source_root,
             cancel,
             ContentAuditBudget::entry_limited(max_hashes),
             now_epoch_seconds(),
+            &UncoordinatedScanWriter,
         ),
     )?;
     finalize_pending_rename_completion(
@@ -62,7 +77,7 @@ pub fn audit_source(
         &mut stats,
         ScanMode::Quick,
         &UncoordinatedScanWriter,
-        None,
+        Some(&source_root),
     )?;
     Ok(stats)
 }
@@ -73,17 +88,37 @@ pub fn audit_source_with_budget(
     cancel: Option<&AtomicBool>,
     budget: ContentAuditBudget,
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None, None, false)?;
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
+    let mut stats = scan_with_writer_using_root(
+        db,
+        &root,
+        &source_root,
+        ScanMode::Quick,
+        cancel,
+        None,
+        None,
+        false,
+        &UncoordinatedScanWriter,
+    )?;
     let mut stats = merge_audit_verification(
         &mut stats,
-        super::super::scan_hash::verify_content_batch(db, cancel, budget, now_epoch_seconds()),
+        super::super::scan_hash::verify_content_batch_with_source_root(
+            db,
+            &source_root,
+            cancel,
+            budget,
+            now_epoch_seconds(),
+            &UncoordinatedScanWriter,
+        ),
     )?;
     finalize_pending_rename_completion(
         db,
         &mut stats,
         ScanMode::Quick,
         &UncoordinatedScanWriter,
-        None,
+        Some(&source_root),
     )?;
     Ok(stats)
 }
@@ -164,8 +199,13 @@ fn audit_source_and_record_after_scan(
     writer: &impl ScanWriter,
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan_with_writer(
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
+    let mut stats = scan_with_writer_using_root(
         db,
+        &root,
+        &source_root,
         ScanMode::Quick,
         cancel,
         on_progress,
@@ -173,19 +213,26 @@ fn audit_source_and_record_after_scan(
         false,
         writer,
     )?;
-    record_manifest_audit_completion(db, &mut stats, completed_at, writer)?;
+    record_manifest_audit_completion(db, &mut stats, completed_at, writer, &source_root)?;
     after_scan();
     let mut stats = merge_audit_verification(
         &mut stats,
-        super::super::scan_hash::verify_content_batch_with_writer(
+        super::super::scan_hash::verify_content_batch_with_source_root(
             db,
+            &source_root,
             cancel,
             budget,
             completed_at,
             writer,
         ),
     )?;
-    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, writer, None)?;
+    finalize_pending_rename_completion(
+        db,
+        &mut stats,
+        ScanMode::Quick,
+        writer,
+        Some(&source_root),
+    )?;
     Ok(stats)
 }
 
@@ -194,7 +241,9 @@ fn record_manifest_audit_completion(
     stats: &mut ScanStats,
     completed_at: i64,
     writer: &impl ScanWriter,
+    source_root: &SourceRootCapability,
 ) -> Result<(), ScanError> {
+    source_root.ensure_current_generation()?;
     let before = stats.manifest_before.clone();
     let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
     let mut batch = db.write_batch()?;
@@ -216,6 +265,7 @@ fn record_manifest_audit_completion(
         }
     }
     batch.complete_manifest_audit(completed_at)?;
+    source_root.ensure_current_generation()?;
     let committed = batch.commit_with_manifest_snapshot()?;
     super::super::manifest::publish_committed_delta(stats, before, committed);
     Ok(())
@@ -322,6 +372,33 @@ fn scan_with_writer(
     db: &SourceDatabase,
     mode: ScanMode,
     cancel: Option<&AtomicBool>,
+    on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    manifest_audit_started_at: Option<i64>,
+    finalize_pending_renames: bool,
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
+    scan_with_writer_using_root(
+        db,
+        &root,
+        &source_root,
+        mode,
+        cancel,
+        on_progress,
+        manifest_audit_started_at,
+        finalize_pending_renames,
+        writer,
+    )
+}
+
+fn scan_with_writer_using_root(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    mode: ScanMode,
+    cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     manifest_audit_started_at: Option<i64>,
     finalize_pending_renames: bool,
@@ -330,8 +407,6 @@ fn scan_with_writer(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let (manifest_revision, manifest_before) =
         super::super::manifest::capture_manifest_with_revision(db)?;
-    let root = ensure_root_dir(db)?;
-    let source_root = SourceRootCapability::open(&root)?;
     source_root.ensure_current_generation()?;
     let traversal_policy = db.source_traversal_policy()?;
     let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
@@ -342,24 +417,24 @@ fn scan_with_writer(
             && checked > 0
             && let Some(on_progress) = on_progress.as_mut()
         {
-            on_progress(checked, &root);
+            on_progress(checked, root);
         }
     }
     let result = walk_phase(
         db,
-        &root,
-        &source_root,
+        root,
+        source_root,
         traversal_policy,
         cancel,
         &mut on_progress,
         &mut context,
         writer,
     )
-    .and_then(|()| db_sync_phase(db, &source_root, &mut context, cancel, writer))
+    .and_then(|()| db_sync_phase(db, source_root, &mut context, cancel, writer))
     .and_then(|committed_snapshot| {
         reconcile_scan_renames(
             db,
-            &source_root,
+            source_root,
             &mut context,
             &manifest_before,
             committed_snapshot,
@@ -374,7 +449,7 @@ fn scan_with_writer(
                 &mut context.stats,
                 mode,
                 writer,
-                Some(&source_root),
+                Some(source_root),
             )?;
         }
         Ok(committed_snapshot)
@@ -423,8 +498,9 @@ pub(crate) fn reconcile_scan_renames(
         .pending_renames_considered
         .saturating_add(candidates.len());
     let renamed = if carried_candidates_need_revalidation {
-        super::super::scan_hash::deep_hash_scan_with_writer(
+        super::super::scan_hash::deep_hash_scan_with_source_root_and_writer(
             db,
+            source_root,
             cancel,
             &candidates,
             super::super::scan_hash::DeferredHashScope::RenameCandidates,
@@ -434,8 +510,9 @@ pub(crate) fn reconcile_scan_renames(
         )?
         .renamed_samples
     } else {
-        super::super::scan_hash::reconcile_hashed_rename_candidates_with_writer(
+        super::super::scan_hash::reconcile_hashed_rename_candidates_with_source_root_and_writer(
             db,
+            source_root,
             &candidates,
             cancel,
             writer,

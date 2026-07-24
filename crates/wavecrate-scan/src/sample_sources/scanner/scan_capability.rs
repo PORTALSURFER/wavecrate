@@ -26,7 +26,7 @@ pub(super) enum SourcePathBinding {
 
 impl SourceRootCapability {
     pub(super) fn open(root: &Path) -> Result<Self, ScanError> {
-        let metadata = fs::symlink_metadata(root).map_err(|source| ScanError::Io {
+        let metadata = fs::metadata(root).map_err(|source| ScanError::Io {
             path: root.to_path_buf(),
             source,
         })?;
@@ -66,7 +66,7 @@ impl SourceRootCapability {
 
     /// Revalidate that the configured ambient path still names this retained root.
     pub(super) fn ensure_current_generation(&self) -> Result<(), ScanError> {
-        let Ok(metadata) = fs::symlink_metadata(&self.root) else {
+        let Ok(metadata) = fs::metadata(&self.root) else {
             return Err(ScanError::StaleRootGeneration {
                 root: self.root.clone(),
             });

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Seek, SeekFrom};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -247,6 +247,7 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
     cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
 }
 
+#[cfg(test)]
 pub(super) fn verify_content_batch(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -256,6 +257,7 @@ pub(super) fn verify_content_batch(
     verify_content_batch_with_writer(db, cancel, budget, now, &UncoordinatedScanWriter)
 }
 
+#[cfg(test)]
 pub(super) fn verify_content_batch_with_writer(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -266,6 +268,31 @@ pub(super) fn verify_content_batch_with_writer(
     verify_content_batch_with_post_hash_hook(db, cancel, budget, now, writer, |_| {})
 }
 
+pub(super) fn verify_content_batch_with_source_root(
+    db: &SourceDatabase,
+    source_root: &SourceRootCapability,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    now: i64,
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    let root = db.root().to_path_buf();
+    let started = Instant::now();
+    verify_content_batch_with_source_root_hooks(
+        db,
+        &root,
+        source_root,
+        cancel,
+        budget,
+        now,
+        writer,
+        &mut |_| {},
+        &mut |_| {},
+        &mut || started.elapsed(),
+    )
+}
+
+#[cfg(test)]
 fn verify_content_batch_with_post_hash_hook(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -287,6 +314,7 @@ fn verify_content_batch_with_post_hash_hook(
     )
 }
 
+#[cfg(test)]
 fn verify_content_batch_with_hooks(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -297,10 +325,38 @@ fn verify_content_batch_with_hooks(
     precommit: &mut impl FnMut(&std::path::Path),
     elapsed: &mut impl FnMut() -> Duration,
 ) -> Result<ScanStats, ScanError> {
-    let planning_started = Instant::now();
-    let manifest_revision = db.get_revision()?;
     let root = ensure_root_dir(db)?;
     let source_root = SourceRootCapability::open(&root)?;
+    verify_content_batch_with_source_root_hooks(
+        db,
+        &root,
+        &source_root,
+        cancel,
+        budget,
+        now,
+        writer,
+        post_hash,
+        precommit,
+        elapsed,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_content_batch_with_source_root_hooks(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
+    cancel: Option<&AtomicBool>,
+    budget: ContentAuditBudget,
+    now: i64,
+    writer: &impl ScanWriter,
+    post_hash: &mut impl FnMut(&std::path::Path),
+    precommit: &mut impl FnMut(&std::path::Path),
+    elapsed: &mut impl FnMut() -> Duration,
+) -> Result<ScanStats, ScanError> {
+    let planning_started = Instant::now();
+    let manifest_revision = db.get_revision()?;
+    source_root.ensure_current_generation()?;
     let checkpoint = {
         let _writer = writer.lock(ScanWritePhase::Manifest);
         db.begin_or_resume_content_audit(now, manifest_revision)?
@@ -472,6 +528,7 @@ fn verify_content_batch_with_hooks(
     }
     let cancelled = cancel_requested(cancel);
     if !verified.is_empty() || !skipped.is_empty() || cursor_only_progress {
+        source_root.ensure_current_generation()?;
         let _writer = writer.lock(ScanWritePhase::DeferredHash);
         let mut batch = db.write_batch()?;
         let stats_before_staging = stats.clone();
@@ -601,6 +658,7 @@ fn verify_content_batch_with_hooks(
                 Ok(stats)
             };
         }
+        source_root.ensure_current_generation()?;
         let result = batch.commit_with_bounded_manifest_changes(manifest_revision)?;
         let changed_after = result
             .touched_path_changes
@@ -621,6 +679,7 @@ fn verify_content_batch_with_hooks(
         db.content_audit_report(now)?
     };
     if report.remaining_entries == 0 && report.total_entries > 0 {
+        source_root.ensure_current_generation()?;
         let _writer = writer.lock(ScanWritePhase::Manifest);
         let mut batch = db.write_batch()?;
         if !batch.matches_revision(stats.committed_delta.revision)? {
@@ -694,17 +753,97 @@ pub(super) fn deep_hash_scan_with_writer(
     )
 }
 
+pub(super) fn deep_hash_scan_with_source_root_and_writer(
+    db: &SourceDatabase,
+    source_root: &SourceRootCapability,
+    cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
+    max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
+    writer: &impl ScanWriter,
+) -> Result<ScanStats, ScanError> {
+    let root = db.root().to_path_buf();
+    source_root.ensure_current_generation()?;
+    deep_hash_scan_with_root_hooks(
+        db,
+        &root,
+        source_root,
+        cancel,
+        rename_candidates,
+        scope,
+        max_hashes,
+        exact_path,
+        writer,
+        |_| {},
+        |_| {},
+    )
+}
+
+#[cfg(test)]
 pub(super) fn reconcile_hashed_rename_candidates_with_writer(
     db: &SourceDatabase,
     rename_candidates: &HashSet<PathBuf>,
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<Vec<RenamedSample>, ScanError> {
-    reconcile_hashed_rename_candidates_with_hook(db, rename_candidates, cancel, writer, |_| {})
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    reconcile_hashed_rename_candidates_with_source_root_and_hook(
+        db,
+        &root,
+        &source_root,
+        rename_candidates,
+        cancel,
+        writer,
+        |_| {},
+    )
 }
 
+pub(super) fn reconcile_hashed_rename_candidates_with_source_root_and_writer(
+    db: &SourceDatabase,
+    source_root: &SourceRootCapability,
+    rename_candidates: &HashSet<PathBuf>,
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+) -> Result<Vec<RenamedSample>, ScanError> {
+    let root = db.root().to_path_buf();
+    reconcile_hashed_rename_candidates_with_source_root_and_hook(
+        db,
+        &root,
+        source_root,
+        rename_candidates,
+        cancel,
+        writer,
+        |_| {},
+    )
+}
+
+#[cfg(test)]
 fn reconcile_hashed_rename_candidates_with_hook(
     db: &SourceDatabase,
+    rename_candidates: &HashSet<PathBuf>,
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+    precommit: impl FnMut(&std::path::Path),
+) -> Result<Vec<RenamedSample>, ScanError> {
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    reconcile_hashed_rename_candidates_with_source_root_and_hook(
+        db,
+        &root,
+        &source_root,
+        rename_candidates,
+        cancel,
+        writer,
+        precommit,
+    )
+}
+
+fn reconcile_hashed_rename_candidates_with_source_root_and_hook(
+    db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
     rename_candidates: &HashSet<PathBuf>,
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
@@ -713,8 +852,7 @@ fn reconcile_hashed_rename_candidates_with_hook(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
-    let root = ensure_root_dir(db)?;
-    let source_root = SourceRootCapability::open(&root)?;
+    source_root.ensure_current_generation()?;
     let rename_candidates = rename_candidates.clone();
     if rename_candidates.is_empty() {
         return Ok(Vec::new());
@@ -808,6 +946,7 @@ fn reconcile_hashed_rename_candidates_with_hook(
         drop(batch);
         return Ok(Vec::new());
     }
+    source_root.ensure_current_generation()?;
     batch.commit()?;
     Ok(renamed_samples)
 }
@@ -822,8 +961,12 @@ fn deep_hash_scan_with_post_hash_hook(
     writer: &impl ScanWriter,
     post_hash: impl FnMut(&std::path::Path),
 ) -> Result<ScanStats, ScanError> {
-    deep_hash_scan_with_hooks(
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    deep_hash_scan_with_root_hooks(
         db,
+        &root,
+        &source_root,
         cancel,
         rename_candidates,
         scope,
@@ -836,8 +979,10 @@ fn deep_hash_scan_with_post_hash_hook(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn deep_hash_scan_with_hooks(
+fn deep_hash_scan_with_root_hooks(
     db: &SourceDatabase,
+    root: &Path,
+    source_root: &SourceRootCapability,
     cancel: Option<&AtomicBool>,
     rename_candidates: &HashSet<PathBuf>,
     scope: DeferredHashScope,
@@ -847,9 +992,8 @@ fn deep_hash_scan_with_hooks(
     mut post_hash: impl FnMut(&std::path::Path),
     mut precommit: impl FnMut(&std::path::Path),
 ) -> Result<ScanStats, ScanError> {
+    source_root.ensure_current_generation()?;
     let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
-    let root = ensure_root_dir(db)?;
-    let source_root = SourceRootCapability::open(&root)?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
     let entries = if let Some(exact_path) = exact_path {
@@ -914,7 +1058,7 @@ fn deep_hash_scan_with_hooks(
         let Some(mut file) = source_root.open_regular_file(&entry.relative_path)? else {
             continue;
         };
-        let facts = read_facts_from_open_file(&root, &absolute, &file)?;
+        let facts = read_facts_from_open_file(root, &absolute, &file)?;
         file.seek(SeekFrom::Start(0))
             .map_err(|source| ScanError::Io {
                 path: absolute.clone(),
@@ -922,7 +1066,7 @@ fn deep_hash_scan_with_hooks(
             })?;
         let hash = compute_content_hash_with_reader(&absolute, &mut file, cancel)?;
         post_hash(&absolute);
-        let after_hash = read_facts_from_open_file(&root, &absolute, &file)?;
+        let after_hash = read_facts_from_open_file(root, &absolute, &file)?;
         if !facts.same_content_snapshot(&after_hash) {
             continue;
         }
@@ -946,6 +1090,7 @@ fn deep_hash_scan_with_hooks(
         return Err(ScanError::Canceled);
     }
 
+    source_root.ensure_current_generation()?;
     let _writer = writer.lock(ScanWritePhase::DeferredHash);
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
@@ -961,7 +1106,7 @@ fn deep_hash_scan_with_hooks(
     let mut accepted_backfills = Vec::with_capacity(hash_backfills.len());
     for backfill in hash_backfills {
         let absolute = root.join(&backfill.relative_path);
-        let descriptor_still_current = read_facts_from_open_file(&root, &absolute, &backfill.file)
+        let descriptor_still_current = read_facts_from_open_file(root, &absolute, &backfill.file)
             .is_ok_and(|facts| backfill.facts.same_content_snapshot(&facts));
         if !descriptor_still_current
             || !matches!(
@@ -995,7 +1140,7 @@ fn deep_hash_scan_with_hooks(
         .collect::<HashSet<_>>();
     let (renamed_samples, _) = reconcile_indexed_rename_candidates(
         &mut batch,
-        &root,
+        root,
         &entries_by_path,
         &candidate_identities,
         &admitted_rename_candidates,
@@ -1011,7 +1156,7 @@ fn deep_hash_scan_with_hooks(
     }
     let final_bindings_match = accepted_backfills.iter().all(|backfill| {
         let absolute = root.join(&backfill.relative_path);
-        let descriptor_matches = read_facts_from_open_file(&root, &absolute, &backfill.file)
+        let descriptor_matches = read_facts_from_open_file(root, &absolute, &backfill.file)
             .is_ok_and(|facts| backfill.facts.same_content_snapshot(&facts));
         descriptor_matches
             && matches!(
@@ -1021,15 +1166,46 @@ fn deep_hash_scan_with_hooks(
     });
     if !final_bindings_match {
         drop(batch);
-        stats = stats_before_staging;
+        let mut stats = stats_before_staging;
         stats.committed_delta.revision = db.get_revision()?;
         stats.pending_rename_diagnostics = Some(db.pending_rename_diagnostics()?);
         return Ok(stats);
     }
+    source_root.ensure_current_generation()?;
     let committed_snapshot = batch.commit_with_manifest_snapshot()?;
     super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     stats.pending_rename_diagnostics = Some(db.pending_rename_diagnostics()?);
     Ok(stats)
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn deep_hash_scan_with_hooks(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
+    max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
+    writer: &impl ScanWriter,
+    post_hash: impl FnMut(&std::path::Path),
+    precommit: impl FnMut(&std::path::Path),
+) -> Result<ScanStats, ScanError> {
+    let root = ensure_root_dir(db)?;
+    let source_root = SourceRootCapability::open(&root)?;
+    deep_hash_scan_with_root_hooks(
+        db,
+        &root,
+        &source_root,
+        cancel,
+        rename_candidates,
+        scope,
+        max_hashes,
+        exact_path,
+        writer,
+        post_hash,
+        precommit,
+    )
 }
 
 fn reconcile_indexed_rename_candidates(

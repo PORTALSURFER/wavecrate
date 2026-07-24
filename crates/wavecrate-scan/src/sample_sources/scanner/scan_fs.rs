@@ -294,7 +294,6 @@ pub(super) fn visit_dir_with_cancel_check(
                     snapshot.directories.push(relative.clone());
                     match dir.open_dir_nofollow(Path::new(&name)) {
                         Ok(child) => stack.push((child, relative)),
-                        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
                         Err(source) => {
                             warn!(
                                 path = %path.display(),
