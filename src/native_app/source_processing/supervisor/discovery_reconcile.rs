@@ -1,8 +1,8 @@
 use super::{
     AtomicBool, Cancellable, DiscoveryProgressUpdate, MANIFEST_AUDIT_INTERVAL_SECONDS,
     META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION, PendingReadinessDelta, ProcessingLane,
-    ReadinessClassification, ReadinessProgress, ReadinessStore, RuntimeCandidate, RuntimeTask,
-    SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats,
+    ReadinessClassification, ReadinessProgress, ReadinessStore, ReadinessView, RuntimeCandidate,
+    RuntimeTask, SampleSource, SourceAvailability, SourceDiscoveryPhase, SourceDiscoveryStats,
     SourceHealthSummary, WorkCandidate, active_recording_deferrals, cancelled, earliest_deadline,
     legacy_unsupported_decode_failure_text, publish_current_readiness_delta_with_cancel,
     publish_current_readiness_targets_with_cancel_and_checkpoint, readiness_contract_version,
@@ -16,14 +16,20 @@ use wavecrate_library::{
     sample_sources::db::META_SOURCE_WATCHER_CHECKPOINT,
 };
 
-pub(super) fn readiness_safety_probe_is_current(
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ReadinessSafetyProbe {
+    pub(super) current: bool,
+    pub(super) earliest_deadline: Option<i64>,
+}
+
+pub(super) fn readiness_safety_probe(
     connection: &mut rusqlite::Connection,
     source: &SampleSource,
     now: i64,
     force_manifest_audit: bool,
-) -> Result<bool, String> {
+) -> Result<ReadinessSafetyProbe, String> {
     if force_manifest_audit || !source_processing_schema_available(connection)? {
-        return Ok(false);
+        return Ok(ReadinessSafetyProbe::default());
     }
     let source_id = source.id.as_str();
     let last_manifest_audit_at = connection
@@ -37,7 +43,7 @@ pub(super) fn readiness_safety_probe_is_current(
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or_default();
     if now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS {
-        return Ok(false);
+        return Ok(ReadinessSafetyProbe::default());
     }
     let source_generation = connection
         .query_row(
@@ -58,7 +64,16 @@ pub(super) fn readiness_safety_probe_is_current(
                 && state.availability == SourceAvailability::Active
                 && state.contract_version == contract_version
         });
-    Ok(readiness_is_current && durable_watcher_coverage_is_current(connection, source)?)
+    if !readiness_is_current || !durable_watcher_coverage_is_current(connection, source)? {
+        return Ok(ReadinessSafetyProbe::default());
+    }
+    let work = ReadinessView::new(connection)
+        .source_work_stats(source_id, now)
+        .map_err(|error| error.to_string())?;
+    Ok(ReadinessSafetyProbe {
+        current: !work.has_actionable_work(),
+        earliest_deadline: work.earliest_future_deadline(),
+    })
 }
 
 /// On macOS a current readiness revision is only safe to skip when its root still matches the
@@ -200,17 +215,29 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
         .map_err(|error| error.to_string())?
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or_default();
-    if safety_probe_only
-        && readiness_safety_probe_is_current(connection, source, now, force_manifest_audit)?
-    {
-        stats.cheap_noop_sweep = true;
-        tracing::debug!(
-            target: "wavecrate::source_processing",
-            event = "source_processing.safety_sweep_noop",
-            source_id,
-            "Periodic readiness safety probe found no durable delta"
-        );
-        return Ok(Cancellable::Completed((candidates, stats, None)));
+    if safety_probe_only {
+        let probe = readiness_safety_probe(connection, source, now, force_manifest_audit)?;
+        if probe.current {
+            if probe.earliest_deadline.is_none() {
+                stats.cheap_noop_sweep = true;
+                tracing::debug!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.safety_sweep_noop",
+                    source_id,
+                    "Periodic readiness safety probe found no durable delta"
+                );
+            } else {
+                stats.earliest_retry_at = probe.earliest_deadline;
+                tracing::debug!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.safety_sweep_deadline",
+                    source_id,
+                    deadline = probe.earliest_deadline,
+                    "Readiness safety probe parked until durable work is actionable"
+                );
+            }
+            return Ok(Cancellable::Completed((candidates, stats, None)));
+        }
     }
     if force_reanalysis {
         let changed = ReadinessStore::new(connection)
