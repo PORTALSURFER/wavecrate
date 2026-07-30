@@ -1,4 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
+};
+use cap_fs_ext::{DirExt, ambient_authority};
+use cap_std::fs::Dir;
+
+use wavecrate_library::sample_sources::BrowserFileMetadata;
 
 use super::{
     super::{
@@ -9,8 +17,10 @@ use super::{
     },
     entry::{
         BrowserEntryKind, classify_path_without_following, read_sorted_entries,
+        read_sorted_entries_nofollow,
         source_traversal_policy,
     },
+    file_entry_metadata::{file_entry, file_entry_with_snapshot_metadata},
     metadata::{SourceMetadataMap, rated_file_entry, source_rating_map, source_rating_snapshot},
 };
 
@@ -94,13 +104,40 @@ pub(in crate::native_app::sample_library::folder_browser) fn load_folder_at_path
     load_folder(path, source_root, &ratings, policy)
 }
 
+/// Build a no-follow folder subtree from a worker-owned committed metadata
+/// snapshot. The UI completion path receives the resulting value and never
+/// reopens the filesystem or source database.
+pub(in crate::native_app) fn load_folder_at_path_with_browser_metadata(
+    path: &Path,
+    source_root: &Path,
+    metadata: &HashMap<PathBuf, BrowserFileMetadata>,
+    policy: wavecrate::sample_sources::SourceTraversalPolicy,
+    cancel: &AtomicBool,
+) -> Option<FolderEntry> {
+    let mut directory = Dir::open_ambient_dir(source_root, ambient_authority()).ok()?;
+    for component in path.strip_prefix(source_root).ok()?.components() {
+        let std::path::Component::Normal(component) = component else {
+            return None;
+        };
+        directory = directory.open_dir_nofollow(component).ok()?;
+    }
+    load_folder_with_browser_metadata(
+        &directory,
+        path,
+        source_root,
+        metadata,
+        policy,
+        cancel,
+    )
+}
+
 pub(super) fn load_folder(
     path: &Path,
     source_root: &Path,
     ratings: &SourceMetadataMap,
     policy: wavecrate_library::sample_sources::SourceTraversalPolicy,
 ) -> Option<FolderEntry> {
-    let entries = read_sorted_entries(path, source_root, policy)?;
+    let entries = read_sorted_entries(path, source_root, policy, None)?;
     let children = entries
         .iter()
         .filter(|entry| entry.kind == BrowserEntryKind::Directory)
@@ -119,13 +156,92 @@ pub(super) fn load_folder(
     })
 }
 
+fn load_folder_with_browser_metadata(
+    directory: &Dir,
+    path: &Path,
+    source_root: &Path,
+    metadata: &HashMap<PathBuf, BrowserFileMetadata>,
+    policy: wavecrate::sample_sources::SourceTraversalPolicy,
+    cancel: &AtomicBool,
+) -> Option<FolderEntry> {
+    if cancel.load(Ordering::Acquire) {
+        return None;
+    }
+    let entries = read_sorted_entries_nofollow(directory, path, source_root, policy, cancel)?;
+    let mut children = Vec::new();
+    for entry in entries
+        .iter()
+        .filter(|entry| entry.kind == BrowserEntryKind::Directory)
+    {
+        if cancel.load(Ordering::Acquire) {
+            return None;
+        }
+        let Some(name) = entry.path.file_name() else {
+            return None;
+        };
+        let Ok(child_directory) = directory.open_dir_nofollow(name) else {
+            continue;
+        };
+        let Some(child) = load_folder_with_browser_metadata(
+            &child_directory,
+            &entry.path,
+            source_root,
+            metadata,
+            policy,
+            cancel,
+        ) else {
+            if cancel.load(Ordering::Acquire) {
+                return None;
+            }
+            continue;
+        };
+        children.push(child);
+    }
+    let mut files = Vec::new();
+    for entry in entries
+        .iter()
+        .filter(|entry| entry.kind == BrowserEntryKind::File)
+    {
+        if cancel.load(Ordering::Acquire) {
+            return None;
+        }
+        let file = entry
+            .path
+            .strip_prefix(source_root)
+            .ok()
+            .and_then(|relative| metadata.get(relative))
+            .map(|metadata| {
+                file_entry_with_snapshot_metadata(
+                    &entry.path,
+                    metadata.file_size,
+                    metadata.rating,
+                    metadata.locked,
+                    metadata.collections.clone(),
+                    metadata.last_played_at,
+                    metadata.last_curated_at,
+                )
+            })
+            .unwrap_or_else(|| file_entry(&entry.path));
+        files.push(file);
+    }
+    if cancel.load(Ordering::Acquire) {
+        return None;
+    }
+    Some(FolderEntry {
+        id: path_id(path),
+        name: folder_label(path),
+        children,
+        files,
+    })
+}
+
 fn load_folder_tree_only(
     path: &Path,
     source_root: &Path,
     policy: wavecrate_library::sample_sources::SourceTraversalPolicy,
     folder_count: &mut usize,
 ) -> Option<FolderEntry> {
-    let entries = read_sorted_entries(path, source_root, policy)?;
+    let entries = read_sorted_entries(path, source_root, policy, None)?;
     *folder_count += 1;
     let children = entries
         .iter()
