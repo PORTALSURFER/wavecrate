@@ -648,9 +648,10 @@ fn run_source_watcher(
             }
             #[cfg(test)]
             Ok(GuiSourceWatchCommand::InjectPaths(paths)) => {
-                let event = paths
-                    .into_iter()
-                    .fold(Event::new(EventKind::Any), Event::add_path);
+                let event = paths.into_iter().fold(
+                    Event::new(EventKind::Create(notify::event::CreateKind::File)),
+                    Event::add_path,
+                );
                 let stream_id = watcher
                     .as_ref()
                     .map(|watcher| watcher.stream_id)

@@ -675,7 +675,7 @@ fn watcher_restart_backoff_is_bounded() {
 }
 
 #[test]
-fn idempotent_startup_source_sync_does_not_refresh_every_source() {
+fn idempotent_source_sync_after_startup_does_not_refresh_every_source() {
     let root = tempfile::tempdir().expect("watched source root");
     let source = SampleSource::new_with_id(
         SourceId::from_string("source_id::startup-sync"),
@@ -687,6 +687,22 @@ fn idempotent_startup_source_sync_does_not_refresh_every_source() {
         sender,
     );
 
+    watcher.replace_sources(vec![SourceProcessingRegistration::new(source.clone(), 1)]);
+    watcher.wait_until_ready_for_tests();
+    std::thread::sleep(
+        super::SOURCE_CHANGE_DEBOUNCE + super::WATCHER_POLL_INTERVAL.saturating_mul(2),
+    );
+    // Startup recovery may request its own audit; only the replacement is under test below.
+    let startup_messages = receiver.try_iter().collect::<Vec<_>>();
+    assert_eq!(
+        startup_messages
+            .iter()
+            .filter(|message| matches!(message, GuiMessage::SourceWatcherReady { .. }))
+            .count(),
+        1,
+        "the startup audit boundary must be published exactly once"
+    );
+
     watcher.replace_sources(vec![SourceProcessingRegistration::new(source, 1)]);
     watcher.wait_until_ready_for_tests();
     std::thread::sleep(
@@ -694,13 +710,11 @@ fn idempotent_startup_source_sync_does_not_refresh_every_source() {
     );
 
     let messages = receiver.try_iter().collect::<Vec<_>>();
-    assert_eq!(
+    assert!(
         messages
             .iter()
-            .filter(|message| matches!(message, GuiMessage::SourceWatcherReady { .. }))
-            .count(),
-        1,
-        "the startup audit boundary must be published exactly once"
+            .all(|message| !matches!(message, GuiMessage::SourceWatcherReady { .. })),
+        "repeating the configured source list must not republish watcher readiness"
     );
     let refreshes = messages
         .into_iter()
@@ -720,7 +734,7 @@ fn idempotent_startup_source_sync_does_not_refresh_every_source() {
         .collect::<Vec<_>>();
     assert!(
         refreshes.is_empty(),
-        "repeating the configured source list during startup must not synthesize overflow scans: \
+        "repeating the configured source list after startup must not synthesize overflow scans: \
         {refreshes:?}"
     );
 }
@@ -732,6 +746,9 @@ fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
         SourceId::from_string("source_id::post-ready-event"),
         root.path().to_path_buf(),
     );
+    // Precreate the file so the real backend cannot race the injected event.
+    let created = root.path().join("recording.wav");
+    std::fs::write(&created, [0_u8; 8]).expect("create watched audio file");
     let source_id = source.id.as_str().to_string();
     let (sender, receiver) = std::sync::mpsc::channel();
     let watcher =
@@ -743,9 +760,11 @@ fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
             .expect("watcher-ready message"),
         GuiMessage::SourceWatcherReady { .. }
     ) {}
-
-    let created = root.path().join("recording.wav");
-    std::fs::write(&created, [0_u8; 8]).expect("create watched audio file");
+    std::thread::sleep(
+        super::SOURCE_CHANGE_DEBOUNCE + super::WATCHER_POLL_INTERVAL.saturating_mul(2),
+    );
+    // The injected event must be observed after any startup recovery has settled.
+    receiver.try_iter().for_each(drop);
     watcher.inject_paths_for_tests(vec![created]);
 
     let deadline = Instant::now()
