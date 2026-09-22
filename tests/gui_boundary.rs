@@ -558,6 +558,18 @@ fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
             "waveform_edits/worker_shadow.rs",
             "std::fs::read(\"shadow-worker.wav\").ok();",
         ),
+        (
+            "transaction_history/operation_journal.rs",
+            "std::fs::read(\"allowed-journal-worker.wav\").ok();",
+        ),
+        (
+            "transaction_history/operation_journal_shadow.rs",
+            "std::fs::read(\"shadow-journal-worker.wav\").ok();",
+        ),
+        (
+            "transaction_history/native.rs",
+            "std::fs::read(\"guarded-history-ui.wav\").ok();",
+        ),
     ];
     for (relative, body) in fixtures {
         let path = native_app_root.join(relative);
@@ -575,13 +587,23 @@ fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
         .iter()
         .map(|violation| violation.source_line.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(violations.len(), 2, "unexpected violations: {report:?}");
+    assert_eq!(violations.len(), 4, "unexpected violations: {report:?}");
     assert!(
         violations
             .iter()
             .any(|line| line.contains("shadow-transfer"))
     );
     assert!(violations.iter().any(|line| line.contains("shadow-worker")));
+    assert!(
+        violations
+            .iter()
+            .any(|line| line.contains("shadow-journal-worker"))
+    );
+    assert!(
+        violations
+            .iter()
+            .any(|line| line.contains("guarded-history-ui"))
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1191,6 +1213,26 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
         (
             "src/native_app/sample_library/trash_actions/movement.rs",
             "trash movement worker",
+        ),
+        (
+            "src/native_app/transaction_history/absent_final_no_replace.rs",
+            "operation journal owner publication worker",
+        ),
+        (
+            "src/native_app/transaction_history/absent_final_recovery.rs",
+            "operation journal owner recovery worker",
+        ),
+        (
+            "src/native_app/transaction_history/capacity_gate.rs",
+            "operation journal owner capacity worker",
+        ),
+        (
+            "src/native_app/transaction_history/expected_identity_replacement.rs",
+            "operation journal owner publication worker",
+        ),
+        (
+            "src/native_app/transaction_history/operation_journal.rs",
+            "operation journal owner coordinator",
         ),
         (
             "src/native_app/waveform/audio_file/",

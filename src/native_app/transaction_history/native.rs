@@ -45,7 +45,7 @@ impl NativeTransactionAction {
         }
     }
 
-    fn is_file(&self) -> bool {
+    fn is_file_action(&self) -> bool {
         matches!(self.undo, NativeTransactionActionKind::File(_))
     }
 
@@ -309,7 +309,11 @@ impl NativeTransactionHistory {
         let label = label.into();
         let action = NativeTransactionAction::new(label.clone(), undo, redo);
         if let Some(active) = self.active.as_mut() {
-            if active.actions.iter().any(NativeTransactionAction::is_file) {
+            if active
+                .actions
+                .iter()
+                .any(NativeTransactionAction::is_file_action)
+            {
                 return;
             }
             active.actions.push(action);
@@ -326,7 +330,11 @@ impl NativeTransactionHistory {
     ) {
         let action = NativeTransactionAction::file(label, undo_action, redo_action);
         if let Some(active) = self.active.as_mut() {
-            if active.actions.iter().any(|existing| !existing.is_file()) {
+            if active
+                .actions
+                .iter()
+                .any(|existing| !existing.is_file_action())
+            {
                 return;
             }
             active.actions.push(action);
@@ -353,7 +361,11 @@ impl NativeTransactionHistory {
         let Some(transaction) = stack.back() else {
             return Ok(None);
         };
-        if transaction.actions.iter().any(|action| !action.is_file()) {
+        if transaction
+            .actions
+            .iter()
+            .any(|action| !action.is_file_action())
+        {
             return Ok(None);
         }
         let actions = transaction
