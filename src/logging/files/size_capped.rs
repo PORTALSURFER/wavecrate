@@ -8,32 +8,66 @@ use std::{
 /// The prospective maximum for one log segment. A single indivisible event may exceed it.
 pub(super) const MAX_LOG_SEGMENT_BYTES: u64 = 10 * 1024 * 1024;
 
+/// Worker-local creation and retention steps for a log run.
+pub(super) trait SegmentLifecycle: Send {
+    fn open_next(&mut self) -> io::Result<File>;
+
+    fn prune_after_activation(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+impl<F> SegmentLifecycle for F
+where
+    F: FnMut() -> io::Result<File> + Send,
+{
+    fn open_next(&mut self) -> io::Result<File> {
+        self()
+    }
+}
+
 /// Writes one complete formatted event per call and rotates before crossing the segment cap.
 ///
 /// The tracing formatter sends each event as one `write_all` call to the nonblocking worker.
 /// The worker then calls `write_all` on this writer. A single event larger than the cap is
-/// retained whole in an otherwise empty segment; its maximum overshoot is that event's length
-/// minus the cap. A later event starts a new segment.
+/// retained whole in an otherwise empty segment; with successful rotation, its maximum overshoot
+/// is that event's length minus the cap. If rotation fails, the current file remains writable and
+/// may exceed the cap; a diagnostic makes that degraded retention explicit.
 pub(super) struct SizeCappedLogAppender {
     current: File,
     current_len: u64,
     segment_limit: u64,
-    open_next: Box<dyn FnMut() -> io::Result<File> + Send>,
+    lifecycle: Box<dyn SegmentLifecycle>,
+    report: Box<dyn FnMut(&'static str, &str) + Send>,
+    rotation_error_reported: bool,
+    cleanup_error_reported: bool,
+    write_error_reported: bool,
 }
 
 impl SizeCappedLogAppender {
     /// Build the worker's file writer from an already opened initial segment.
     pub(super) fn new(
         current: File,
-        open_next: impl FnMut() -> io::Result<File> + Send + 'static,
+        lifecycle: impl SegmentLifecycle + 'static,
     ) -> io::Result<Self> {
-        Self::with_limit(current, MAX_LOG_SEGMENT_BYTES, open_next)
+        Self::with_limit(current, MAX_LOG_SEGMENT_BYTES, lifecycle)
     }
 
     fn with_limit(
+        current: File,
+        segment_limit: u64,
+        lifecycle: impl SegmentLifecycle + 'static,
+    ) -> io::Result<Self> {
+        Self::with_limit_and_reporter(current, segment_limit, lifecycle, |stage, detail| {
+            super::report_degraded_logging(stage, detail);
+        })
+    }
+
+    fn with_limit_and_reporter(
         mut current: File,
         segment_limit: u64,
-        open_next: impl FnMut() -> io::Result<File> + Send + 'static,
+        lifecycle: impl SegmentLifecycle + 'static,
+        report: impl FnMut(&'static str, &str) + Send + 'static,
     ) -> io::Result<Self> {
         if segment_limit == 0 {
             return Err(io::Error::new(
@@ -46,8 +80,61 @@ impl SizeCappedLogAppender {
             current,
             current_len,
             segment_limit,
-            open_next: Box::new(open_next),
+            lifecycle: Box::new(lifecycle),
+            report: Box::new(report),
+            rotation_error_reported: false,
+            cleanup_error_reported: false,
+            write_error_reported: false,
         })
+    }
+
+    fn report_rotation_failure(&mut self, error: &io::Error) {
+        if !self.rotation_error_reported {
+            (self.report)(
+                "rotation failed; continuing in current segment without size bound",
+                &error.to_string(),
+            );
+            self.rotation_error_reported = true;
+        }
+    }
+
+    fn rotate_or_keep_current(&mut self) {
+        let next = match self.lifecycle.open_next() {
+            Ok(next) => next,
+            Err(error) => {
+                self.report_rotation_failure(&error);
+                return;
+            }
+        };
+        match next.metadata() {
+            Ok(metadata) if metadata.len() == 0 => {}
+            Ok(_) => {
+                self.report_rotation_failure(&io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "next log segment is not empty",
+                ));
+                return;
+            }
+            Err(error) => {
+                self.report_rotation_failure(&error);
+                return;
+            }
+        }
+
+        self.current = next;
+        self.current_len = 0;
+        self.rotation_error_reported = false;
+        match self.lifecycle.prune_after_activation() {
+            Ok(()) => self.cleanup_error_reported = false,
+            Err(error) if !self.cleanup_error_reported => {
+                (self.report)(
+                    "retention cleanup failed; continuing in active segment",
+                    &error,
+                );
+                self.cleanup_error_reported = true;
+            }
+            Err(_) => {}
+        }
     }
 }
 
@@ -66,21 +153,13 @@ impl Write for SizeCappedLogAppender {
                 .checked_add(event_len)
                 .is_none_or(|total| total > self.segment_limit)
         {
-            // A failed open leaves the existing writable segment and event untouched.
-            let next = (self.open_next)()?;
-            if next.metadata()?.len() != 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    "next log segment is not empty",
-                ));
-            }
-            self.current_len = 0;
-            self.current = next;
+            self.rotate_or_keep_current();
         }
 
         match self.current.write_all(event) {
             Ok(()) => {
-                self.current_len += event_len;
+                self.current_len = self.current_len.saturating_add(event_len);
+                self.write_error_reported = false;
                 Ok(event.len())
             }
             Err(error) => {
@@ -88,6 +167,12 @@ impl Write for SizeCappedLogAppender {
                 // A partial OS write may have advanced the file before returning the error.
                 if let Ok(metadata) = self.current.metadata() {
                     self.current_len = metadata.len();
+                } else {
+                    self.current_len = u64::MAX;
+                }
+                if !self.write_error_reported {
+                    (self.report)("active log write failed", &error.to_string());
+                    self.write_error_reported = true;
                 }
                 Err(error)
             }
@@ -104,7 +189,8 @@ mod tests {
     use super::*;
     use std::{
         fs::{self, OpenOptions},
-        path::Path,
+        path::{Path, PathBuf},
+        sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
 
@@ -224,13 +310,10 @@ mod tests {
         .unwrap();
 
         writer.write_all(b"12345678").unwrap();
-        assert_eq!(
-            writer.write_all(b"9").unwrap_err().kind(),
-            io::ErrorKind::PermissionDenied
-        );
+        writer.write_all(b"9").unwrap();
         assert_eq!(
             fs::read(dir.path().join("segment_0.log")).unwrap(),
-            b"12345678"
+            b"123456789"
         );
         assert!(!dir.path().join("segment_1.log").exists());
 
@@ -256,13 +339,10 @@ mod tests {
         .unwrap();
 
         writer.write_all(b"12345678").unwrap();
-        assert_eq!(
-            writer.write_all(b"9").unwrap_err().kind(),
-            io::ErrorKind::NotFound
-        );
+        writer.write_all(b"9").unwrap();
         assert_eq!(
             fs::read(dir.path().join("segment_0.log")).unwrap(),
-            b"12345678"
+            b"123456789"
         );
     }
 
@@ -282,17 +362,213 @@ mod tests {
         .unwrap();
 
         writer.write_all(b"12345678").unwrap();
-        assert_eq!(
-            writer.write_all(b"9").unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
+        writer.write_all(b"9").unwrap();
         assert_eq!(
             fs::read(dir.path().join("segment_0.log")).unwrap(),
-            b"12345678"
+            b"123456789"
         );
         assert_eq!(
             fs::read(dir.path().join("segment_1.log")).unwrap(),
             b"existing"
         );
+    }
+
+    #[test]
+    fn repeated_rotation_failure_reports_once_and_keeps_logging_writable() {
+        let dir = tempdir().unwrap();
+        let initial = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.path().join("segment_0.log"))
+            .unwrap();
+        let next = dir.path().join("segment_1.log");
+        let mut attempts = 0;
+        let reports = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = Arc::clone(&reports);
+        let mut writer = SizeCappedLogAppender::with_limit_and_reporter(
+            initial,
+            8,
+            move || {
+                attempts += 1;
+                if attempts <= 2 {
+                    return Err(io::Error::new(io::ErrorKind::PermissionDenied, "locked"));
+                }
+                OpenOptions::new().write(true).create_new(true).open(&next)
+            },
+            move |stage, detail| captured.lock().unwrap().push(format!("{stage}: {detail}")),
+        )
+        .unwrap();
+
+        writer.write_all(b"12345678").unwrap();
+        writer.write_all(b"a").unwrap();
+        writer.write_all(b"b").unwrap();
+        assert_eq!(
+            fs::read(dir.path().join("segment_0.log")).unwrap(),
+            b"12345678ab"
+        );
+        assert_eq!(reports.lock().unwrap().len(), 1);
+        assert!(reports.lock().unwrap()[0].contains("without size bound"));
+
+        writer.write_all(b"c").unwrap();
+        assert_eq!(fs::read(dir.path().join("segment_1.log")).unwrap(), b"c");
+        assert_eq!(reports.lock().unwrap().len(), 1);
+    }
+
+    struct CleanupFault {
+        dir: PathBuf,
+        sequence: usize,
+        remaining_failures: usize,
+    }
+
+    impl SegmentLifecycle for CleanupFault {
+        fn open_next(&mut self) -> io::Result<File> {
+            self.sequence += 1;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(self.dir.join(format!("segment_{}.log", self.sequence)))
+        }
+
+        fn prune_after_activation(&mut self) -> Result<(), String> {
+            if self.remaining_failures > 0 {
+                self.remaining_failures -= 1;
+                return Err(String::from("simulated cleanup denied"));
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn cleanup_failure_reports_and_keeps_new_segment_writable() {
+        let dir = tempdir().unwrap();
+        let initial = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.path().join("segment_0.log"))
+            .unwrap();
+        let reports = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = Arc::clone(&reports);
+        let mut writer = SizeCappedLogAppender::with_limit_and_reporter(
+            initial,
+            8,
+            CleanupFault {
+                dir: dir.path().to_path_buf(),
+                sequence: 0,
+                remaining_failures: 1,
+            },
+            move |stage, detail| captured.lock().unwrap().push(format!("{stage}: {detail}")),
+        )
+        .unwrap();
+
+        writer.write_all(b"12345678").unwrap();
+        writer.write_all(b"9").unwrap();
+        assert_eq!(fs::read(dir.path().join("segment_1.log")).unwrap(), b"9");
+        assert_eq!(reports.lock().unwrap().len(), 1);
+        assert!(reports.lock().unwrap()[0].contains("retention cleanup failed"));
+
+        writer.write_all(b"abcdefgh").unwrap();
+        assert_eq!(
+            fs::read(dir.path().join("segment_2.log")).unwrap(),
+            b"abcdefgh"
+        );
+        assert_eq!(reports.lock().unwrap().len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn locked_next_segment_collision_keeps_current_file_writable() {
+        use std::os::fd::AsRawFd;
+        use time::OffsetDateTime;
+
+        let dir = tempdir().unwrap();
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, initial_path) = super::super::start_log_run(dir.path(), fixed).unwrap();
+        let next_path = dir.path().join(super::super::format_segment_file_name(
+            &run.timestamp,
+            run.run_ordinal,
+            run.next_sequence,
+        ));
+        let locked = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&next_path)
+            .unwrap();
+        assert_eq!(
+            unsafe { libc::flock(locked.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) },
+            0
+        );
+
+        let current = OpenOptions::new().append(true).open(&initial_path).unwrap();
+        let reports = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = Arc::clone(&reports);
+        let mut writer = SizeCappedLogAppender::with_limit_and_reporter(
+            current,
+            8,
+            run,
+            move |stage, detail| captured.lock().unwrap().push(format!("{stage}: {detail}")),
+        )
+        .unwrap();
+
+        writer.write_all(b"12345678").unwrap();
+        writer.write_all(b"9").unwrap();
+        assert_eq!(fs::read(&initial_path).unwrap(), b"123456789");
+        assert_eq!(reports.lock().unwrap().len(), 1);
+        assert!(fs::read(&next_path).unwrap().is_empty());
+
+        drop(locked);
+        fs::remove_file(&next_path).unwrap();
+        writer.write_all(b"x").unwrap();
+        assert_eq!(fs::read(next_path).unwrap(), b"x");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_log_directory_falls_back_to_open_current_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        struct RestorePermissions(PathBuf, fs::Permissions);
+        impl Drop for RestorePermissions {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, self.1.clone());
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let initial = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(dir.path().join("segment_0.log"))
+            .unwrap();
+        let next = dir.path().join("segment_1.log");
+        let next_for_open = next.clone();
+        let original = fs::metadata(dir.path()).unwrap().permissions();
+        let restore = RestorePermissions(dir.path().to_path_buf(), original);
+        let reports = Arc::new(Mutex::new(Vec::<String>::new()));
+        let captured = Arc::clone(&reports);
+        let mut writer = SizeCappedLogAppender::with_limit_and_reporter(
+            initial,
+            8,
+            move || {
+                OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&next_for_open)
+            },
+            move |stage, detail| captured.lock().unwrap().push(format!("{stage}: {detail}")),
+        )
+        .unwrap();
+
+        writer.write_all(b"12345678").unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
+        writer.write_all(b"9").unwrap();
+        assert_eq!(reports.lock().unwrap().len(), 1);
+        drop(restore);
+
+        assert_eq!(
+            fs::read(dir.path().join("segment_0.log")).unwrap(),
+            b"123456789"
+        );
+        writer.write_all(b"x").unwrap();
+        assert_eq!(fs::read(next).unwrap(), b"x");
     }
 }

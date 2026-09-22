@@ -1,11 +1,12 @@
 use std::{
     any::Any,
     ffi::OsString,
+    io::Write,
     process,
     time::{Instant, SystemTime},
 };
 
-use wavecrate::logging::{self as wavecrate_logging, ActionDebugEvent, emit_action_debug_event};
+use wavecrate::logging::{self as wavecrate_logging, emit_action_debug_event, ActionDebugEvent};
 
 pub(super) fn install_panic_hook() {
     wavecrate_logging::install_panic_hook();
@@ -13,7 +14,7 @@ pub(super) fn install_panic_hook() {
 
 pub(super) fn init_logging(args: &[OsString]) {
     if let Err(err) = wavecrate_logging::init(args.iter().cloned()) {
-        eprintln!("logging disabled: {err}");
+        let _ = writeln!(std::io::stderr().lock(), "logging disabled: {err}");
     }
 }
 
