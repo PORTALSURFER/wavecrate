@@ -161,8 +161,9 @@ if (Test-Path -LiteralPath $configPath -PathType Leaf) {
 if (Test-Path -LiteralPath $logsDir -PathType Container) {
   New-Item -ItemType Directory -Path (Join-Path $bundleDir "logs") -Force | Out-Null
   $logFiles =
-    Get-ChildItem -LiteralPath $logsDir -File -Filter "*.log" -ErrorAction SilentlyContinue |
-    Sort-Object -Property LastWriteTime -Descending |
+    Get-ChildItem -LiteralPath $logsDir -File -Filter "wavecrate*.log" -ErrorAction SilentlyContinue |
+    Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } |
+    Sort-Object -Property @{ Expression = 'LastWriteTime'; Descending = $true }, @{ Expression = 'Name'; Descending = $true } |
     Select-Object -First $Logs
   foreach ($log in $logFiles) {
     Copy-Item -LiteralPath $log.FullName -Destination (Join-Path $bundleDir ("logs\\" + $log.Name)) -Force

@@ -170,12 +170,13 @@ if (-not (Test-Path -LiteralPath $logsDir -PathType Container)) {
   exit 1
 }
 
-$newest = Get-ChildItem -LiteralPath $logsDir -File -Filter "*.log" -ErrorAction SilentlyContinue |
-  Sort-Object -Property LastWriteTime -Descending |
+$newest = Get-ChildItem -LiteralPath $logsDir -File -Filter "wavecrate*.log" -ErrorAction SilentlyContinue |
+  Where-Object { -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } |
+  Sort-Object -Property @{ Expression = 'LastWriteTime'; Descending = $true }, @{ Expression = 'Name'; Descending = $true } |
   Select-Object -First 1
 
 if ($null -eq $newest) {
-  Write-Host ("[latest_log] No .log files found under {0}" -f $logsDir)
+  Write-Host ("[latest_log] No Wavecrate .log files found under {0}" -f $logsDir)
   exit 0
 }
 
