@@ -81,6 +81,20 @@ impl LogSegmentRun {
         self.next_sequence = following;
         Ok((path, file))
     }
+
+    /// Prune after the newest created segment has become the active writer handle.
+    ///
+    /// The current segment is derived from this run rather than supplied by a caller. The
+    /// runtime integration must call this only after switching its writer to the new file.
+    pub(super) fn prune_after_activation(&self) -> Result<(), LoggingError> {
+        let active_sequence = self.next_sequence - 1;
+        let active = self.dir.join(format_segment_file_name(
+            &self.timestamp,
+            self.run_ordinal,
+            active_sequence,
+        ));
+        prune_old_logs(&self.dir, MAX_LOG_FILES, Some(&active))
+    }
 }
 
 /// Resolve the current profile/app-root/log-dir paths without installing logging.
@@ -99,7 +113,7 @@ pub(super) fn prepare_launch_log_file() -> Result<LaunchLogFile, LoggingError> {
         .expect("created log segment has a filename")
         .to_string_lossy()
         .into_owned();
-    prune_old_logs(&log_dir, MAX_LOG_FILES, Some(&log_path))?;
+    run.prune_after_activation()?;
     Ok(LaunchLogFile {
         dir: log_dir,
         file_name: log_file_name,
@@ -159,28 +173,39 @@ fn sort_log_entries(entries: &mut [(SystemTime, PathBuf)]) {
 }
 
 fn log_files_by_modified_time(dir: &Path) -> Result<Vec<(SystemTime, PathBuf)>, LoggingError> {
-    Ok(fs::read_dir(dir)
-        .map_err(|source| LoggingError::ReadDir {
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(dir).map_err(|source| LoggingError::ReadDir {
+        path: dir.to_path_buf(),
+        source,
+    })? {
+        let entry = entry.map_err(|source| LoggingError::ReadDir {
             path: dir.to_path_buf(),
             source,
-        })?
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-        .filter(|entry| {
-            let name = entry.file_name();
-            let Some(name) = name.to_str() else {
-                return false;
-            };
-            name.starts_with(LOG_FILE_PREFIX) && name.ends_with(".log")
-        })
-        .map(|entry| {
-            let modified = entry
-                .metadata()
-                .and_then(|meta| meta.modified())
-                .unwrap_or(SystemTime::UNIX_EPOCH);
-            (modified, entry.path())
-        })
-        .collect())
+        })?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if !name.starts_with(LOG_FILE_PREFIX) || !name.ends_with(".log") {
+            continue;
+        }
+        if !entry
+            .file_type()
+            .map_err(|source| LoggingError::ReadDir {
+                path: dir.to_path_buf(),
+                source,
+            })?
+            .is_file()
+        {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        entries.push((modified, entry.path()));
+    }
+    Ok(entries)
 }
 
 fn format_log_timestamp(now: OffsetDateTime) -> Result<String, LoggingError> {
@@ -290,7 +315,7 @@ mod tests {
     use super::*;
     use crate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
     use filetime::{FileTime, set_file_mtime};
-    use std::{path::Path, thread, time::Duration};
+    use std::{io::Write, path::Path, thread, time::Duration};
     use tempfile::tempdir;
 
     fn explicit_persistence_env_present() -> bool {
@@ -383,12 +408,76 @@ mod tests {
             set_file_mtime(&path, FileTime::from_unix_time(2_000_000_000, 0)).unwrap();
         }
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (_run, current) = start_log_run(dir.path(), fixed).unwrap();
+        let (run, current) = start_log_run(dir.path(), fixed).unwrap();
 
-        prune_old_logs(dir.path(), 10, Some(&current)).unwrap();
+        run.prune_after_activation().unwrap();
 
         assert!(current.exists());
         assert_eq!(count_logs(dir.path()), 10);
+    }
+
+    #[test]
+    fn rotation_prunes_oldest_regular_logs_and_keeps_active_handle() {
+        let dir = tempdir().unwrap();
+        let other_profile = tempdir().unwrap();
+        let legacy = dir.path().join("wavecrate_legacy.log");
+        let legacy_file = File::create(&legacy).unwrap();
+        legacy_file.set_len(20 * 1024 * 1024).unwrap();
+        drop(legacy_file);
+        set_file_mtime(&legacy, FileTime::from_unix_time(1_600_000_000, 0)).unwrap();
+        #[cfg(unix)]
+        let symlink_path = dir.path().join("wavecrate_link.log");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&legacy, &symlink_path).unwrap();
+        let unrelated_log = dir.path().join("other.log");
+        let unrelated_extension = dir.path().join("wavecrate_notes.txt");
+        let unrelated_directory = dir.path().join("wavecrate_directory.log");
+        let other_profile_log = other_profile.path().join("wavecrate_other.log");
+        fs::write(&unrelated_log, b"keep").unwrap();
+        fs::write(&unrelated_extension, b"keep").unwrap();
+        fs::create_dir(&unrelated_directory).unwrap();
+        fs::write(&other_profile_log, b"keep").unwrap();
+
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (mut run, initial) = start_log_run(dir.path(), fixed).unwrap();
+        set_file_mtime(&initial, FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
+        let mut created = vec![initial];
+        run.prune_after_activation().unwrap();
+        for _ in 0..15 {
+            let (path, mut active_file) = run.open_next().unwrap();
+            active_file.write_all(b"event").unwrap();
+            set_file_mtime(&path, FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
+            run.prune_after_activation().unwrap();
+            assert!(path.is_file());
+            assert!(log_files_by_modified_time(dir.path()).unwrap().len() <= 10);
+            active_file.write_all(b" retained").unwrap();
+            set_file_mtime(&path, FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
+            created.push(path);
+        }
+
+        assert_eq!(log_files_by_modified_time(dir.path()).unwrap().len(), 10);
+        assert!(!legacy.exists());
+        for obsolete in &created[..created.len() - 10] {
+            assert!(!obsolete.exists());
+        }
+        for retained in &created[created.len() - 10..] {
+            assert!(retained.is_file());
+        }
+        assert_eq!(
+            newest_log_file(dir.path()).unwrap(),
+            created.last().cloned()
+        );
+        assert_eq!(fs::read(&unrelated_log).unwrap(), b"keep");
+        assert_eq!(fs::read(&unrelated_extension).unwrap(), b"keep");
+        assert!(unrelated_directory.is_dir());
+        assert_eq!(fs::read(&other_profile_log).unwrap(), b"keep");
+        #[cfg(unix)]
+        assert!(
+            fs::symlink_metadata(&symlink_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
     }
 
     #[test]
