@@ -1195,6 +1195,29 @@ mod tests {
         decide_checkpoint_advance(current, requested, "source-a", 4, 9, "root-a")
     }
 
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn supported_native_watcher_with_valid_checkpoint_requires_scoped_audit() {
+        let directory = tempfile::tempdir().expect("source root");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("unsupported-durable-journal"),
+            directory.path().to_path_buf(),
+        );
+        let root_identity = std::fs::metadata(&source.root)
+            .ok()
+            .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
+            .expect("source root identity");
+        store_checkpoint(&source, &SourceWatcherCheckpoint::legacy(root_identity, 7))
+            .expect("seed durable checkpoint");
+
+        assert_eq!(
+            recover_source(&source, true),
+            JournalRecovery::FullAudit {
+                reason: "durable_journal_unsupported",
+            }
+        );
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn empty_replayed_paths_require_a_conservative_audit() {
