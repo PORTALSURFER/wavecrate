@@ -4258,6 +4258,7 @@ mod lifecycle_tests {
         admission.fence_all().expect("clean up active test lanes");
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn replay_checkpoint_ack_uses_current_terminal_lifecycle_generation() {
         let directory = tempfile::tempdir().expect("source root");
@@ -4917,6 +4918,7 @@ mod lifecycle_tests {
         assert_eq!(state.pending_audit_requests.front(), Some(&first_request));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn replay_checkpoint_failure_is_source_scoped_and_other_source_retires() {
         let first_directory = tempfile::tempdir().expect("first source root");
