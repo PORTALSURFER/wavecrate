@@ -2,12 +2,12 @@
 
 use std::{
     fs::{self, File, OpenOptions},
-    io,
+    io::{self, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
 
-use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
+use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
 use super::LoggingError;
 use crate::app_dirs;
@@ -63,10 +63,6 @@ pub(super) struct LogSegmentRun {
 
 impl LogSegmentRun {
     /// Create the next segment without appending to or replacing an existing object.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "OPT-1801 will open rotated segments")
-    )]
     pub(super) fn open_next(&mut self) -> io::Result<(PathBuf, File)> {
         let following = self.next_sequence.checked_add(1).ok_or_else(|| {
             io::Error::new(io::ErrorKind::AlreadyExists, "log sequence exhausted")
@@ -97,6 +93,16 @@ impl LogSegmentRun {
     }
 }
 
+impl size_capped::SegmentLifecycle for LogSegmentRun {
+    fn open_next(&mut self) -> io::Result<File> {
+        LogSegmentRun::open_next(self).map(|(_, file)| file)
+    }
+
+    fn prune_after_activation(&mut self) -> Result<(), String> {
+        LogSegmentRun::prune_after_activation(self).map_err(|error| error.to_string())
+    }
+}
+
 /// Resolve the current profile/app-root/log-dir paths without installing logging.
 pub(crate) fn resolve_log_profile_paths() -> Result<LogProfilePaths, LoggingError> {
     let app_root = app_dirs::app_root_dir().map_err(map_app_dir_error)?;
@@ -113,13 +119,31 @@ pub(super) fn prepare_launch_log_file() -> Result<LaunchLogFile, LoggingError> {
         .expect("created log segment has a filename")
         .to_string_lossy()
         .into_owned();
-    run.prune_after_activation()?;
+    prune_startup_or_report(&run, report_degraded_logging);
     Ok(LaunchLogFile {
         dir: log_dir,
         file_name: log_file_name,
         path: log_path,
         run,
     })
+}
+
+fn prune_startup_or_report(run: &LogSegmentRun, mut report: impl FnMut(&str, &str)) {
+    if let Err(error) = run.prune_after_activation() {
+        report(
+            "startup retention cleanup failed; continuing",
+            &error.to_string(),
+        );
+    }
+}
+
+/// Write one best-effort diagnostic without sending it back through the tracing worker.
+pub(super) fn report_degraded_logging(stage: &str, detail: &str) {
+    let first_line = detail.lines().next().unwrap_or("");
+    let _ = writeln!(
+        io::stderr().lock(),
+        "wavecrate logging: {stage}: {first_line}"
+    );
 }
 
 /// Return the newest `.log` file under one log directory.
@@ -314,7 +338,7 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> LoggingError {
 mod tests {
     use super::*;
     use crate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
-    use filetime::{FileTime, set_file_mtime};
+    use filetime::{set_file_mtime, FileTime};
     use std::{io::Write, path::Path, thread, time::Duration};
     use tempfile::tempdir;
 
@@ -416,6 +440,46 @@ mod tests {
         assert_eq!(count_logs(dir.path()), 10);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn startup_cleanup_permission_failure_reports_and_keeps_current_writable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        struct RestorePermissions(PathBuf, fs::Permissions);
+        impl Drop for RestorePermissions {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, self.1.clone());
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        for index in 0..11 {
+            fs::write(
+                dir.path().join(format!("wavecrate_old_{index}.log")),
+                b"old",
+            )
+            .unwrap();
+        }
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, current) = start_log_run(dir.path(), fixed).unwrap();
+        let mut current_file = OpenOptions::new().append(true).open(&current).unwrap();
+        let original = fs::metadata(dir.path()).unwrap().permissions();
+        let restore = RestorePermissions(dir.path().to_path_buf(), original);
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
+
+        let mut reports = Vec::new();
+        prune_startup_or_report(&run, |stage, detail| {
+            reports.push(format!("{stage}: {detail}"));
+        });
+        current_file.write_all(b"still logging").unwrap();
+        drop(restore);
+
+        assert_eq!(reports.len(), 1);
+        assert!(reports[0].contains("startup retention cleanup failed"));
+        assert_eq!(fs::read(current).unwrap(), b"still logging");
+        assert_eq!(log_files_by_modified_time(dir.path()).unwrap().len(), 12);
+    }
+
     #[test]
     fn rotation_prunes_oldest_regular_logs_and_keeps_active_handle() {
         let dir = tempdir().unwrap();
@@ -472,12 +536,10 @@ mod tests {
         assert!(unrelated_directory.is_dir());
         assert_eq!(fs::read(&other_profile_log).unwrap(), b"keep");
         #[cfg(unix)]
-        assert!(
-            fs::symlink_metadata(&symlink_path)
-                .unwrap()
-                .file_type()
-                .is_symlink()
-        );
+        assert!(fs::symlink_metadata(&symlink_path)
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     #[test]
