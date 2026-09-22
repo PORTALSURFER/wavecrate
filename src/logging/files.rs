@@ -15,6 +15,16 @@ use crate::app_dirs;
 const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "wavecrate";
 
+// OPT-1797 stages the size boundary for the later runtime integration slice.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "OPT-1801 will wire the size boundary into logging::init"
+    )
+)]
+pub(super) mod size_capped;
+
 /// Explicit log path projection for the active persistence profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LogProfilePaths {
