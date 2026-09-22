@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 
 <#
 .SYNOPSIS
-Prints the resolved log directory, the newest log file, and a tail snippet.
+Prints the resolved log directory, newest regular Wavecrate segment, and a tail snippet.
 
 .DESCRIPTION
 Resolution order for the `.wavecrate` root:

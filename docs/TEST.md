@@ -591,6 +591,14 @@ shapes by projecting safe defaults or avoiding missing optional tables.
 
 ### Debug log workflow
 
+The active profile keeps up to ten regular Wavecrate log segments after
+successful cleanup. Each segment has a prospective 10 MiB limit; one complete
+event larger than that remains intact and can overshoot by its excess. Existing
+oversized logs are left untouched until oldest-first cleanup removes them.
+Rotation or cleanup failure is reported and may temporarily exceed the limits.
+Use `scripts/run.ps1 bug-bundle` for support collection; it includes the newest
+regular Wavecrate segments and may contain local paths.
+
 On macOS, build manual-test binaries with `bash scripts/build.sh --release`.
 The helper emits a branch-specific, ad-hoc-signed app under
 `target/app-bundles/` and prints both its Launch Services identity and launch

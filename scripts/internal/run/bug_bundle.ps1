@@ -13,7 +13,7 @@ Creates a small diagnostic bundle to attach to bug reports.
 
 .DESCRIPTION
 Bundle contents are intentionally limited:
-- newest log files (default: 5)
+- newest regular Wavecrate log segments (default: 5)
 - `config.toml` (if present)
 - tool/runtime versions (`rustc`, `cargo`, `git`)
 

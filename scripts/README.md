@@ -19,6 +19,10 @@ dispatcher maps. These are the public entrypoints people should run directly:
   with JSONL evidence. Perf and GUI checks use their own entrypoints.
 - `check.{sh,ps1}`: focused guardrails and report helpers.
 - `run.{sh,ps1}`: sandbox, cleanup, log, and bug-bundle helpers.
+  The `logs` command reads the newest regular Wavecrate segment; `bug-bundle`
+  includes the newest such segments (five by default) and config. The active
+  profile normally retains at most ten 10 MiB segments, with one oversized
+  event kept whole and a diagnostic if retention is degraded.
 - `perf.{sh,ps1}`: performance guard commands. `scripts/perf.* guard` is the
   maintained local/manual or release-risk perf lane. The Bash-only
   `calibrate-startup` command is optional Linux developer tooling for refreshing

@@ -2,7 +2,10 @@
 //!
 //! Initializes a global tracing subscriber that writes to both stdout and a
 //! per-launch log file. The nonblocking worker rotates complete events at a
-//! 10 MiB segment boundary and retains at most ten matching files.
+//! 10 MiB segment boundary and retains at most ten matching regular files after
+//! successful cleanup. One oversized event stays whole and may exceed 10 MiB;
+//! rotation or cleanup failures are reported and may temporarily exceed either
+//! retention limit while writable logging continues when possible.
 
 mod contract;
 mod files;

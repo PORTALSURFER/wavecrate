@@ -3,7 +3,7 @@
 # Creates a small diagnostic bundle to attach to bug reports.
 #
 # Bundle contents are intentionally limited:
-# - latest logs (default: 5)
+# - newest regular Wavecrate log segments (default: 5)
 # - `config.toml` (if present)
 # - tool/runtime versions (`rustc`, `cargo`, `git`)
 #
@@ -24,7 +24,7 @@ usage() {
 Usage: ${entrypoint} bug-bundle [--out-dir <dir>] [--logs <n>] [--sandbox]
 
 Creates an archive under <out-dir> containing:
-- the newest N log files (default: 5)
+- the newest N regular Wavecrate log segments (default: 5)
 - config.toml (if present)
 - version/system info
 

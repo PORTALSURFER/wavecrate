@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Prints the resolved log directory, the newest log file, and a tail snippet.
+# Prints the resolved log directory, newest regular Wavecrate segment, and a tail snippet.
 #
 # Resolution order for the `.wavecrate` root:
 # 1) `WAVECRATE_CONFIG_HOME` (config base override, if set)
