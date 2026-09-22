@@ -570,6 +570,14 @@ fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
             "transaction_history/native.rs",
             "std::fs::read(\"guarded-history-ui.wav\").ok();",
         ),
+        (
+            "sample_library/source_diagnostics/worker.rs",
+            "std::fs::read(\"allowed-diagnostics-worker.wav\").ok();",
+        ),
+        (
+            "sample_library/source_diagnostics/worker_shadow.rs",
+            "std::fs::read(\"shadow-diagnostics-worker.wav\").ok();",
+        ),
     ];
     for (relative, body) in fixtures {
         let path = native_app_root.join(relative);
@@ -587,7 +595,7 @@ fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
         .iter()
         .map(|violation| violation.source_line.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(violations.len(), 4, "unexpected violations: {report:?}");
+    assert_eq!(violations.len(), 5, "unexpected violations: {report:?}");
     assert!(
         violations
             .iter()
@@ -604,6 +612,62 @@ fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
             .iter()
             .any(|line| line.contains("guarded-history-ui"))
     );
+    assert!(
+        violations
+            .iter()
+            .any(|line| line.contains("shadow-diagnostics-worker"))
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn native_app_blocking_worker_call_site_exceptions_are_exact() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate_worker_call_site_fixture_{}",
+        std::process::id()
+    ));
+    let native_app_root = root.join("src/native_app");
+    let fixtures = [
+        (
+            "app/state/journal.rs",
+            "thread::sleep(retry_interval);\nthread::sleep(other_interval);\n",
+        ),
+        (
+            "app/state/journal_shadow.rs",
+            "thread::sleep(retry_interval);\n",
+        ),
+        (
+            "transaction_history/app_state.rs",
+            "let result = receiver\n    .recv()\nlet other = receiver\n    .recv()\n",
+        ),
+    ];
+    for (relative, body) in fixtures {
+        let path = native_app_root.join(relative);
+        fs::create_dir_all(path.parent().expect("fixture path has parent"))
+            .expect("create call-site fixture dir");
+        fs::write(path, body).expect("write call-site fixture");
+    }
+
+    let report = wavecrate_non_blocking_guardrail()
+        .scan_roots([&native_app_root])
+        .expect_err("other calls and similarly named files must remain guarded");
+    let lines = report
+        .violations
+        .iter()
+        .map(|violation| violation.source_line.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 3, "unexpected violations: {report:?}");
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "thread::sleep(retry_interval);")
+            .count(),
+        1,
+        "only the exact journal owner call site is exempt"
+    );
+    assert!(lines.contains(&"thread::sleep(other_interval);"));
+    assert!(lines.contains(&".recv()"));
 
     let _ = fs::remove_dir_all(root);
 }
@@ -1183,6 +1247,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "similarity score lookup worker",
         ),
         (
+            "src/native_app/sample_library/source_diagnostics/worker.rs",
+            "unsupported-files readiness database business worker",
+        ),
+        (
             "src/native_app/sample_library/source_watcher/classification.rs",
             "source watcher worker",
         ),
@@ -1255,12 +1323,25 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
     }
 
     guardrail
+        .allow_worker_call_site(
+            "src/native_app/app/state/journal.rs",
+            "thread::sleep(retry_interval);",
+            None,
+            "journal ownership retry runs inside the spawned owner thread",
+        )
+        .allow_worker_call_site(
+            "src/native_app/transaction_history/app_state.rs",
+            ".recv()",
+            Some("let result = receiver"),
+            "journal result receive runs inside the gui-history-owner-stage business worker",
+        )
 }
 
 #[derive(Clone, Debug)]
 struct WavecrateNonBlockingGuardrail {
     patterns: Vec<WavecrateBlockingPattern>,
     allowlisted_path_fragments: Vec<WavecrateAllowedPathFragment>,
+    allowed_worker_call_sites: Vec<WavecrateAllowedWorkerCallSite>,
 }
 
 impl WavecrateNonBlockingGuardrail {
@@ -1268,6 +1349,7 @@ impl WavecrateNonBlockingGuardrail {
         Self {
             patterns: default_non_blocking_patterns(),
             allowlisted_path_fragments: Vec::new(),
+            allowed_worker_call_sites: Vec::new(),
         }
     }
 
@@ -1293,6 +1375,23 @@ impl WavecrateNonBlockingGuardrail {
         self.allowlisted_path_fragments
             .push(WavecrateAllowedPathFragment {
                 fragment: normalize_path_fragment(&fragment.into()),
+                reason: reason.into(),
+            });
+        self
+    }
+
+    fn allow_worker_call_site(
+        mut self,
+        file_suffix: impl Into<String>,
+        source_line: impl Into<String>,
+        preceding_line: Option<&str>,
+        reason: impl Into<String>,
+    ) -> Self {
+        self.allowed_worker_call_sites
+            .push(WavecrateAllowedWorkerCallSite {
+                file_suffix: normalize_path_fragment(&file_suffix.into()),
+                source_line: source_line.into(),
+                preceding_line: preceding_line.map(str::to_owned),
                 reason: reason.into(),
             });
         self
@@ -1360,7 +1459,8 @@ impl WavecrateNonBlockingGuardrail {
         };
         let mut cfg_test_pending = false;
         let mut skipped_cfg_test_depth = None;
-        for (line_index, line) in source.lines().enumerate() {
+        let lines = source.lines().collect::<Vec<_>>();
+        for (line_index, line) in lines.iter().enumerate() {
             if let Some(depth) = skipped_cfg_test_depth {
                 let next_depth = depth + brace_delta(line);
                 skipped_cfg_test_depth = (next_depth > 0).then_some(next_depth);
@@ -1387,6 +1487,14 @@ impl WavecrateNonBlockingGuardrail {
                 continue;
             }
 
+            let preceding_line = line_index
+                .checked_sub(1)
+                .and_then(|previous| lines.get(previous))
+                .map(|line| line.trim());
+            if self.is_allowed_worker_call_site(path, trimmed, preceding_line) {
+                continue;
+            }
+
             for pattern in &self.patterns {
                 if line.contains(pattern.token) {
                     report.violations.push(WavecrateNonBlockingViolation {
@@ -1409,6 +1517,23 @@ impl WavecrateNonBlockingGuardrail {
             .iter()
             .any(|allowlist| normalized.contains(&allowlist.fragment))
     }
+
+    fn is_allowed_worker_call_site(
+        &self,
+        path: &Path,
+        source_line: &str,
+        preceding_line: Option<&str>,
+    ) -> bool {
+        let normalized = normalize_path_fragment(&path.to_string_lossy());
+        self.allowed_worker_call_sites.iter().any(|allowlist| {
+            normalized.ends_with(&allowlist.file_suffix)
+                && source_line == allowlist.source_line
+                && allowlist
+                    .preceding_line
+                    .as_deref()
+                    .is_none_or(|expected| preceding_line == Some(expected))
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1421,6 +1546,15 @@ struct WavecrateBlockingPattern {
 #[derive(Clone, Debug)]
 struct WavecrateAllowedPathFragment {
     fragment: String,
+    #[allow(dead_code)]
+    reason: String,
+}
+
+#[derive(Clone, Debug)]
+struct WavecrateAllowedWorkerCallSite {
+    file_suffix: String,
+    source_line: String,
+    preceding_line: Option<String>,
     #[allow(dead_code)]
     reason: String,
 }

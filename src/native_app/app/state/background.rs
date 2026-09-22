@@ -475,6 +475,7 @@ impl BackgroundTaskState {
                 )
             })
             .collect();
+        #[cfg(test)]
         let waveform_recovery = match recovery_root {
             Some(path) => {
                 let file = std::fs::File::open(&path).expect("test recovery root");
@@ -489,6 +490,11 @@ impl BackgroundTaskState {
                 })
             }
             None => Err(RecoveryUnavailable::OperationJournalUnavailable),
+        };
+        #[cfg(not(test))]
+        let waveform_recovery = {
+            let _ = recovery_root;
+            Err(RecoveryUnavailable::OperationJournalUnavailable)
         };
         #[cfg(not(test))]
         let operation_journal = super::OperationJournalOwner::start();
