@@ -1,20 +1,20 @@
 //! Logging setup for the application.
 //!
 //! Initializes a global tracing subscriber that writes to both stdout and a
-//! per-launch log file. Files are timestamped and kept to a bounded count to
-//! avoid unbounded growth.
+//! per-launch log file. The nonblocking worker rotates complete events at a
+//! 10 MiB segment boundary and retains at most ten matching files.
 
 mod contract;
 mod files;
 mod policy;
 
 pub use contract::{
-    ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
-    emit_db_debug_event,
+    emit_action_debug_event, emit_db_debug_event, ActionDebugEvent, DbDebugEvent,
+    ACTION_EVENT_TARGET, DB_EVENT_TARGET,
 };
 pub use policy::{
-    DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR, DEBUG_LOGGING_SHORT_ARG, DebugLoggingMode,
-    DebugLoggingSettings,
+    DebugLoggingMode, DebugLoggingSettings, DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR,
+    DEBUG_LOGGING_SHORT_ARG,
 };
 
 use std::{
@@ -22,14 +22,14 @@ use std::{
     panic,
     path::{Path, PathBuf},
     sync::{
-        OnceLock,
         atomic::{AtomicBool, Ordering},
+        OnceLock,
     },
 };
 
-use time::{UtcOffset, format_description::FormatItem, macros::format_description};
-use tracing_appender::{non_blocking::WorkerGuard, rolling};
-use tracing_subscriber::{Registry, fmt, prelude::*};
+use time::{format_description::FormatItem, macros::format_description, UtcOffset};
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{fmt, prelude::*, Registry};
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 static DEBUG_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -106,7 +106,13 @@ where
 
     let settings = DebugLoggingSettings::from_process(args);
     let launch_log = files::prepare_launch_log_file()?;
-    let file_appender = rolling::never(&launch_log.dir, launch_log.file_name.clone());
+    let file_appender =
+        files::size_capped::SizeCappedLogAppender::new(launch_log.file, launch_log.run).map_err(
+            |source| LoggingError::CreateLogFile {
+                path: launch_log.path.clone(),
+                source,
+            },
+        )?;
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
 
     let timer = build_timer();

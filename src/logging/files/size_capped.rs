@@ -9,7 +9,7 @@ use std::{
 pub(super) const MAX_LOG_SEGMENT_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Worker-local creation and retention steps for a log run.
-pub(super) trait SegmentLifecycle: Send {
+pub(in crate::logging) trait SegmentLifecycle: Send {
     fn open_next(&mut self) -> io::Result<File>;
 
     fn prune_after_activation(&mut self) -> Result<(), String> {
@@ -33,7 +33,7 @@ where
 /// retained whole in an otherwise empty segment; with successful rotation, its maximum overshoot
 /// is that event's length minus the cap. If rotation fails, the current file remains writable and
 /// may exceed the cap; a diagnostic makes that degraded retention explicit.
-pub(super) struct SizeCappedLogAppender {
+pub(in crate::logging) struct SizeCappedLogAppender {
     current: File,
     current_len: u64,
     segment_limit: u64,
@@ -46,7 +46,7 @@ pub(super) struct SizeCappedLogAppender {
 
 impl SizeCappedLogAppender {
     /// Build the worker's file writer from an already opened initial segment.
-    pub(super) fn new(
+    pub(in crate::logging) fn new(
         current: File,
         lifecycle: impl SegmentLifecycle + 'static,
     ) -> io::Result<Self> {
@@ -482,7 +482,7 @@ mod tests {
 
         let dir = tempdir().unwrap();
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (run, initial_path) = super::super::start_log_run(dir.path(), fixed).unwrap();
+        let (run, initial_path, current) = super::super::start_log_run(dir.path(), fixed).unwrap();
         let next_path = dir.path().join(super::super::format_segment_file_name(
             &run.timestamp,
             run.run_ordinal,
@@ -498,7 +498,6 @@ mod tests {
             0
         );
 
-        let current = OpenOptions::new().append(true).open(&initial_path).unwrap();
         let reports = Arc::new(Mutex::new(Vec::<String>::new()));
         let captured = Arc::clone(&reports);
         let mut writer = SizeCappedLogAppender::with_limit_and_reporter(
@@ -519,6 +518,49 @@ mod tests {
         fs::remove_file(&next_path).unwrap();
         writer.write_all(b"x").unwrap();
         assert_eq!(fs::read(next_path).unwrap(), b"x");
+    }
+
+    #[test]
+    fn nonblocking_worker_rotates_real_run_without_reopening_initial_segment() {
+        use time::OffsetDateTime;
+
+        let dir = tempdir().unwrap();
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, initial_path, initial_file) =
+            super::super::start_log_run(dir.path(), fixed).unwrap();
+        let next_path = dir.path().join(super::super::format_segment_file_name(
+            &run.timestamp,
+            run.run_ordinal,
+            run.next_sequence,
+        ));
+        let appender = SizeCappedLogAppender::with_limit(initial_file, 8, run).unwrap();
+        let (mut worker, guard) = tracing_appender::non_blocking(appender);
+
+        worker.write_all(b"12345678").unwrap();
+        worker.write_all(b"9").unwrap();
+        drop(worker);
+        drop(guard);
+
+        assert_eq!(fs::read(initial_path).unwrap(), b"12345678");
+        assert_eq!(fs::read(next_path).unwrap(), b"9");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn renamed_initial_segment_remains_writable_through_open_handle() {
+        use time::OffsetDateTime;
+
+        let dir = tempdir().unwrap();
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, original, current) = super::super::start_log_run(dir.path(), fixed).unwrap();
+        let renamed = dir.path().join("wavecrate_renamed.log");
+        fs::rename(&original, &renamed).unwrap();
+
+        let mut writer = SizeCappedLogAppender::new(current, run).unwrap();
+        writer.write_all(b"still logging").unwrap();
+
+        assert!(!original.exists());
+        assert_eq!(fs::read(renamed).unwrap(), b"still logging");
     }
 
     #[cfg(unix)]

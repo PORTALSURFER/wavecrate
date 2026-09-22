@@ -52,6 +52,12 @@ while (( $# > 0 )); do
   esac
 done
 
+if [[ ! "$MAX_LOGS" =~ ^[0-9]+$ ]]; then
+  echo "[bug_bundle] --logs must be a nonnegative integer" >&2
+  exit 2
+fi
+max_logs=$((10#$MAX_LOGS))
+
 os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
 sandbox_config_home="${ROOT_DIR}/.sandbox/wavecrate"
 
@@ -165,10 +171,24 @@ fi
 
 if [[ -d "$logs_dir" ]]; then
   mkdir -p "${bundle_dir}/logs"
+  log_candidates_newest_first() {
+    local candidate modified
+    for candidate in "$logs_dir"/wavecrate*.log; do
+      [[ -f "$candidate" && ! -L "$candidate" ]] || continue
+      if [[ "$os_name" == "darwin" ]]; then
+        modified="$(stat -f '%m' "$candidate")" || continue
+      else
+        modified="$(stat -c '%Y' "$candidate")" || continue
+      fi
+      printf '%s\t%s\n' "$modified" "$candidate"
+    done | LC_ALL=C sort -t $'\t' -k1,1nr -k2,2r | cut -f2-
+  }
   logs=()
   while IFS= read -r log_file; do
+    (( max_logs == 0 )) && break
     logs+=("$log_file")
-  done < <(ls -1t "$logs_dir"/*.log 2>/dev/null | head -n "$MAX_LOGS" || true)
+    (( ${#logs[@]} >= max_logs )) && break
+  done < <(log_candidates_newest_first)
   for log_file in "${logs[@]}"; do
     [[ -f "$log_file" ]] || continue
     cp "$log_file" "${bundle_dir}/logs/$(basename "$log_file")"

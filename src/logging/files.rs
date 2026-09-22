@@ -16,14 +16,6 @@ use crate::app_dirs;
 const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "wavecrate";
 
-// OPT-1797 stages the size boundary for the later runtime integration slice.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "OPT-1801 will wire the size boundary into logging::init"
-    )
-)]
 pub(super) mod size_capped;
 
 /// Explicit log path projection for the active persistence profile.
@@ -36,14 +28,12 @@ pub(crate) struct LogProfilePaths {
 }
 
 /// Prepared per-launch log file details consumed by runtime subscriber setup.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub(super) struct LaunchLogFile {
-    /// Directory that contains Wavecrate log files.
-    pub(super) dir: PathBuf,
-    /// File name used by the rolling appender.
-    pub(super) file_name: String,
     /// Absolute path to the file for startup diagnostics.
     pub(super) path: PathBuf,
+    /// Keep the create-new handle open through subscriber setup.
+    pub(super) file: File,
     /// The reserved run identity and next segment sequence for the runtime integration slice.
     pub(super) run: LogSegmentRun,
 }
@@ -113,17 +103,11 @@ pub(crate) fn resolve_log_profile_paths() -> Result<LogProfilePaths, LoggingErro
 /// Prepare the per-launch log file and prune old log files.
 pub(super) fn prepare_launch_log_file() -> Result<LaunchLogFile, LoggingError> {
     let log_dir = resolve_log_profile_paths()?.logs_dir;
-    let (run, log_path) = start_log_run(&log_dir, now_local_or_utc())?;
-    let log_file_name = log_path
-        .file_name()
-        .expect("created log segment has a filename")
-        .to_string_lossy()
-        .into_owned();
+    let (run, log_path, file) = start_log_run(&log_dir, now_local_or_utc())?;
     prune_startup_or_report(&run, report_degraded_logging);
     Ok(LaunchLogFile {
-        dir: log_dir,
-        file_name: log_file_name,
         path: log_path,
+        file,
         run,
     })
 }
@@ -257,7 +241,7 @@ fn parse_run_ordinal(name: &str, timestamp: &str) -> Option<u64> {
 fn start_log_run(
     dir: &Path,
     now: OffsetDateTime,
-) -> Result<(LogSegmentRun, PathBuf), LoggingError> {
+) -> Result<(LogSegmentRun, PathBuf, File), LoggingError> {
     let timestamp = format_log_timestamp(now)?;
     let mut highest_run = None::<u64>;
     for entry in fs::read_dir(dir).map_err(|source| LoggingError::ReadDir {
@@ -290,7 +274,6 @@ fn start_log_run(
         let path = dir.join(format_segment_file_name(&timestamp, run_ordinal, 0));
         match OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(file) => {
-                drop(file);
                 return Ok((
                     LogSegmentRun {
                         dir: dir.to_path_buf(),
@@ -299,6 +282,7 @@ fn start_log_run(
                         next_sequence: 1,
                     },
                     path,
+                    file,
                 ));
             }
             Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {
@@ -363,7 +347,7 @@ mod tests {
     fn rapid_rotations_and_same_second_relaunch_have_unique_ordered_names() {
         let dir = tempdir().unwrap();
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (mut first_run, first) = start_log_run(dir.path(), fixed).unwrap();
+        let (mut first_run, first, _first_file) = start_log_run(dir.path(), fixed).unwrap();
         let mut ordered = vec![first];
         for _ in 0..12 {
             let (next, file) = first_run.open_next().unwrap();
@@ -371,7 +355,8 @@ mod tests {
             assert!(ordered.last().unwrap() < &next);
             ordered.push(next);
         }
-        let (_restarted_run, restarted) = start_log_run(dir.path(), fixed).unwrap();
+        let (_restarted_run, restarted, _restarted_file) =
+            start_log_run(dir.path(), fixed).unwrap();
 
         assert!(ordered.last().unwrap() < &restarted);
         ordered.push(restarted.clone());
@@ -387,7 +372,7 @@ mod tests {
     fn next_segment_collision_does_not_overwrite_or_advance_sequence() {
         let dir = tempdir().unwrap();
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (mut run, _) = start_log_run(dir.path(), fixed).unwrap();
+        let (mut run, _, _initial_file) = start_log_run(dir.path(), fixed).unwrap();
         let collision = dir.path().join(format_segment_file_name(
             &run.timestamp,
             run.run_ordinal,
@@ -415,7 +400,8 @@ mod tests {
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
         let unrelated = dir.path().join("other.log");
         fs::write(&unrelated, b"keep").unwrap();
-        let (_run, newest) = start_log_run(dir.path(), fixed).unwrap();
+        let (_run, newest, initial_file) = start_log_run(dir.path(), fixed).unwrap();
+        drop(initial_file);
 
         prune_old_logs(dir.path(), 0, None).unwrap();
         assert!(unrelated.exists());
@@ -432,7 +418,7 @@ mod tests {
             set_file_mtime(&path, FileTime::from_unix_time(2_000_000_000, 0)).unwrap();
         }
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (run, current) = start_log_run(dir.path(), fixed).unwrap();
+        let (run, current, _initial_file) = start_log_run(dir.path(), fixed).unwrap();
 
         run.prune_after_activation().unwrap();
 
@@ -461,8 +447,7 @@ mod tests {
             .unwrap();
         }
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (run, current) = start_log_run(dir.path(), fixed).unwrap();
-        let mut current_file = OpenOptions::new().append(true).open(&current).unwrap();
+        let (run, current, mut current_file) = start_log_run(dir.path(), fixed).unwrap();
         let original = fs::metadata(dir.path()).unwrap().permissions();
         let restore = RestorePermissions(dir.path().to_path_buf(), original);
         fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
@@ -503,7 +488,8 @@ mod tests {
         fs::write(&other_profile_log, b"keep").unwrap();
 
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
-        let (mut run, initial) = start_log_run(dir.path(), fixed).unwrap();
+        let (mut run, initial, initial_file) = start_log_run(dir.path(), fixed).unwrap();
+        drop(initial_file);
         set_file_mtime(&initial, FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
         let mut created = vec![initial];
         run.prune_after_activation().unwrap();

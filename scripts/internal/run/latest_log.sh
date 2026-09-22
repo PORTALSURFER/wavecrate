@@ -26,7 +26,7 @@ Usage: ${entrypoint} logs [--lines <n>] [--sandbox]
 Prints:
 - resolved .wavecrate root (best-effort)
 - resolved logs dir
-- newest *.log file under logs dir (if any)
+- newest regular wavecrate*.log file under logs dir (if any)
 - tail snippet from that newest log (default: 200 lines)
 
 Sandbox behavior:
@@ -154,9 +154,26 @@ if [[ ! -d "$logs_dir" ]]; then
   exit 1
 fi
 
-newest_log="$(ls -1t "$logs_dir"/*.log 2>/dev/null | head -n 1 || true)"
+log_candidates_newest_first() {
+  local candidate modified
+  for candidate in "$logs_dir"/wavecrate*.log; do
+    [[ -f "$candidate" && ! -L "$candidate" ]] || continue
+    if [[ "$os_name" == "darwin" ]]; then
+      modified="$(stat -f '%m' "$candidate")" || continue
+    else
+      modified="$(stat -c '%Y' "$candidate")" || continue
+    fi
+    printf '%s\t%s\n' "$modified" "$candidate"
+  done | LC_ALL=C sort -t $'\t' -k1,1nr -k2,2r | cut -f2-
+}
+
+newest_log=""
+while IFS= read -r candidate; do
+  newest_log="$candidate"
+  break
+done < <(log_candidates_newest_first)
 if [[ -z "$newest_log" ]]; then
-  echo "[latest_log] No .log files found under $logs_dir"
+  echo "[latest_log] No Wavecrate .log files found under $logs_dir"
   exit 0
 fi
 
