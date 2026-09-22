@@ -607,6 +607,13 @@ mod tests {
     }
 }
 
+#[cfg(all(test, unix))]
+mod unix_tests {
+    fn reads_fixture_file() {
+        std::fs::read("sample.wav").ok();
+    }
+}
+
 fn production_after_tests() {
     std::fs::read("sample.wav").ok();
 }
@@ -1454,7 +1461,9 @@ fn is_comment_or_empty(line: &str) -> bool {
 }
 
 fn is_cfg_test_line(line: &str) -> bool {
-    matches!(line.trim(), "#[cfg(test)]" | "#[cfg(any(test, doctest))]")
+    let line = line.trim();
+    matches!(line, "#[cfg(test)]" | "#[cfg(any(test, doctest))]")
+        || (line.starts_with("#[cfg(all(test,") && line.ends_with("))]"))
 }
 
 fn cross_crate_public_wildcard_target(line: &str) -> Option<String> {
