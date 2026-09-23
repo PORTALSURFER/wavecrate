@@ -510,6 +510,188 @@ fn incomplete_audit_requeues_without_overwriting_an_earlier_deferred_request() {
 }
 
 #[test]
+fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
+    use wavecrate_library::sample_sources::reconciliation::{
+        AdmissionOutcome, BackendStreamIdentity, CaptureBoundary, RawEventKind, RawObservation,
+        RawObservationLimits, RawObservationProvenance, RawObservedPath, RawPathRole,
+        ReconciliationAdmissionLimits, ReconciliationAdmissionOwner,
+        ReconciliationAdmissionSupervisor, RootIdentity, SyntheticObservationBatch,
+    };
+
+    let (_directory, source) = unhashed_source("interrupted-runtime-audit");
+    std::fs::write(source.root.join("missed.wav"), [7_u8; 32]).expect("write missed watcher file");
+    let root_metadata = std::fs::metadata(&source.root).expect("source root metadata");
+    let root_identity = RootIdentity::from_bytes(
+        wavecrate_library::filesystem_identity::stable_filesystem_identity(
+            &source.root,
+            &root_metadata,
+        )
+        .expect("stable source root identity")
+        .into_bytes(),
+    );
+    let mut owner = ReconciliationAdmissionOwner::new(ReconciliationAdmissionSupervisor::new(
+        ReconciliationAdmissionLimits::new(
+            1,
+            RawObservationLimits::new(8, usize::MAX, usize::MAX).expect("lane limits"),
+            RawObservationLimits::new(16, usize::MAX, usize::MAX).expect("global limits"),
+            2,
+            8,
+            8,
+        )
+        .expect("admission limits"),
+    ));
+    let lane = owner
+        .begin_source(source.id.clone(), root_identity.clone())
+        .expect("capturing watcher lane");
+    let live = owner
+        .admit_live_with_correlation(SyntheticObservationBatch::new(
+            RawObservationProvenance::new(
+                source.id.clone(),
+                Some(root_identity),
+                Some(BackendStreamIdentity::from_bytes(b"test-stream".to_vec())),
+                lane.generation(),
+                CaptureBoundary::try_new(1, None, None).expect("capture boundary"),
+            ),
+            vec![RawObservation::new(
+                RawEventKind::Create,
+                vec![RawObservedPath::new(
+                    "missed.wav".into(),
+                    RawPathRole::Subject,
+                )],
+            )],
+            RawObservationLimits::new(8, usize::MAX, usize::MAX).expect("batch limits"),
+        ))
+        .expect("admit watcher capture");
+    let ticket = match live.admission().outcome() {
+        AdmissionOutcome::Accepted(ticket) => *ticket,
+        outcome => panic!("expected accepted capture, got {outcome:?}"),
+    };
+    let request = live
+        .correlation()
+        .expect("capture audit correlation")
+        .audit_request()
+        .clone();
+    owner.dispatch_next().expect("dispatch capture");
+    owner.mark_dispatched(ticket).expect("mark dispatched");
+    owner.mark_applied(ticket).expect("mark applied");
+    owner
+        .mark_unproven_audit_handed_off(ticket)
+        .expect("hand off audit request");
+
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source: source.clone(),
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let displaced_parent = tempfile::tempdir().expect("displaced source parent");
+    let displaced_root = displaced_parent.path().join("displaced-root");
+    let mut interrupted = false;
+    let mut first_events = Vec::new();
+    execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        Some(request.clone()),
+        &mut |event| {
+            if !interrupted && matches!(event, SourceProcessingEvent::Progress(_)) {
+                std::fs::rename(&source.root, &displaced_root).expect("displace source root");
+                std::fs::create_dir(&source.root).expect("replace source root");
+                interrupted = true;
+            }
+            first_events.push(event);
+            true
+        },
+    )
+    .expect("interrupted audit returns an outcome");
+    assert!(interrupted, "audit fixture must interrupt live traversal");
+    std::fs::remove_dir(&source.root).expect("remove replacement root");
+    std::fs::rename(&displaced_root, &source.root).expect("restore original root");
+    assert!(first_events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditCommitted {
+            complete: false,
+            ..
+        }
+    )));
+    assert!(!first_events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
+    )));
+    let incomplete = first_events
+        .iter()
+        .find_map(|event| match event {
+            SourceProcessingEvent::ManifestAuditFinished {
+                complete: false,
+                receipt: Some(receipt),
+                ..
+            } => Some(receipt),
+            _ => None,
+        })
+        .expect("interrupted traversal must publish an incomplete receipt");
+    assert_eq!(incomplete.request(), &request);
+    assert!(!incomplete.is_complete());
+    let incomplete_acknowledgement = owner.acknowledge_source_audit_receipt(incomplete);
+    assert_eq!(incomplete_acknowledgement.cleared_markers(), 0);
+    assert_eq!(
+        incomplete_acknowledgement.remaining_markers(),
+        1,
+        "incomplete traversal must retain the watcher barrier"
+    );
+
+    let mut retry_events = Vec::new();
+    execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        Some(request.clone()),
+        &mut |event| {
+            retry_events.push(event);
+            true
+        },
+    )
+    .expect("retry audit returns an outcome");
+    let complete = retry_events
+        .iter()
+        .find_map(|event| match event {
+            SourceProcessingEvent::ManifestAuditFinished {
+                complete: true,
+                receipt: Some(receipt),
+                ..
+            } => Some(receipt),
+            _ => None,
+        })
+        .expect("complete retry must publish authoritative receipt");
+    assert_eq!(complete.request(), &request);
+    assert_eq!(complete.covered_boundary(), request.boundary());
+    assert!(
+        complete
+            .committed_source_revision()
+            .is_some_and(|revision| revision > 0)
+    );
+    let acknowledgement = owner.acknowledge_source_audit_receipt(complete);
+    assert_eq!(acknowledgement.cleared_markers(), 1);
+    assert_eq!(acknowledgement.remaining_markers(), 0);
+    let duplicate_acknowledgement = owner.acknowledge_source_audit_receipt(complete);
+    assert_eq!(
+        duplicate_acknowledgement.cleared_markers(),
+        0,
+        "duplicate complete receipt must not retire the barrier twice"
+    );
+    assert_eq!(duplicate_acknowledgement.remaining_markers(), 0);
+}
+
+#[test]
 fn audit_requests_with_different_root_or_generation_stay_separate_and_fenced() {
     use wavecrate_library::sample_sources::reconciliation::{
         RawObservationLimits, ReconciliationAdmissionLimits, ReconciliationAdmissionOwner,
