@@ -121,9 +121,13 @@ pub(super) fn execute_candidate_with_presentation(
                 ) {
                     Ok(ManifestAuditOutcome::Complete {
                         stats,
-                        content_incomplete,
                         audit_commit,
-                    }) => (stats, true, content_incomplete, Some(audit_commit)),
+                    }) => (stats, true, None, Some(audit_commit)),
+                    Ok(ManifestAuditOutcome::ContentCheckpointPaused {
+                        stats,
+                        error,
+                        audit_commit,
+                    }) => (stats, true, Some(error), Some(audit_commit)),
                     Ok(ManifestAuditOutcome::Incomplete {
                         committed, error, ..
                     }) => (committed, false, Some(error), None),
