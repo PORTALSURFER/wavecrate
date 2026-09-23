@@ -46,6 +46,19 @@ fn process_watcher_checkpoint(shared: &Arc<Shared>, request: RevisionBoundCheckp
     }
     let outcome = {
         let _writer = shared.database_writer.lock(DatabasePhase::Publish);
+        // Fence installation also holds this writer gate. A request that began before the
+        // handoff must wait for its projection to resolve rather than advance the durable cursor
+        // underneath the browser's pending revision.
+        {
+            let mut control = shared.control();
+            if control
+                .pending_projection_fences
+                .contains_key(&request.source_id)
+            {
+                control.pending_watcher_checkpoints.push_back(request);
+                return;
+            }
+        }
         let Some(current_source) = configured_source_for_request(shared, &request) else {
             tracing::debug!(
                 source_id = request.source_id.as_str(),
@@ -185,6 +198,7 @@ mod tests {
         time::{Duration, Instant},
     };
     use wavecrate::sample_sources::SourceId;
+    use wavecrate::sample_sources::scanner::CommittedSourceDelta;
     use wavecrate_library::sample_sources::{SourceDatabase, db::META_SOURCE_WATCHER_CHECKPOINT};
 
     fn source(root: &std::path::Path, id: &str) -> SampleSource {
@@ -326,6 +340,44 @@ mod tests {
             checkpoint_bytes(&source).expect("checkpoint bytes"),
             committed
         );
+    }
+
+    #[test]
+    fn checkpoint_waits_for_same_source_projection_handoff() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let source = source(directory.path(), "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let root_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &root_identity);
+        let original = checkpoint_bytes(&source).expect("prior checkpoint");
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        let ticket = handle
+            .acquire_scan_for_generation(source.id.as_str(), generation)
+            .expect("admit scan")
+            .release_after_projection_handoff(CommittedSourceDelta {
+                revision: 0,
+                ..CommittedSourceDelta::default()
+            });
+
+        handle.submit_watcher_checkpoint(request(&source, generation, root_identity));
+        process_pending_watcher_checkpoints(&shared);
+        assert_eq!(
+            checkpoint_bytes(&source).as_deref(),
+            Some(original.as_str())
+        );
+        assert_eq!(shared.control().pending_watcher_checkpoints.len(), 1);
+
+        assert!(ticket.accept());
+        process_pending_watcher_checkpoints(&shared);
+        let committed = checkpoint_bytes(&source).expect("committed checkpoint");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&committed).expect("checkpoint JSON")["event_id"],
+            8
+        );
+        assert!(shared.control().pending_watcher_checkpoints.is_empty());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use super::{
-    Arc, AtomicBool, CommittedSourceDelta, DatabaseWriterGate, ExternalScanAdmission,
-    ExternalScanRegistration, Ordering, PathBuf, ProcessingLane, SampleSource, Shared,
-    SourceDeltaQueueResult, resolve_registered_source_for_scan_locked,
+    Arc, AtomicBool, CommittedSourceDelta, DatabasePhase, DatabaseWriterGate,
+    ExternalScanAdmission, ExternalScanRegistration, Ordering, PathBuf, ProcessingLane,
+    SampleSource, Shared, SourceDeltaQueueResult, resolve_registered_source_for_scan_locked,
 };
 use crate::native_app::sample_library::source_watcher::RevisionBoundCheckpoint;
 
@@ -467,6 +467,9 @@ impl SourceProcessingBudgetPermit {
             self.lifecycle_generation,
             delta,
         );
+        // A checkpoint that already passed its fence check finishes before this handoff can
+        // become visible. Later checkpoint writes observe the fence and remain queued.
+        let _writer = self.shared.database_writer.lock(DatabasePhase::Publish);
         let mut control = self.shared.control();
         let current = control.source_is_active(&source_id)
             && control.source_lifecycle_generations.get(&source_id)
