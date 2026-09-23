@@ -1,9 +1,13 @@
 use super::{
     Arc, AtomicBool, CommittedSourceDelta, DatabasePhase, DatabaseWriterGate,
     ExternalScanAdmission, ExternalScanRegistration, Ordering, PathBuf, ProcessingLane,
-    SampleSource, Shared, SourceDeltaQueueResult, resolve_registered_source_for_scan_locked,
+    SampleSource, Shared, SourceDatabase, SourceDeltaQueueResult,
+    resolve_registered_source_for_scan_locked,
 };
-use crate::native_app::sample_library::source_watcher::RevisionBoundCheckpoint;
+use crate::native_app::sample_library::source_watcher::{
+    RevisionBoundCheckpoint, WatcherContinuityProof, replay_matches_durable_checkpoint,
+};
+use wavecrate_library::filesystem_identity::stable_filesystem_identity;
 
 /// The typed handoff an external scan must make before releasing its source-processing budget.
 ///
@@ -70,6 +74,57 @@ impl ProjectionHandoffTicket {
             lifecycle_generation,
             delta,
         }
+    }
+
+    /// Recheck the durable replay baseline after the source fence is installed. Checkpoint
+    /// publication and this read share the writer gate, so no same-source checkpoint can advance
+    /// between this decision and handoff resolution.
+    pub(in crate::native_app) fn replay_matches_fenced_checkpoint(
+        &self,
+        proof: &WatcherContinuityProof,
+    ) -> bool {
+        let _writer = self.shared.database_writer.lock(DatabasePhase::Publish);
+        let source = {
+            let control = self.shared.control();
+            let fence_matches = control
+                .pending_projection_fences
+                .get(&self.source_id)
+                .is_some_and(|fence| {
+                    fence.lifecycle_generation == self.lifecycle_generation
+                        && fence.revision == self.delta.revision
+                });
+            if !fence_matches
+                || !control.source_is_active(&self.source_id)
+                || control.source_lifecycle_generations.get(&self.source_id)
+                    != Some(&self.lifecycle_generation)
+            {
+                return false;
+            }
+            control.sources.get(&self.source_id).cloned()
+        };
+        let Some(source) = source else {
+            return false;
+        };
+        let Ok(metadata) = std::fs::symlink_metadata(&source.root) else {
+            return false;
+        };
+        if !metadata.file_type().is_dir()
+            || stable_filesystem_identity(&source.root, &metadata).as_deref()
+                != Some(proof.root_identity.as_str())
+        {
+            return false;
+        }
+        let Ok(database_root) = source.database_root() else {
+            return false;
+        };
+        let Ok(database) = SourceDatabase::open_for_background_job_with_database_root(
+            &source.root,
+            &database_root,
+        ) else {
+            return false;
+        };
+        database.get_revision().ok() == Some(self.delta.revision)
+            && replay_matches_durable_checkpoint(&database, &self.source_id, proof)
     }
 
     /// Accept the handoff after the GUI has applied the exact projection.

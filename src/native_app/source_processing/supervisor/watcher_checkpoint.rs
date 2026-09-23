@@ -362,7 +362,16 @@ mod tests {
                 ..CommittedSourceDelta::default()
             });
 
-        handle.submit_watcher_checkpoint(request(&source, generation, root_identity));
+        let checkpoint_request = request(&source, generation, root_identity);
+        assert!(
+            ticket.replay_matches_fenced_checkpoint(
+                checkpoint_request
+                    .continuity_proof
+                    .as_ref()
+                    .expect("replay proof")
+            )
+        );
+        handle.submit_watcher_checkpoint(checkpoint_request);
         process_pending_watcher_checkpoints(&shared);
         assert_eq!(
             checkpoint_bytes(&source).as_deref(),
@@ -378,6 +387,52 @@ mod tests {
             8
         );
         assert!(shared.control().pending_watcher_checkpoints.is_empty());
+    }
+
+    #[test]
+    fn fenced_replay_recheck_rejects_checkpoint_advanced_after_worker_read() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let source = source(directory.path(), "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let root_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &root_identity);
+        let proof = request(&source, generation, root_identity)
+            .continuity_proof
+            .expect("replay proof");
+        let database = SourceDatabase::open_for_test_fixture_source_write(&source.root)
+            .expect("source database");
+        assert!(
+            crate::native_app::sample_library::source_watcher::replay_matches_durable_checkpoint(
+                &database,
+                source.id.as_str(),
+                &proof,
+            ),
+            "worker's early read initially accepts the replay"
+        );
+        let mut advanced: serde_json::Value =
+            serde_json::from_str(&checkpoint_bytes(&source).expect("prior checkpoint"))
+                .expect("checkpoint JSON");
+        advanced["event_id"] = serde_json::json!(8);
+        advanced["continuity_proof"]["replay_coverage_end_event_id"] = serde_json::json!(8);
+        advanced["continuity_proof"]["acknowledged_end_event_id"] = serde_json::json!(8);
+        seed_checkpoint_value(&source, &advanced.to_string());
+
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        let ticket = handle
+            .acquire_scan_for_generation(source.id.as_str(), generation)
+            .expect("admit scan")
+            .release_after_projection_handoff(CommittedSourceDelta {
+                revision: 0,
+                ..CommittedSourceDelta::default()
+            });
+        assert!(
+            !ticket.replay_matches_fenced_checkpoint(&proof),
+            "the stale replay must not enter the browser projection"
+        );
+        ticket.reject("stale_replay_test_cleanup");
     }
 
     #[test]

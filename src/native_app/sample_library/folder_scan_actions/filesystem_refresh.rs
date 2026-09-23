@@ -953,10 +953,23 @@ impl NativeAppState {
                             && success.browser_projection_delta.is_some()
                             && success.committed_watcher_coverage.is_some() =>
                     {
-                        Some(
-                            permit
-                                .release_after_projection_handoff(success.committed_delta.clone()),
-                        )
+                        let ticket = permit
+                            .release_after_projection_handoff(success.committed_delta.clone());
+                        if result
+                            .watcher_continuity_proof
+                            .as_ref()
+                            .is_some_and(|proof| ticket.replay_matches_fenced_checkpoint(proof))
+                        {
+                            Some(ticket)
+                        } else {
+                            ticket.reject("targeted_replay_fenced_checkpoint_changed");
+                            success.incomplete_error = Some(String::from(
+                                "watcher replay changed before projection handoff",
+                            ));
+                            success.browser_projection_delta = None;
+                            success.committed_watcher_coverage = None;
+                            None
+                        }
                     }
                     _ => {
                         permit.release_after_handoff(ExternalScanHandoff::FullReconciliation {
