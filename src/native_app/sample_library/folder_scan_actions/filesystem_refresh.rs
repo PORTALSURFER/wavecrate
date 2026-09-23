@@ -1483,6 +1483,14 @@ mod tests {
 
         state.finish_source_filesystem_sync(result, &mut context);
 
+        assert_eq!(
+            state
+                .library
+                .folder_browser
+                .source_projection_revision(&source_id),
+            Some(current_revision),
+            "stale lifecycle completion must retain the last-good projection"
+        );
         assert!(
             state
                 .background
