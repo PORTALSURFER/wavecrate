@@ -302,6 +302,16 @@ impl NativeAppState {
                         "Retaining the last-good browser projection after unproven targeted sync completion"
                     );
                 }
+                if incomplete_error.is_none() && success.projection_handoff_ticket.is_none() {
+                    incomplete_error = Some(String::from(
+                        "targeted filesystem sync completed without a projection handoff ticket",
+                    ));
+                    tracing::warn!(
+                        source_id = %source_id,
+                        revision = delta.revision,
+                        "Retaining the last-good browser projection without a source-scoped handoff ticket"
+                    );
+                }
                 let browser_delta_applied = if incomplete_error.is_none() {
                     match success.browser_projection_delta {
                         Some(projection) => self
@@ -1258,6 +1268,54 @@ mod tests {
                 .folder_browser
                 .source_projection_revision(&source_id),
             Some(current_revision + 1)
+        );
+    }
+
+    #[test]
+    fn missing_projection_handoff_ticket_retains_last_good_projection() {
+        let (root, mut state, source_id, generation) = completion_test_state();
+        let current_revision = state
+            .library
+            .folder_browser
+            .source_projection_revision(&source_id)
+            .expect("current browser projection revision");
+        let mut result = targeted_result_with_projection(
+            &state,
+            source_id.clone(),
+            generation,
+            Some(stable_root_identity(root.path())),
+            current_revision + 1,
+        );
+        if let Ok(success) = &mut result.result {
+            success.projection_handoff_ticket = None;
+        }
+        let mut context = radiant::prelude::UiUpdateContext::default();
+
+        state.finish_source_filesystem_sync(result, &mut context);
+
+        assert_eq!(
+            state
+                .library
+                .folder_browser
+                .source_projection_revision(&source_id),
+            Some(current_revision),
+            "a missing handoff ticket must not publish the targeted projection"
+        );
+        assert!(
+            state
+                .background
+                .source_processing
+                .budget_handle()
+                .pending_watcher_checkpoint_for_tests()
+                .is_none(),
+            "a missing handoff ticket must not advance the watcher cursor"
+        );
+        assert!(
+            state
+                .background
+                .source_processing
+                .source_dirty_for_tests(&source_id),
+            "a missing handoff ticket must request authoritative reconciliation"
         );
     }
 
