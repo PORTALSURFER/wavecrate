@@ -133,6 +133,14 @@ impl ProjectionHandoffTicket {
     /// than once. Every false outcome is conservative: it requests complete source
     /// reconciliation and never publishes a targeted readiness delta.
     pub(in crate::native_app) fn accept(&self) -> bool {
+        self.accept_with_projection(|| {})
+    }
+
+    /// Publish a prepared browser projection only after the supervisor accepts its exact delta.
+    /// The source fence and control lock remain held through the infallible projection install,
+    /// so checkpoint publication and readiness cannot overtake the visible tree. The install
+    /// callback must only mutate UI-owned state; it must not call back into the supervisor.
+    pub(in crate::native_app) fn accept_with_projection(&self, install: impl FnOnce()) -> bool {
         if !self.claim_resolution(ProjectionTicketState::Accepted) {
             self.request_full_reconciliation("projection_handoff_duplicate_resolution");
             return false;
@@ -153,16 +161,6 @@ impl ProjectionHandoffTicket {
             self.request_full_reconciliation("projection_handoff_stale_or_invalid");
             return false;
         }
-        let fence_matches = control
-            .pending_projection_fences
-            .get(&self.source_id)
-            .is_some_and(|fence| {
-                fence.lifecycle_generation == self.lifecycle_generation
-                    && fence.revision == self.delta.revision
-            });
-        if fence_matches {
-            control.pending_projection_fences.remove(&self.source_id);
-        }
         let accepted = self.delta.is_empty()
             || matches!(
                 control.queue_source_delta(
@@ -177,7 +175,10 @@ impl ProjectionHandoffTicket {
             control.pending_readiness_deltas.remove(&self.source_id);
             control.cancel_source_work(&self.source_id);
             control.mark_source_dirty(&self.source_id, "projection_handoff_delta_rejected");
+        } else {
+            install();
         }
+        control.pending_projection_fences.remove(&self.source_id);
         drop(control);
         self.shared.wake.notify_one();
         accepted

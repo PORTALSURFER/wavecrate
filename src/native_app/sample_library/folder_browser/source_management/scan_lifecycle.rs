@@ -16,6 +16,15 @@ use super::super::{
 };
 use crate::native_app::app::BrowserProjectionDelta;
 
+pub(in crate::native_app) struct PreparedBrowserProjection {
+    source_id: String,
+    source_index: usize,
+    revision: u64,
+    selected: bool,
+    changed: bool,
+    root: Option<FolderEntry>,
+}
+
 impl FolderBrowserState {
     pub(in crate::native_app) fn source_projection_revision(&self, source_id: &str) -> Option<u64> {
         self.source
@@ -30,16 +39,28 @@ impl FolderBrowserState {
         source_id: &str,
         delta: BrowserProjectionDelta,
     ) -> bool {
+        let Some(prepared) = self.prepare_committed_projection_delta(source_id, delta) else {
+            return false;
+        };
+        self.commit_prepared_projection_delta(prepared);
+        true
+    }
+
+    pub(in crate::native_app) fn prepare_committed_projection_delta(
+        &self,
+        source_id: &str,
+        delta: BrowserProjectionDelta,
+    ) -> Option<PreparedBrowserProjection> {
         let Some(source_index) = self
             .source
             .sources
             .iter()
             .position(|source| source.id == source_id)
         else {
-            return false;
+            return None;
         };
         let Some(current_revision) = self.source.sources[source_index].projection_revision else {
-            return false;
+            return None;
         };
 
         if delta.manifest_revision != delta.snapshot_revision {
@@ -49,10 +70,17 @@ impl FolderBrowserState {
                 snapshot_revision = delta.snapshot_revision,
                 "Browser projection delta has mismatched manifest and snapshot revisions"
             );
-            return false;
+            return None;
         }
         if delta.manifest_revision == current_revision {
-            return true;
+            return Some(PreparedBrowserProjection {
+                source_id: source_id.to_string(),
+                source_index,
+                revision: current_revision,
+                selected: false,
+                changed: false,
+                root: None,
+            });
         }
         if delta.manifest_revision < current_revision {
             tracing::info!(
@@ -61,7 +89,7 @@ impl FolderBrowserState {
                 incoming_revision = delta.manifest_revision,
                 "Stale browser projection delta requires a full snapshot refresh"
             );
-            return false;
+            return None;
         }
         if delta.manifest_revision != current_revision.saturating_add(1) {
             tracing::info!(
@@ -70,7 +98,7 @@ impl FolderBrowserState {
                 incoming_revision = delta.manifest_revision,
                 "Browser projection revision gap requires a full snapshot refresh"
             );
-            return false;
+            return None;
         }
         let root_path =
             if self.source.selected_source == source_id && self.source.selected_tree_loaded {
@@ -82,7 +110,7 @@ impl FolderBrowserState {
                     .map(|root| Path::new(&root.id))
             };
         let Some(root_path) = root_path else {
-            return false;
+            return None;
         };
         // Reject the whole delta before removals or folder creation. A failed projection must
         // leave the last-good browser tree intact while source recovery repairs the revision.
@@ -95,18 +123,15 @@ impl FolderBrowserState {
                 path == root_path || !projection_path_is_under_root(root_path, path)
             })
         {
-            return false;
+            return None;
         }
         let selected = self.source.selected_source == source_id && self.source.selected_tree_loaded;
+        let mut root = if selected {
+            self.tree.folders.first().cloned()
+        } else {
+            self.source.sources[source_index].root_folder.clone()
+        }?;
         let changed = {
-            let root = if selected {
-                self.tree.folders.first_mut()
-            } else {
-                self.source.sources[source_index].root_folder.as_mut()
-            };
-            let Some(root) = root else {
-                return false;
-            };
             let removed = delta
                 .removed_file_ids
                 .iter()
@@ -115,30 +140,55 @@ impl FolderBrowserState {
             let mut changed = root.remove_files_by_ids(&removed);
             for folder in &delta.folders {
                 if root.ensure_folder_path(folder).is_none() {
-                    return false;
+                    return None;
                 }
             }
             for file in delta.upserted_files {
                 let Some(parent) = PathBuf::from(&file.id).parent().map(PathBuf::from) else {
-                    return false;
+                    return None;
                 };
                 let Some(folder) = root.ensure_folder_path(&parent) else {
-                    return false;
+                    return None;
                 };
                 changed |= folder.upsert_projected_file(file);
             }
             changed
         };
-        self.source.sources[source_index].projection_revision = Some(delta.snapshot_revision);
-        if changed {
-            if selected {
-                self.retain_tree_state_after_selected_source_refresh();
+        Some(PreparedBrowserProjection {
+            source_id: source_id.to_string(),
+            source_index,
+            revision: delta.snapshot_revision,
+            selected,
+            changed,
+            root: Some(root),
+        })
+    }
+
+    pub(in crate::native_app) fn commit_prepared_projection_delta(
+        &mut self,
+        prepared: PreparedBrowserProjection,
+    ) {
+        debug_assert_eq!(
+            self.source.sources[prepared.source_index].id,
+            prepared.source_id
+        );
+        if let Some(root) = prepared.root {
+            if prepared.selected {
+                self.tree.folders[0] = root;
+            } else {
+                self.source.sources[prepared.source_index].root_folder = Some(root);
             }
-            self.bump_file_content_revision();
-            self.mark_scan_content_refresh_pending();
-            self.refresh_missing_collection_state();
+            self.source.sources[prepared.source_index].projection_revision =
+                Some(prepared.revision);
+            if prepared.changed {
+                if prepared.selected {
+                    self.retain_tree_state_after_selected_source_refresh();
+                }
+                self.bump_file_content_revision();
+                self.mark_scan_content_refresh_pending();
+                self.refresh_missing_collection_state();
+            }
         }
-        true
     }
 
     pub(in crate::native_app) fn defer_add_source_path(

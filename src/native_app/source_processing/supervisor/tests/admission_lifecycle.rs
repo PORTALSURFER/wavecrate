@@ -307,7 +307,12 @@ fn accepted_empty_projection_handoff_is_a_checkpoint_only_noop() {
         ..CommittedSourceDelta::default()
     });
 
-    assert!(ticket.accept());
+    let mut installed = false;
+    assert!(ticket.accept_with_projection(|| installed = true));
+    assert!(
+        installed,
+        "accepted ticket installs its prepared projection"
+    );
     let control = supervisor.shared.control();
     assert!(
         !control
@@ -344,7 +349,7 @@ fn ignored_projection_handoff_delta_requests_full_reconciliation() {
     let ticket = permit.release_after_projection_handoff(readiness_delta(11, "ignored"));
 
     assert!(
-        !ticket.accept(),
+        !ticket.accept_with_projection(|| panic!("rejected delta must not install projection")),
         "an ignored non-empty delta needs recovery"
     );
     let control = supervisor.shared.control();

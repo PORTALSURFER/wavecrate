@@ -314,22 +314,28 @@ impl NativeAppState {
                         "Retaining the last-good browser projection without a source-scoped handoff ticket"
                     );
                 }
-                let browser_delta_applied = if incomplete_error.is_none() {
+                let prepared_projection = if incomplete_error.is_none() {
                     match success.browser_projection_delta {
                         Some(projection) => self
                             .library
                             .folder_browser
-                            .apply_committed_projection_delta(&source_id, projection),
-                        None => false,
+                            .prepare_committed_projection_delta(&source_id, projection),
+                        None => None,
                     }
                 } else {
-                    false
+                    None
                 };
-                let projection_accepted = if incomplete_error.is_none() && browser_delta_applied {
+                let projection_accepted = if let Some(prepared) = prepared_projection {
                     success
                         .projection_handoff_ticket
                         .as_ref()
-                        .is_some_and(|ticket| ticket.accept())
+                        .is_some_and(|ticket| {
+                            ticket.accept_with_projection(|| {
+                                self.library
+                                    .folder_browser
+                                    .commit_prepared_projection_delta(prepared);
+                            })
+                        })
                 } else {
                     if let Some(ticket) = success.projection_handoff_ticket.as_ref() {
                         ticket.reject("projection_handoff_projection_rejected");
@@ -1674,6 +1680,51 @@ mod tests {
                 .background
                 .source_processing
                 .source_dirty_for_tests(&source_id)
+        );
+    }
+
+    #[test]
+    fn rejected_ticket_after_valid_projection_retains_last_good_revision() {
+        let (root, mut state, source_id, generation) = completion_test_state();
+        let current_revision = state
+            .library
+            .folder_browser
+            .source_projection_revision(&source_id)
+            .expect("current browser projection revision");
+        let result = targeted_result_with_projection(
+            &state,
+            source_id.clone(),
+            generation,
+            Some(stable_root_identity(root.path())),
+            current_revision + 1,
+        );
+        result
+            .result
+            .as_ref()
+            .expect("successful worker result")
+            .projection_handoff_ticket
+            .as_ref()
+            .expect("projection ticket")
+            .reject("rejected_after_preparation_test");
+        let mut context = radiant::prelude::UiUpdateContext::default();
+
+        state.finish_source_filesystem_sync(result, &mut context);
+
+        assert_eq!(
+            state
+                .library
+                .folder_browser
+                .source_projection_revision(&source_id),
+            Some(current_revision),
+            "a rejected ticket must not install the prepared browser projection"
+        );
+        assert!(
+            state
+                .background
+                .source_processing
+                .budget_handle()
+                .pending_watcher_checkpoint_for_tests()
+                .is_none()
         );
     }
 

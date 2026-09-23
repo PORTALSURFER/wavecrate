@@ -890,15 +890,16 @@ impl NativeAppState {
                 .changes
                 .iter()
                 .find_map(|change| change.after_path.clone());
-            let browser_projection_applied =
+            let prepared_projection =
                 event
                     .browser_projection_delta
                     .clone()
-                    .is_some_and(|projection| {
+                    .and_then(|projection| {
                         self.library
                             .folder_browser
-                            .apply_committed_projection_delta(source_id.as_str(), projection)
+                            .prepare_committed_projection_delta(source_id.as_str(), projection)
                     });
+            let projection_prepared = prepared_projection.is_some();
             let projection_accepted = if cfg!(test)
                 && event.projection_handoff_ticket.is_none()
                 && event.browser_projection_delta.is_none()
@@ -908,17 +909,24 @@ impl NativeAppState {
                 // the accepted projection that the runtime supervisor would publish.
                 true
             } else {
-                event
-                    .projection_handoff_ticket
-                    .as_ref()
-                    .is_some_and(|ticket| browser_projection_applied && ticket.accept())
+                match (
+                    prepared_projection,
+                    event.projection_handoff_ticket.as_ref(),
+                ) {
+                    (Some(prepared), Some(ticket)) => ticket.accept_with_projection(|| {
+                        self.library
+                            .folder_browser
+                            .commit_prepared_projection_delta(prepared);
+                    }),
+                    _ => false,
+                }
             };
             if !projection_accepted {
                 if history_correlation == Some(cursor.correlation) {
                     history_accepted = false;
                 }
                 if let Some(ticket) = event.projection_handoff_ticket.as_ref()
-                    && !browser_projection_applied
+                    && !projection_prepared
                 {
                     ticket.reject("committed_mutation_projection_rejected");
                 }
@@ -1052,7 +1060,7 @@ impl NativeAppState {
                 .iter()
                 .filter_map(|change| change.projection.as_ref())
                 .collect::<Vec<_>>();
-            if !browser_projection_applied
+            if !projection_prepared
                 && !projections
                     .iter()
                     .any(|projection| projection.replaces_default_refresh())
