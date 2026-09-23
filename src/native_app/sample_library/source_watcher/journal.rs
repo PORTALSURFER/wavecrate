@@ -719,10 +719,7 @@ fn recover_source(source: &SampleSource, native_watcher: bool) -> JournalRecover
             reason: "watcher_backend_has_no_durable_journal",
         };
     }
-    let Some(root_identity) = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
-    else {
+    let Some(root_identity) = source_root_identity_no_follow(source) else {
         return JournalRecovery::FullAudit {
             reason: "source_root_identity_unavailable",
         };
@@ -778,6 +775,13 @@ fn recover_source(source: &SampleSource, native_watcher: bool) -> JournalRecover
     }
 }
 
+fn source_root_identity_no_follow(source: &SampleSource) -> Option<String> {
+    std::fs::symlink_metadata(&source.root)
+        .ok()
+        .filter(|metadata| metadata.file_type().is_dir())
+        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
+}
+
 /// Advance a replay cursor only after the target filesystem reconciliation has committed.
 #[cfg(test)]
 pub(super) fn advance_after_reconciliation(
@@ -791,10 +795,7 @@ pub(super) fn advance_after_reconciliation(
     else {
         return;
     };
-    let Some(root_identity) = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
-    else {
+    let Some(root_identity) = source_root_identity_no_follow(source) else {
         return;
     };
     let Ok(Some(mut checkpoint)) = load_checkpoint(source) else {
@@ -826,9 +827,7 @@ pub(super) fn capture_audit_barrier(
     let source = sources
         .iter()
         .find(|source| source.id.as_str() == source_id)?;
-    let root_identity = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))?;
+    let root_identity = source_root_identity_no_follow(source)?;
     Some(AuditBarrier(SourceWatcherCheckpoint::legacy(
         root_identity,
         event_id,
@@ -1192,6 +1191,27 @@ mod tests {
     use super::*;
     use wavecrate::sample_sources::SourceId;
     use wavecrate_library::sample_sources::SourceDatabase;
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_replacement_root_cannot_supply_replay_or_audit_barrier() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let root = directory.path().join("root");
+        std::fs::create_dir(&root).expect("create source root");
+        let source = SampleSource::new_with_id(SourceId::from_string("source-a"), root.clone());
+        assert!(capture_audit_barrier(&[source.clone()], "source-a").is_some());
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).expect("move original root");
+        std::os::unix::fs::symlink(&moved, &root).expect("replace named root with symlink");
+
+        assert!(capture_audit_barrier(&[source.clone()], "source-a").is_none());
+        assert_eq!(
+            recover_source(&source, true),
+            JournalRecovery::FullAudit {
+                reason: "source_root_identity_unavailable"
+            }
+        );
+    }
 
     fn continuity_proof(
         root_identity: &str,
