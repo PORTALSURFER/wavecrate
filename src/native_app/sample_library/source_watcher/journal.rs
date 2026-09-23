@@ -776,10 +776,14 @@ fn recover_source(source: &SampleSource, native_watcher: bool) -> JournalRecover
 }
 
 fn source_root_identity_no_follow(source: &SampleSource) -> Option<String> {
-    std::fs::symlink_metadata(&source.root)
+    root_identity_no_follow(&source.root)
+}
+
+fn root_identity_no_follow(root: &Path) -> Option<String> {
+    std::fs::symlink_metadata(root)
         .ok()
         .filter(|metadata| metadata.file_type().is_dir())
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
+        .and_then(|metadata| stable_filesystem_identity(root, &metadata))
 }
 
 /// Advance a replay cursor only after the target filesystem reconciliation has committed.
@@ -867,18 +871,21 @@ fn replay_fsevents(
     root_identity: String,
     event_id: u64,
 ) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
-    macos::replay(root, event_id).map(|replay| {
-        let proof = WatcherContinuityProof {
-            root_identity,
-            backend: WatcherBackend::Fsevents,
-            backend_device: replay.backend_device,
-            watcher_generation: replay.watcher_generation,
-            replay_coverage_start_event_id: replay.replay_start_event_id,
-            replay_coverage_end_event_id: replay.replay_end_event_id,
-            acknowledged_end_event_id: replay.replay_end_event_id,
-        };
-        (replay.paths, proof)
-    })
+    let replay = macos::replay(root, event_id)?;
+    // A replacement root can occupy the same path after the checkpoint identity was read.
+    if root_identity_no_follow(root).as_deref() != Some(root_identity.as_str()) {
+        return Err("source_root_identity_changed");
+    }
+    let proof = WatcherContinuityProof {
+        root_identity,
+        backend: WatcherBackend::Fsevents,
+        backend_device: replay.backend_device,
+        watcher_generation: replay.watcher_generation,
+        replay_coverage_start_event_id: replay.replay_start_event_id,
+        replay_coverage_end_event_id: replay.replay_end_event_id,
+        acknowledged_end_event_id: replay.replay_end_event_id,
+    };
+    Ok((replay.paths, proof))
 }
 
 #[cfg(target_os = "macos")]
@@ -1233,19 +1240,44 @@ mod tests {
             "live watcher omitted the created entry: {:?}",
             live_event.paths
         );
-        let replay = macos::replay(&root, cursor).expect("replay native FSEvents history");
+        let root_identity = root_identity_no_follow(&root).expect("source root identity");
+        let (paths, proof) =
+            replay_fsevents(&root, root_identity, cursor).expect("replay native FSEvents history");
         assert_eq!(
-            replay.backend_device,
+            proof.backend_device,
             std::fs::symlink_metadata(&root)
                 .expect("source root metadata")
                 .dev()
         );
         assert!(
-            replay.paths.contains(&created),
+            paths.contains(&created),
             "native replay omitted the created entry: {:?}",
-            replay.paths
+            paths
         );
-        assert!(replay.replay_end_event_id >= cursor);
+        assert!(proof.replay_coverage_end_event_id >= cursor);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents root-replacement acceptance"]
+    fn native_history_cannot_bind_replacement_root_to_old_identity() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        std::fs::rename(&root, directory.path().join("old-source")).expect("move original root");
+        std::fs::create_dir(&root).expect("create replacement root");
+        assert_ne!(
+            root_identity_no_follow(&root).expect("replacement root identity"),
+            old_identity
+        );
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        std::fs::write(root.join("replacement.wav"), b"fixture").expect("create replacement entry");
+
+        assert!(matches!(
+            replay_fsevents(&root, old_identity, cursor),
+            Err("source_root_identity_changed")
+        ));
     }
 
     #[cfg(unix)]
