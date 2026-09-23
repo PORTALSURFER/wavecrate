@@ -132,6 +132,7 @@ impl ProjectionHandoffTicket {
     /// `false` means the ticket was stale, invalid, rejected by the supervisor, or resolved more
     /// than once. Every false outcome is conservative: it requests complete source
     /// reconciliation and never publishes a targeted readiness delta.
+    #[cfg(test)]
     pub(in crate::native_app) fn accept(&self) -> bool {
         self.accept_with_projection(|| {})
     }
