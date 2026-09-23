@@ -742,6 +742,65 @@ fn failed_audit_receipt_cannot_finish_native_watcher_barrier() {
 }
 
 #[test]
+fn rejected_committed_audit_event_cannot_finish_watcher_barrier() {
+    use wavecrate_library::sample_sources::reconciliation::RootIdentity;
+
+    let (_directory, source) = unhashed_source("rejected-audit-publication");
+    let root_metadata = std::fs::metadata(&source.root).expect("source root metadata");
+    let root_identity = RootIdentity::from_bytes(
+        wavecrate_library::filesystem_identity::stable_filesystem_identity(
+            &source.root,
+            &root_metadata,
+        )
+        .expect("stable source root identity")
+        .into_bytes(),
+    );
+    let request = test_live_audit_requests(&source.id, &root_identity).remove(0);
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let mut events = Vec::new();
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        Some(request),
+        &mut |event| {
+            if matches!(event, SourceProcessingEvent::ManifestAuditCommitted { .. }) {
+                return false;
+            }
+            events.push(event);
+            true
+        },
+    )
+    .expect("committed audit publication failure returns retryable outcome");
+
+    assert_eq!(outcome, ExecutionOutcome::Failed);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: false,
+            receipt: Some(receipt),
+            ..
+        } if !receipt.is_complete()
+    )));
+    assert!(!events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
+    )));
+}
+
+#[test]
 fn audit_requests_with_different_root_or_generation_stay_separate_and_fenced() {
     use wavecrate_library::sample_sources::reconciliation::{
         RawObservationLimits, ReconciliationAdmissionLimits, ReconciliationAdmissionOwner,

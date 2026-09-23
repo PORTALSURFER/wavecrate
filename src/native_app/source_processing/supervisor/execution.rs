@@ -209,6 +209,11 @@ pub(super) fn execute_candidate_with_presentation(
                 !manifest_complete,
                 cancelled,
             );
+            // A committed database revision without a delivered delta is not a completed audit
+            // handoff. Preserve cancellation as its own outcome when both conditions occur.
+            if !audit_published && !cancelled {
+                execution_outcome = ExecutionOutcome::Failed;
+            }
             let receipt = if matches!(
                 execution_outcome,
                 ExecutionOutcome::Completed | ExecutionOutcome::CompletedAwaitingForegroundRefresh
