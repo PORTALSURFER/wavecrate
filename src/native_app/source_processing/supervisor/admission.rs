@@ -179,6 +179,7 @@ impl ProjectionHandoffTicket {
             install();
         }
         control.pending_projection_fences.remove(&self.source_id);
+        control.notify("projection_handoff_resolved");
         drop(control);
         self.shared.wake.notify_one();
         accepted
@@ -218,6 +219,7 @@ impl ProjectionHandoffTicket {
         if fence_matches {
             control.pending_projection_fences.remove(&self.source_id);
             control.pending_readiness_deltas.remove(&self.source_id);
+            control.notify("projection_handoff_rejected");
         }
         if control.source_is_active(&self.source_id)
             && control.source_lifecycle_generations.get(&self.source_id)
@@ -538,6 +540,7 @@ impl SourceProcessingBudgetPermit {
                     revision: ticket.delta.revision,
                 },
             );
+            control.notify("projection_handoff_fence_installed");
             self.handoff_registered = true;
         } else {
             drop(control);

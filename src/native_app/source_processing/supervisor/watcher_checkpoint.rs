@@ -379,7 +379,12 @@ mod tests {
         );
         assert_eq!(shared.control().pending_watcher_checkpoints.len(), 1);
 
+        let wake_before_resolution = shared.control().wake_generation;
         assert!(ticket.accept());
+        assert!(
+            shared.control().wake_generation > wake_before_resolution,
+            "empty handoff acceptance must wake the owner of deferred checkpoints"
+        );
         process_pending_watcher_checkpoints(&shared);
         let committed = checkpoint_bytes(&source).expect("committed checkpoint");
         assert_eq!(
