@@ -585,9 +585,17 @@ mod tests {
         retained.sort();
         assert_eq!(retained, names[8..=17]);
         assert!(names[..8].iter().all(|path| !path.exists()));
-        assert!(retained
-            .iter()
-            .all(|path| fs::metadata(path).unwrap().len() <= 96));
+        assert!(
+            retained
+                .iter()
+                .all(|path| fs::metadata(path).unwrap().len() <= 96)
+        );
+        for (index, path) in names.iter().enumerate().take(16).skip(8) {
+            assert_eq!(
+                fs::read(path).unwrap(),
+                format!("{index:02}").repeat(32).as_bytes()
+            );
+        }
         assert_eq!(fs::read(&names[16]).unwrap(), [b'X'; 96]);
         assert_eq!(fs::read(&names[17]).unwrap(), b"final");
         assert_eq!(
