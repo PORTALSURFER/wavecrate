@@ -887,6 +887,7 @@ mod macos {
     use fsevent_sys::{self as fs, core_foundation as cf};
     use std::{
         ffi::{CStr, c_void},
+        os::unix::fs::MetadataExt,
         ptr,
         sync::{Mutex, OnceLock, atomic::AtomicU64, mpsc},
         time::Duration,
@@ -1025,19 +1026,6 @@ mod macos {
                 return Err(error);
             }
         };
-        let backend_device = match u64::try_from(unsafe {
-            fs::FSEventStreamGetDeviceBeingWatched(stream as fs::ConstFSEventStreamRef)
-        }) {
-            Ok(device) if device != 0 => device,
-            _ => {
-                unsafe {
-                    fs::FSEventStreamInvalidate(stream);
-                    fs::FSEventStreamRelease(stream);
-                    drop(Box::from_raw(context));
-                }
-                return Err("watcher_history_device_unavailable");
-            }
-        };
         let run_loop = unsafe { cf::CFRunLoopGetCurrent() };
         unsafe {
             fs::FSEventStreamScheduleWithRunLoop(stream, run_loop, cf::kCFRunLoopDefaultMode);
@@ -1048,6 +1036,25 @@ mod macos {
                 return Err("watcher_history_start_failed");
             }
         }
+        // This is a path-based stream, not a per-device stream. Bind replay to the unfollowed
+        // source root's device without querying the per-device stream accessor.
+        let backend_device = match std::fs::symlink_metadata(root)
+            .ok()
+            .filter(|metadata| metadata.file_type().is_dir())
+            .map(|metadata| metadata.dev())
+            .filter(|device| *device != 0)
+        {
+            Some(device) => device,
+            None => {
+                unsafe {
+                    fs::FSEventStreamStop(stream);
+                    fs::FSEventStreamInvalidate(stream);
+                    fs::FSEventStreamRelease(stream);
+                    drop(Box::from_raw(context));
+                }
+                return Err("watcher_history_device_unavailable");
+            }
+        };
         let retained_run_loop = unsafe { CFRetain(run_loop) as cf::CFRunLoopRef };
         if run_loop_tx.send(RunLoopHandle(retained_run_loop)).is_err() {
             unsafe {
@@ -1197,6 +1204,7 @@ mod tests {
     #[ignore = "manual native FSEvents acceptance; requires a host that can start a history stream"]
     fn native_fsevents_history_replays_created_file() {
         use notify::Watcher as _;
+        use std::os::unix::fs::MetadataExt as _;
 
         let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
         let root = directory.path().join("source");
@@ -1223,6 +1231,12 @@ mod tests {
             live_event.paths
         );
         let replay = macos::replay(&root, cursor).expect("replay native FSEvents history");
+        assert_eq!(
+            replay.backend_device,
+            std::fs::symlink_metadata(&root)
+                .expect("source root metadata")
+                .dev()
+        );
         assert!(
             replay.paths.contains(&created),
             "native replay omitted the created entry: {:?}",
