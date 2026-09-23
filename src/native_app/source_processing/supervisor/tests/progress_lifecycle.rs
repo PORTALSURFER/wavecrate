@@ -479,7 +479,7 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
 fn delivered_manifest_handoff_survives_post_commit_cancellation() {
     assert_eq!(
         manifest_audit_execution_outcome(true, false, true),
-        ExecutionOutcome::CompletedAwaitingForegroundRefresh
+        ExecutionOutcome::FailedAwaitingForegroundRefresh
     );
     assert_eq!(
         manifest_audit_execution_outcome(true, true, true),
@@ -493,6 +493,57 @@ fn delivered_manifest_handoff_survives_post_commit_cancellation() {
         manifest_audit_execution_outcome(false, true, false),
         ExecutionOutcome::Failed
     );
+}
+
+#[test]
+fn post_commit_cancellation_does_not_finish_watcher_barrier() {
+    let directory = tempfile::tempdir().expect("manifest audit source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("cancelled-audit-barrier"),
+        directory.path().to_path_buf(),
+    );
+    source.open_db().expect("create source database");
+    std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+        .expect("write missed watcher file");
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let cancel = AtomicBool::new(false);
+    let mut events = Vec::new();
+    let outcome = execute_candidate(
+        &candidate,
+        0,
+        &cancel,
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        &mut |event| {
+            if matches!(event, SourceProcessingEvent::ManifestAuditCommitted { .. }) {
+                cancel.store(true, Ordering::Release);
+            }
+            events.push(event);
+            true
+        },
+    )
+    .expect("committed audit handoff survives cancellation");
+    assert_eq!(outcome, ExecutionOutcome::FailedAwaitingForegroundRefresh);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditCommitted { complete: true, .. }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: false,
+            ..
+        }
+    )));
 }
 
 #[test]

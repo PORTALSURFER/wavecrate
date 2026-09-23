@@ -692,6 +692,56 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
 }
 
 #[test]
+fn failed_audit_receipt_cannot_finish_native_watcher_barrier() {
+    let (_directory, source) = unhashed_source("failed-audit-receipt");
+    let request = test_live_audit_requests(
+        &source.id,
+        &wavecrate_library::sample_sources::reconciliation::RootIdentity::from_bytes(
+            b"stale-root".to_vec(),
+        ),
+    )
+    .remove(0);
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let mut events = Vec::new();
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        Some(request),
+        &mut |event| {
+            events.push(event);
+            true
+        },
+    )
+    .expect("manifest traversal completes despite mismatched audit request");
+    assert_eq!(outcome, ExecutionOutcome::FailedAwaitingForegroundRefresh);
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditCommitted { complete: true, .. }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: false,
+            receipt: Some(receipt),
+            ..
+        } if !receipt.is_complete()
+    )));
+}
+
+#[test]
 fn audit_requests_with_different_root_or_generation_stay_separate_and_fenced() {
     use wavecrate_library::sample_sources::reconciliation::{
         RawObservationLimits, ReconciliationAdmissionLimits, ReconciliationAdmissionOwner,
