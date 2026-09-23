@@ -1125,6 +1125,7 @@ mod macos {
             copy_description: None,
         };
         let stream = unsafe {
+            // RootChanged is a replay gap only if the stream requests root-path changes.
             fs::FSEventStreamCreate(
                 cf::kCFAllocatorDefault,
                 history_callback,
@@ -1132,7 +1133,9 @@ mod macos {
                 paths,
                 event_id,
                 0.0,
-                fs::kFSEventStreamCreateFlagFileEvents | fs::kFSEventStreamCreateFlagNoDefer,
+                fs::kFSEventStreamCreateFlagFileEvents
+                    | fs::kFSEventStreamCreateFlagNoDefer
+                    | fs::kFSEventStreamCreateFlagWatchRoot,
             )
         };
         unsafe { cf::CFRelease(paths) };
