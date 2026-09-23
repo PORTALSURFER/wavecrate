@@ -1192,6 +1192,27 @@ mod tests {
     use wavecrate::sample_sources::SourceId;
     use wavecrate_library::sample_sources::SourceDatabase;
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents acceptance; requires a host that can start a history stream"]
+    fn native_fsevents_history_replays_created_file() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create source root");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+
+        let created = root.join("created.wav");
+        std::fs::write(&created, b"fixture").expect("create source entry");
+        let replay = macos::replay(&root, cursor).expect("replay native FSEvents history");
+        assert!(
+            replay.paths.contains(&created),
+            "native replay omitted the created entry: {:?}",
+            replay.paths
+        );
+        assert!(replay.replay_end_event_id >= cursor);
+    }
+
     #[cfg(unix)]
     #[test]
     fn symlinked_replacement_root_cannot_supply_replay_or_audit_barrier() {
