@@ -19,10 +19,10 @@ pub(in crate::native_app) use loading::{
     SamplePlaybackReady, SampleSelectionLoadState,
 };
 pub(in crate::native_app) use message::{
-    AudioOutputPersistResult, BrowserProjectionDelta, BrowserScrollSurface, GuiMessage,
-    MetadataMessage, SettingsMessage, SimilaritySettingsPersistResult,
-    SourceFilesystemSyncAuditReason, SourceFilesystemSyncResult, SourceFilesystemSyncSuccess,
-    TrashMoveTarget, VolumeSettingsPersistResult,
+    AudioOutputPersistResult, BrowserProjectionDelta, BrowserScrollSurface,
+    CommittedWatcherCoverage, GuiMessage, MetadataMessage, SettingsMessage,
+    SimilaritySettingsPersistResult, SourceFilesystemSyncAuditReason, SourceFilesystemSyncResult,
+    SourceFilesystemSyncSuccess, TrashMoveTarget, VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{
     FileMoveProgress, NormalizationFailure, NormalizationHarvestDerivation, NormalizationProgress,

@@ -530,8 +530,20 @@ pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
     pub(in crate::native_app) committed_source_index_delta:
         wavecrate::sample_sources::scanner::CommittedSourceIndexDelta,
     pub(in crate::native_app) browser_projection_delta: Option<BrowserProjectionDelta>,
+    pub(in crate::native_app) committed_watcher_coverage: Option<CommittedWatcherCoverage>,
     pub(in crate::native_app) projection_handoff_ticket:
         Option<crate::native_app::source_processing::ProjectionHandoffTicket>,
+}
+
+/// Exact source region proved by a completed database worker after the watcher replay boundary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct CommittedWatcherCoverage {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) root_identity: String,
+    pub(in crate::native_app) source_revision: u64,
+    pub(in crate::native_app) exact_entries:
+        Vec<wavecrate_library::sample_sources::reconciliation::RootRelativePath>,
+    pub(in crate::native_app) replay_proof: WatcherContinuityProof,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

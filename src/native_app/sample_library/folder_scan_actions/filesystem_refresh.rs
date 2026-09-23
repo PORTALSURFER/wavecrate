@@ -3,8 +3,9 @@ use std::{path::PathBuf, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncAuditReason,
-    SourceFilesystemSyncResult, SourceRefreshCause, SourceRefreshRequest, emit_gui_action,
+    CommittedWatcherCoverage, GuiMessage, NativeAppState, SourceFilesystemChangePlan,
+    SourceFilesystemSyncAuditReason, SourceFilesystemSyncResult, SourceRefreshCause,
+    SourceRefreshRequest, emit_gui_action,
 };
 use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::{
     capture_source_root_identity, recover_source_filesystem_sync,
@@ -290,6 +291,7 @@ impl NativeAppState {
                     root_identity.as_ref(),
                     journal_checkpoint_event_id,
                     watcher_continuity_proof.as_ref(),
+                    success.committed_watcher_coverage.as_ref(),
                 );
                 if incomplete_error.is_none() && !watcher_authority_is_valid {
                     incomplete_error = Some(String::from(
@@ -948,7 +950,8 @@ impl NativeAppState {
                         if result.audit_required.is_none()
                             && !result.cancelled
                             && success.incomplete_error.is_none()
-                            && success.browser_projection_delta.is_some() =>
+                            && success.browser_projection_delta.is_some()
+                            && success.committed_watcher_coverage.is_some() =>
                     {
                         Some(
                             permit
@@ -1006,21 +1009,30 @@ fn targeted_replay_completion_has_valid_authority(
     root_identity: Option<&String>,
     event_id: Option<u64>,
     continuity_proof: Option<&WatcherContinuityProof>,
+    committed_coverage: Option<&CommittedWatcherCoverage>,
 ) -> bool {
-    let (Some(root_identity), Some(event_id), Some(continuity_proof)) =
-        (root_identity, event_id, continuity_proof)
-    else {
+    let (Some(root_identity), Some(event_id), Some(continuity_proof), Some(coverage)) = (
+        root_identity,
+        event_id,
+        continuity_proof,
+        committed_coverage,
+    ) else {
         return false;
     };
-    targeted_replay_request_has_valid_proof(&RevisionBoundCheckpoint {
-        source_id: source_id.to_string(),
-        lifecycle_generation,
-        source_revision,
-        root_identity: root_identity.clone(),
-        event_id,
-        cause: CheckpointCause::TargetedReplay,
-        continuity_proof: Some(continuity_proof.clone()),
-    })
+    coverage.source_id == source_id
+        && coverage.root_identity == *root_identity
+        && coverage.source_revision == source_revision
+        && !coverage.exact_entries.is_empty()
+        && coverage.replay_proof == *continuity_proof
+        && targeted_replay_request_has_valid_proof(&RevisionBoundCheckpoint {
+            source_id: source_id.to_string(),
+            lifecycle_generation,
+            source_revision,
+            root_identity: root_identity.clone(),
+            event_id,
+            cause: CheckpointCause::TargetedReplay,
+            continuity_proof: Some(continuity_proof.clone()),
+        })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1043,11 +1055,14 @@ fn manifest_audit_followup(
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::{ManifestAuditFollowup, manifest_audit_followup};
+    use super::{
+        ManifestAuditFollowup, manifest_audit_followup,
+        targeted_replay_completion_has_valid_authority,
+    };
     use crate::native_app::{
         app::{
-            BrowserProjectionDelta, SourceFilesystemSyncAuditReason, SourceFilesystemSyncResult,
-            SourceFilesystemSyncSuccess,
+            BrowserProjectionDelta, CommittedWatcherCoverage, SourceFilesystemSyncAuditReason,
+            SourceFilesystemSyncResult, SourceFilesystemSyncSuccess,
         },
         sample_library::folder_browser::{FolderBrowserState, scan::scan_source_with_progress},
         sample_library::source_watcher::{
@@ -1059,6 +1074,7 @@ mod tests {
     use wavecrate::sample_sources::scanner::{CommittedSourceDelta, ManifestIdentityDelta};
     use wavecrate::sample_sources::{SampleSource, SourceId};
     use wavecrate_library::filesystem_identity::stable_filesystem_identity;
+    use wavecrate_library::sample_sources::reconciliation::RootRelativePath;
 
     fn replay_proof(root_identity: &str, end_event_id: u64) -> WatcherContinuityProof {
         WatcherContinuityProof {
@@ -1173,6 +1189,7 @@ mod tests {
                 },
                 committed_source_index_delta: Default::default(),
                 browser_projection_delta: projection,
+                committed_watcher_coverage: None,
                 projection_handoff_ticket: None,
             }),
         }
@@ -1197,6 +1214,19 @@ mod tests {
         let watcher_continuity_proof = root_identity
             .as_deref()
             .map(|root_identity| replay_proof(root_identity, 73));
+        let committed_watcher_coverage = root_identity
+            .as_ref()
+            .zip(watcher_continuity_proof.as_ref())
+            .map(|(root_identity, proof)| CommittedWatcherCoverage {
+                source_id: source_id.clone(),
+                root_identity: root_identity.clone(),
+                source_revision: projection_revision,
+                exact_entries: vec![
+                    RootRelativePath::try_from_path(PathBuf::from("new.wav"))
+                        .expect("exact test entry"),
+                ],
+                replay_proof: proof.clone(),
+            });
         let ticket = state
             .background
             .source_processing
@@ -1225,6 +1255,7 @@ mod tests {
                     removed_file_ids: Vec::new(),
                     upserted_files: Vec::new(),
                 }),
+                committed_watcher_coverage,
                 projection_handoff_ticket: Some(ticket),
             }),
         }
@@ -1272,6 +1303,61 @@ mod tests {
     }
 
     #[test]
+    fn committed_watcher_coverage_binds_source_revision_region_and_replay() {
+        let (root, state, source_id, generation) = completion_test_state();
+        let revision = state
+            .library
+            .folder_browser
+            .source_projection_revision(&source_id)
+            .expect("current browser projection revision")
+            + 1;
+        let root_identity = stable_root_identity(root.path());
+        let result = targeted_result_with_projection(
+            &state,
+            source_id.clone(),
+            generation,
+            Some(root_identity.clone()),
+            revision,
+        );
+        let replay_proof = result
+            .watcher_continuity_proof
+            .as_ref()
+            .expect("replay proof");
+        let coverage = result
+            .result
+            .as_ref()
+            .expect("successful worker result")
+            .committed_watcher_coverage
+            .as_ref()
+            .expect("committed coverage");
+        let valid = |coverage: &CommittedWatcherCoverage| {
+            targeted_replay_completion_has_valid_authority(
+                &source_id,
+                generation,
+                revision,
+                Some(&root_identity),
+                Some(73),
+                Some(replay_proof),
+                Some(coverage),
+            )
+        };
+        assert!(valid(coverage));
+
+        let mut other_source = coverage.clone();
+        other_source.source_id = String::from("other-source");
+        assert!(!valid(&other_source));
+        let mut other_revision = coverage.clone();
+        other_revision.source_revision += 1;
+        assert!(!valid(&other_revision));
+        let mut missing_region = coverage.clone();
+        missing_region.exact_entries.clear();
+        assert!(!valid(&missing_region));
+        let mut other_stream = coverage.clone();
+        other_stream.replay_proof.watcher_generation += 1;
+        assert!(!valid(&other_stream));
+    }
+
+    #[test]
     fn missing_projection_handoff_ticket_retains_last_good_projection() {
         let (root, mut state, source_id, generation) = completion_test_state();
         let current_revision = state
@@ -1316,6 +1402,48 @@ mod tests {
                 .source_processing
                 .source_dirty_for_tests(&source_id),
             "a missing handoff ticket must request authoritative reconciliation"
+        );
+    }
+
+    #[test]
+    fn replay_metadata_without_committed_region_cannot_publish_projection() {
+        let (root, mut state, source_id, generation) = completion_test_state();
+        let current_revision = state
+            .library
+            .folder_browser
+            .source_projection_revision(&source_id)
+            .expect("current browser projection revision");
+        let mut result = targeted_result_with_projection(
+            &state,
+            source_id.clone(),
+            generation,
+            Some(stable_root_identity(root.path())),
+            current_revision + 1,
+        );
+        result
+            .result
+            .as_mut()
+            .expect("successful worker result")
+            .committed_watcher_coverage = None;
+        let mut context = radiant::prelude::UiUpdateContext::default();
+
+        state.finish_source_filesystem_sync(result, &mut context);
+
+        assert_eq!(
+            state
+                .library
+                .folder_browser
+                .source_projection_revision(&source_id),
+            Some(current_revision),
+            "pre-commit replay metadata cannot publish without committed region coverage"
+        );
+        assert!(
+            state
+                .background
+                .source_processing
+                .budget_handle()
+                .pending_watcher_checkpoint_for_tests()
+                .is_none()
         );
     }
 
