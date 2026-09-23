@@ -1,4 +1,7 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Component, Path, PathBuf},
+};
 
 #[cfg(test)]
 use super::super::scan_types::FolderScanDiscovery;
@@ -67,6 +70,31 @@ impl FolderBrowserState {
                 incoming_revision = delta.manifest_revision,
                 "Browser projection revision gap requires a full snapshot refresh"
             );
+            return false;
+        }
+        let root_path =
+            if self.source.selected_source == source_id && self.source.selected_tree_loaded {
+                self.tree.folders.first().map(|root| Path::new(&root.id))
+            } else {
+                self.source.sources[source_index]
+                    .root_folder
+                    .as_ref()
+                    .map(|root| Path::new(&root.id))
+            };
+        let Some(root_path) = root_path else {
+            return false;
+        };
+        // Reject the whole delta before removals or folder creation. A failed projection must
+        // leave the last-good browser tree intact while source recovery repairs the revision.
+        if delta
+            .folders
+            .iter()
+            .any(|folder| !projection_path_is_under_root(root_path, folder))
+            || delta.upserted_files.iter().any(|file| {
+                let path = Path::new(&file.id);
+                path == root_path || !projection_path_is_under_root(root_path, path)
+            })
+        {
             return false;
         }
         let selected = self.source.selected_source == source_id && self.source.selected_tree_loaded;
@@ -603,6 +631,14 @@ impl FolderBrowserState {
         }
         changed
     }
+}
+
+fn projection_path_is_under_root(root: &Path, path: &Path) -> bool {
+    path.strip_prefix(root).is_ok_and(|relative| {
+        relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    })
 }
 
 fn retained_source_entry(root: &std::path::Path) -> Option<SourceEntry> {

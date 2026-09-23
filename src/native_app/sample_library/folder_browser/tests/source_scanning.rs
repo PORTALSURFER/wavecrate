@@ -332,6 +332,76 @@ fn committed_projection_delta_applies_only_at_the_next_revision() {
 }
 
 #[test]
+fn invalid_committed_projection_path_retains_last_good_browser_tree() {
+    let root = temp_source_root("wavecrate-gui-invalid-projection-path");
+    let old = root.join("old.wav");
+    fs::write(&old, [0_u8; 8]).expect("write original");
+    let mut browser = FolderBrowserState::load_default();
+    let request = browser
+        .begin_add_source_path(root.clone(), 52)
+        .expect("initial scan");
+    let source_id = request.source_id.clone();
+    assert!(browser.apply_scan_finished(scan_source_with_progress(request, |_| {}, |_| {})));
+    let revision = browser
+        .source_projection_revision(&source_id)
+        .expect("initial projection revision");
+    let outside = root.parent().expect("source parent").join("outside.wav");
+
+    for delta in [
+        BrowserProjectionDelta {
+            manifest_revision: revision + 1,
+            snapshot_revision: revision + 1,
+            folders: vec![root.join("valid"), outside.clone()],
+            removed_file_ids: vec![path_id(&old)],
+            upserted_files: Vec::new(),
+        },
+        BrowserProjectionDelta {
+            manifest_revision: revision + 1,
+            snapshot_revision: revision + 1,
+            folders: vec![root.join("valid")],
+            removed_file_ids: vec![path_id(&old)],
+            upserted_files: vec![file_entry_with_snapshot_metadata(
+                &outside,
+                12,
+                Rating::NEUTRAL,
+                false,
+                Vec::new(),
+                None,
+                None,
+            )],
+        },
+        BrowserProjectionDelta {
+            manifest_revision: revision + 1,
+            snapshot_revision: revision + 1,
+            folders: Vec::new(),
+            removed_file_ids: vec![path_id(&old)],
+            upserted_files: vec![file_entry_with_snapshot_metadata(
+                &root,
+                12,
+                Rating::NEUTRAL,
+                false,
+                Vec::new(),
+                None,
+                None,
+            )],
+        },
+    ] {
+        assert!(!browser.apply_committed_projection_delta(&source_id, delta));
+        assert_eq!(
+            browser.source_projection_revision(&source_id),
+            Some(revision)
+        );
+        assert!(browser.tree.folders[0].find_file(&path_id(&old)).is_some());
+        assert!(
+            browser.tree.folders[0]
+                .find(&path_id(&root.join("valid")))
+                .is_none()
+        );
+    }
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn source_scan_publishes_restored_rating_after_large_rename() {
     let root = temp_source_root("wavecrate-gui-large-rename");
     let old_path = root.join("old.wav");
