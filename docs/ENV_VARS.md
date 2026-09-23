@@ -559,6 +559,17 @@ Wavecrate-owned debug feature is enabled via `--log`, `-log`, or
 
 ### Debug log workflow
 
+Logs use the active profile's `logs/` directory. The nonblocking logging worker
+rotates complete events before a segment would exceed 10 MiB and retains at most
+ten matching regular `wavecrate*.log` files after successful cleanup. A single
+event larger than 10 MiB remains whole in an otherwise empty segment; its size
+can exceed the limit by that event's excess. Existing oversized segments are
+not truncated or rewritten and age out oldest-first. A failed rotation or
+cleanup emits a diagnostic and can temporarily exceed the size or file-count
+limit while writable logging continues where possible. Segment names include a
+timestamp, run discriminator, and sequence; the newest-log and bug-bundle
+helpers ignore temporary files, symlinks, and unrelated logs.
+
 - local release debugging:
   - live profile:
     `cargo run --release -- --log`

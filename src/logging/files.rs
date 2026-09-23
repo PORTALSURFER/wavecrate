@@ -12,7 +12,7 @@ use time::{format_description::FormatItem, macros::format_description, OffsetDat
 use super::LoggingError;
 use crate::app_dirs;
 
-/// Maximum number of log files to retain.
+/// Maximum number of matching regular log files after successful cleanup.
 const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "wavecrate";
 

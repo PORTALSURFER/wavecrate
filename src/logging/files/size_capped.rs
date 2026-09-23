@@ -545,6 +545,65 @@ mod tests {
         assert_eq!(fs::read(next_path).unwrap(), b"9");
     }
 
+    #[test]
+    fn temporary_profile_stress_retains_ten_ordered_segments_after_many_rotations() {
+        use time::OffsetDateTime;
+
+        let base = tempdir().unwrap();
+        let logs = base.path().join(".wavecrate/profiles/automated-tests/logs");
+        fs::create_dir_all(&logs).unwrap();
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, initial_path, initial_file) = super::super::start_log_run(&logs, fixed).unwrap();
+        let names = (0..=17)
+            .map(|sequence| {
+                logs.join(super::super::format_segment_file_name(
+                    &run.timestamp,
+                    run.run_ordinal,
+                    sequence,
+                ))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(initial_path, names[0]);
+        let appender = SizeCappedLogAppender::with_limit(initial_file, 64, run).unwrap();
+        let (mut worker, guard) = tracing_appender::non_blocking(appender);
+
+        for index in 0..16 {
+            worker
+                .write_all(format!("{index:02}").repeat(32).as_bytes())
+                .unwrap();
+        }
+        worker.write_all(&[b'X'; 96]).unwrap();
+        worker.write_all(b"final").unwrap();
+        drop(worker);
+        drop(guard);
+
+        let mut retained = super::super::log_files_by_modified_time(&logs)
+            .unwrap()
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect::<Vec<_>>();
+        retained.sort();
+        assert_eq!(retained, names[8..=17]);
+        assert!(names[..8].iter().all(|path| !path.exists()));
+        assert!(
+            retained
+                .iter()
+                .all(|path| fs::metadata(path).unwrap().len() <= 96)
+        );
+        for (index, path) in names.iter().enumerate().take(16).skip(8) {
+            assert_eq!(
+                fs::read(path).unwrap(),
+                format!("{index:02}").repeat(32).as_bytes()
+            );
+        }
+        assert_eq!(fs::read(&names[16]).unwrap(), [b'X'; 96]);
+        assert_eq!(fs::read(&names[17]).unwrap(), b"final");
+        assert_eq!(
+            super::super::newest_log_file(&logs).unwrap(),
+            Some(names[17].clone())
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn renamed_initial_segment_remains_writable_through_open_handle() {
