@@ -1160,6 +1160,13 @@ fn scene_composes_playback_cursor_with_waveform_overflow_fade() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.set_play_selection_range(0.2, 0.8);
     state.waveform.current.zoom_to_play_selection();
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::ScrollTo {
+            offset_fraction: 0.3,
+        });
+    assert!((state.waveform.current.offset_fraction() - 0.3).abs() < 0.01);
     state.waveform.current.start_playback(0.25);
     state.ui.chrome.overflow_fades.arm();
     let theme = radiant::theme::ThemeTokens::default();
