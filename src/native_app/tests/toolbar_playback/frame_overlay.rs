@@ -1107,10 +1107,66 @@ fn manifest_maintenance_does_not_paint_source_row_pulse_overlay() {
 }
 
 #[test]
+fn scene_overflow_fade_only_uses_paint_only_activity() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.2, 0.8);
+    state.waveform.current.zoom_to_play_selection();
+    assert!(!state.should_paint_app_transient_overlay());
+    state.ui.chrome.overflow_fades.arm();
+    let theme = radiant::theme::ThemeTokens::default();
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+    let frame = runtime.frame(&theme);
+
+    let activity = runtime.host_animation_activity();
+    assert!(activity.needs_animation());
+    assert_eq!(activity.target_fps(), Some(60));
+
+    let mut primitives = Vec::new();
+    for animation_time in [Duration::ZERO, Duration::from_millis(130)] {
+        primitives.clear();
+        runtime.host_paint_transient_overlay(
+            TransientOverlayContext::new(
+                &frame.paint_plan,
+                Vector2::new(900.0, 620.0),
+                animation_time,
+            ),
+            &mut primitives,
+        );
+    }
+    assert!(
+        primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPath(fill)
+                if matches!(fill.brush, radiant::runtime::PaintBrush::LinearGradient(_))
+        )),
+        "a fade-only scene should paint the zoomed waveform edge"
+    );
+    assert!(
+        !primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .any(is_playback_cursor_fill),
+        "a fade-only scene should not paint a playback cursor"
+    );
+}
+
+#[test]
 fn scene_composes_playback_cursor_with_waveform_overflow_fade() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.set_play_selection_range(0.2, 0.8);
     state.waveform.current.zoom_to_play_selection();
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::ScrollTo {
+            offset_fraction: 0.3,
+        });
+    assert!((state.waveform.current.offset_fraction() - 0.3).abs() < 0.01);
     state.waveform.current.start_playback(0.25);
     state.ui.chrome.overflow_fades.arm();
     let theme = radiant::theme::ThemeTokens::default();
@@ -1174,20 +1230,27 @@ fn scene_composes_playback_cursor_with_waveform_overflow_fade() {
         &mut primitives,
     );
 
+    let cursor_index = primitives
+        .iter()
+        .position(|primitive| {
+            primitive
+                .fill_rect()
+                .is_some_and(is_live_playback_cursor_fill)
+        })
+        .expect("advancing root overlay should keep painting the live playback cursor");
+    let fade_index = primitives
+        .iter()
+        .position(|primitive| {
+            matches!(
+                primitive,
+                PaintPrimitive::FillPath(fill)
+                    if matches!(fill.brush, radiant::runtime::PaintBrush::LinearGradient(_))
+            )
+        })
+        .expect("advancing root overlay should paint the active waveform overflow gradient");
     assert!(
-        primitives
-            .iter()
-            .filter_map(|primitive| primitive.fill_rect())
-            .any(is_live_playback_cursor_fill),
-        "advancing root overlay should keep painting the live playback cursor"
-    );
-    assert!(
-        primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::FillPath(fill)
-                if matches!(fill.brush, radiant::runtime::PaintBrush::LinearGradient(_))
-        )),
-        "advancing root overlay should paint the active waveform overflow gradient"
+        fade_index < cursor_index,
+        "waveform overflow fade should paint below the live playback cursor"
     );
     assert_eq!(
         runtime.refresh_counters(),
