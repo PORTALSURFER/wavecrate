@@ -196,6 +196,7 @@ if [[ -d "$logs_dir" ]]; then
 fi
 
 mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 archive_base="${OUT_DIR}/wavecrate-bug-bundle-${timestamp}"
 
 if command -v zip >/dev/null 2>&1; then
