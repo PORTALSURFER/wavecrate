@@ -180,8 +180,9 @@ fn configured_source_for_request(
 }
 
 fn live_root_identity(source: &SampleSource) -> Option<String> {
-    std::fs::metadata(&source.root)
+    std::fs::symlink_metadata(&source.root)
         .ok()
+        .filter(|metadata| metadata.file_type().is_dir())
         .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
 }
 
@@ -339,6 +340,38 @@ mod tests {
         assert_eq!(
             checkpoint_bytes(&source).expect("checkpoint bytes"),
             committed
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_replacement_root_cannot_advance_checkpoint() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let root = directory.path().join("root");
+        std::fs::create_dir(&root).expect("create source root");
+        let source = source(&root, "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let original_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &original_identity);
+        let before = checkpoint_bytes(&source).expect("prior checkpoint");
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).expect("move original root");
+        std::os::unix::fs::symlink(&moved, &root).expect("replace named root with symlink");
+
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        handle.submit_watcher_checkpoint(request(&source, generation, original_identity));
+        process_pending_watcher_checkpoints(&shared);
+
+        assert_eq!(checkpoint_bytes(&source).as_deref(), Some(before.as_str()));
+        assert!(
+            shared
+                .control()
+                .force_manifest_audit_sources
+                .contains(source.id.as_str()),
+            "a symlinked source root requires a fresh manifest audit"
         );
     }
 
