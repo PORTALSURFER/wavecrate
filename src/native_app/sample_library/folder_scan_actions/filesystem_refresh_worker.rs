@@ -22,7 +22,8 @@ use crate::native_app::{
     },
     sample_library::folder_browser::model::file_entry_with_snapshot_metadata,
     sample_library::source_watcher::{
-        WatcherContinuityProof, watcher_replay_evidence_is_well_formed,
+        WatcherContinuityProof, replay_matches_durable_checkpoint,
+        watcher_replay_evidence_is_well_formed,
     },
 };
 
@@ -442,6 +443,14 @@ fn sync_source_database_target_once(
                     }
                 }
             };
+            if incomplete_error.is_none()
+                && let Some(proof) = watcher_continuity_proof
+                && !replay_matches_durable_checkpoint(&db, source_id, proof)
+            {
+                incomplete_error = Some(String::from(
+                    "watcher replay no longer matches the durable prior checkpoint",
+                ));
+            }
             let browser_projection_delta = if browser_delta_eligible && incomplete_error.is_none() {
                 match build_browser_projection_delta(
                     root,
@@ -882,6 +891,31 @@ mod tests {
         }
     }
 
+    fn seed_durable_fallback_cursor(
+        root: &Path,
+        database_root: &Path,
+        root_identity: &str,
+        source_id: &str,
+        event_id: u64,
+    ) {
+        let db = SourceDatabase::open_for_background_job_with_database_root(root, database_root)
+            .expect("open source database for fallback checkpoint");
+        let checkpoint = serde_json::json!({
+            "root_identity": root_identity,
+            "event_id": event_id,
+            "format_version": 2,
+            "source_id": source_id,
+            "lifecycle_generation": 7,
+            "source_revision": db.get_revision().expect("source revision"),
+            "cause": "completed_fallback_audit",
+        });
+        db.set_metadata(
+            wavecrate_library::sample_sources::db::META_SOURCE_WATCHER_CHECKPOINT,
+            &checkpoint.to_string(),
+        )
+        .expect("seed durable fallback cursor");
+    }
+
     fn exact_scope() -> wavecrate_library::sample_sources::reconciliation::ReconciliationScope {
         let provenance = RawObservationProvenance::new(
             wavecrate::sample_sources::SourceId::from_string("source-a"),
@@ -947,6 +981,7 @@ mod tests {
         let database_path = database_root.join(".wavecrate.db");
         let root_identity = capture_source_root_identity(root.path()).expect("root identity");
         let proof = watcher_proof(&root_identity, 73);
+        seed_durable_fallback_cursor(root.path(), &database_root, &root_identity, "source-a", 72);
 
         let result = sync_source_database_scopes_with_writer(
             String::from("source-a"),
@@ -980,6 +1015,61 @@ mod tests {
         assert!(!root.path().join(".wavecrate.db").exists());
     }
 
+    #[test]
+    fn cursor_gap_after_exact_commit_retains_delta_without_watcher_coverage() {
+        let root = tempfile::tempdir().expect("source root");
+        std::fs::write(root.path().join("exact.wav"), b"exact").expect("exact file");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let database_root = database_parent.path().join("source-db");
+        let root_identity = capture_source_root_identity(root.path()).expect("root identity");
+        seed_durable_fallback_cursor(root.path(), &database_root, &root_identity, "source-a", 71);
+        let proof = watcher_proof(&root_identity, 73);
+
+        let result = sync_source_database_scopes_with_writer(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            database_root,
+            vec![exact_scope()],
+            1,
+            Some(root_identity),
+            &AtomicBool::new(false),
+            Some(proof),
+            &UncoordinatedScanWriter,
+        );
+
+        let success = result.result.expect("committed delta remains available");
+        assert_eq!(success.committed_delta.created.len(), 1);
+        assert!(success.incomplete_error.is_some());
+        assert!(success.browser_projection_delta.is_none());
+        assert!(success.committed_watcher_coverage.is_none());
+    }
+
+    #[test]
+    fn missing_durable_cursor_after_exact_commit_retains_delta_without_watcher_coverage() {
+        let root = tempfile::tempdir().expect("source root");
+        std::fs::write(root.path().join("exact.wav"), b"exact").expect("exact file");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let root_identity = capture_source_root_identity(root.path()).expect("root identity");
+
+        let result = sync_source_database_scopes_with_writer(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            database_parent.path().join("source-db"),
+            vec![exact_scope()],
+            1,
+            Some(root_identity.clone()),
+            &AtomicBool::new(false),
+            Some(watcher_proof(&root_identity, 73)),
+            &UncoordinatedScanWriter,
+        );
+
+        let success = result.result.expect("committed delta remains available");
+        assert_eq!(success.committed_delta.created.len(), 1);
+        assert!(success.incomplete_error.is_some());
+        assert!(success.browser_projection_delta.is_none());
+        assert!(success.committed_watcher_coverage.is_none());
+    }
+
     #[cfg(unix)]
     #[test]
     fn symlinked_source_root_cannot_supply_watcher_authority() {
@@ -1004,7 +1094,9 @@ mod tests {
         std::fs::create_dir(&root).expect("create source root");
         std::fs::write(root.join("exact.wav"), b"exact").expect("exact file");
         let database_parent = tempfile::tempdir().expect("database parent");
+        let database_root = database_parent.path().join("source-db");
         let root_identity = capture_source_root_identity(&root).expect("source root identity");
+        seed_durable_fallback_cursor(&root, &database_root, &root_identity, "source-a", 72);
         let writer = RootReplacingWriter {
             root: root.clone(),
             displaced: displaced.clone(),
@@ -1014,7 +1106,7 @@ mod tests {
         let result = sync_source_database_scopes_with_writer(
             String::from("source-a"),
             root.clone(),
-            database_parent.path().join("source-db"),
+            database_root,
             vec![exact_scope()],
             1,
             Some(root_identity.clone()),

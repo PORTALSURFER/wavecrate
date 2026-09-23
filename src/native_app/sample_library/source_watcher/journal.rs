@@ -353,6 +353,45 @@ pub(in crate::native_app) fn targeted_replay_request_has_valid_proof(
         })
 }
 
+/// Check the replay boundary against the durable prior cursor before a committed targeted
+/// delta may become browser coverage. The later source-owner checkpoint write rechecks this
+/// decision under its write batch; this read-only gate keeps known gaps out of the UI handoff.
+pub(in crate::native_app) fn replay_matches_durable_checkpoint(
+    database: &SourceDatabase,
+    source_id: &str,
+    proof: &WatcherContinuityProof,
+) -> bool {
+    let Ok(Some(value)) = database.get_metadata(META_SOURCE_WATCHER_CHECKPOINT) else {
+        return false;
+    };
+    let Ok(current) = parse_checkpoint(&value) else {
+        return false;
+    };
+    let Ok(source_revision) = database.get_revision() else {
+        return false;
+    };
+    let Some(current_lifecycle_generation) = current.lifecycle_generation else {
+        return false;
+    };
+    let requested = RevisionBoundCheckpoint {
+        source_id: source_id.to_string(),
+        lifecycle_generation: current_lifecycle_generation,
+        source_revision,
+        root_identity: proof.root_identity.clone(),
+        event_id: proof.acknowledged_end_event_id,
+        cause: CheckpointCause::TargetedReplay,
+        continuity_proof: Some(proof.clone()),
+    };
+    decide_checkpoint_advance(
+        Some(&current),
+        &requested,
+        source_id,
+        current_lifecycle_generation,
+        source_revision,
+        &proof.root_identity,
+    ) == CheckpointAdvanceOutcome::Applied
+}
+
 fn decide_checkpoint_advance(
     current: Option<&SourceWatcherCheckpoint>,
     requested: &RevisionBoundCheckpoint,
