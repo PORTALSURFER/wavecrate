@@ -1196,14 +1196,32 @@ mod tests {
     #[test]
     #[ignore = "manual native FSEvents acceptance; requires a host that can start a history stream"]
     fn native_fsevents_history_replays_created_file() {
+        use notify::Watcher as _;
+
         let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
         let root = directory.path().join("source");
         std::fs::create_dir(&root).expect("create source root");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut live = notify::recommended_watcher(move |event| {
+            let _ = tx.send(event);
+        })
+        .expect("start live FSEvents watcher");
+        live.watch(&root, notify::RecursiveMode::Recursive)
+            .expect("watch source root");
         let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
         assert_ne!(cursor, 0, "FSEvents cursor must be available");
 
         let created = root.join("created.wav");
         std::fs::write(&created, b"fixture").expect("create source entry");
+        let live_event = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("live watcher event")
+            .expect("valid live watcher event");
+        assert!(
+            live_event.paths.contains(&created),
+            "live watcher omitted the created entry: {:?}",
+            live_event.paths
+        );
         let replay = macos::replay(&root, cursor).expect("replay native FSEvents history");
         assert!(
             replay.paths.contains(&created),
