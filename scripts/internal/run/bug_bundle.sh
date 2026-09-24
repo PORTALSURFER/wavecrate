@@ -3,7 +3,8 @@
 # Creates a small diagnostic bundle to attach to bug reports.
 #
 # Bundle contents are intentionally limited:
-# - latest logs (default: 5)
+# - latest logs (default: 5; app retention is ten matching files with a
+#   prospective 10 MiB segment limit and possible complete-event overshoot)
 # - `config.toml` (if present)
 # - tool/runtime versions (`rustc`, `cargo`, `git`)
 #
@@ -27,6 +28,10 @@ Creates an archive under <out-dir> containing:
 - the newest N log files (default: 5)
 - config.toml (if present)
 - version/system info
+
+The app retains at most ten matching logs after successful cleanup. Segments
+rotate at a prospective 10 MiB boundary; a complete event may exceed it.
+--logs changes only the number copied into this bundle.
 
 Sandbox behavior:
 - If WAVECRATE_CONFIG_HOME is set, it is always used.

@@ -187,12 +187,14 @@ impl Write for SizeCappedLogAppender {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{FileTime, set_file_mtime};
     use std::{
         fs::{self, OpenOptions},
         path::{Path, PathBuf},
         sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
+    use time::OffsetDateTime;
 
     fn segment_writer(dir: &Path, limit: u64) -> SizeCappedLogAppender {
         let initial = OpenOptions::new()
@@ -224,6 +226,43 @@ mod tests {
             .unwrap();
         let writer = SizeCappedLogAppender::new(current, || unreachable!()).unwrap();
         assert_eq!(writer.segment_limit, 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn repeated_rotation_keeps_ten_bounded_ordered_run_segments_without_sleeping() {
+        let dir = tempdir().unwrap();
+        let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let (run, initial, file) = super::super::start_log_run(dir.path(), fixed).unwrap();
+        let expected = (0..16)
+            .map(|sequence| {
+                dir.path().join(super::super::format_segment_file_name(
+                    &run.timestamp,
+                    run.run_ordinal,
+                    sequence,
+                ))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(initial, expected[0]);
+        let mut writer = SizeCappedLogAppender::with_limit(file, 16, run).unwrap();
+
+        for (sequence, path) in expected.iter().enumerate() {
+            writer.write_all(b"one event\n12").unwrap();
+            set_file_mtime(path, FileTime::from_unix_time(1_700_000_000, 0)).unwrap();
+            let retained = super::super::log_files_by_modified_time(dir.path()).unwrap();
+            assert!(retained.len() <= 10);
+            assert_eq!(
+                super::super::newest_log_file(dir.path()).unwrap(),
+                Some(path.clone())
+            );
+            assert_eq!(fs::read(path).unwrap(), b"one event\n12");
+            assert!(fs::metadata(path).unwrap().len() <= 16);
+            if sequence >= 10 {
+                assert!(!expected[sequence - 10].exists());
+            }
+        }
+
+        assert!(expected[..6].iter().all(|path| !path.exists()));
+        assert!(expected[6..].iter().all(|path| path.is_file()));
     }
 
     #[test]

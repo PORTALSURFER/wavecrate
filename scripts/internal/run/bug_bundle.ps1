@@ -13,7 +13,8 @@ Creates a small diagnostic bundle to attach to bug reports.
 
 .DESCRIPTION
 Bundle contents are intentionally limited:
-- newest log files (default: 5)
+- newest log files (default: 5; app retention is ten matching files with a
+  prospective 10 MiB segment limit and possible complete-event overshoot)
 - `config.toml` (if present)
 - tool/runtime versions (`rustc`, `cargo`, `git`)
 

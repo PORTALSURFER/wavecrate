@@ -515,6 +515,14 @@ product-startup certification.
 
 ## Logging
 
+The nonblocking logging worker rotates before a complete event would cross a
+10 MiB segment boundary. An event larger than 10 MiB remains whole in one
+segment. After successful cleanup, each profile retains at most ten matching
+regular log files. Failed rotation or cleanup reports degraded retention and
+can leave a larger segment or more files until a later successful cleanup.
+The bug-bundle helper includes the newest five files by default; `--logs`
+changes the bundle count, not app retention.
+
 - `--log` / `-log`
 Preferred Wavecrate-owned opt-in switch for richer per-launch debug diagnostics in
 release or manual debugging runs.

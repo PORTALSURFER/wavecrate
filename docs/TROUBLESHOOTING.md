@@ -42,6 +42,12 @@ Do not broadly delete `target/` while another Cargo run is active.
 ## Debug run logs
 
 Use this when you need a richer reconstruction of runtime actions or DB work.
+Each log segment has a prospective 10 MiB limit; a single complete event can
+exceed it. Successful cleanup keeps at most ten matching regular log files in
+the selected profile. Rotation or cleanup failures report degraded retention,
+so inspect the log directory if a debug run unexpectedly grows beyond those
+bounds. Bug bundles include the newest five logs by default, even when the
+profile retains more.
 
 - enable Wavecrate-owned debug diagnostics for one run:
   - Windows PowerShell:
