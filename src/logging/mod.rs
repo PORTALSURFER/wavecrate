@@ -2,19 +2,21 @@
 //!
 //! Initializes a global tracing subscriber that writes to both stdout and a
 //! per-launch log file. The nonblocking worker rotates complete events at a
-//! 10 MiB segment boundary and retains at most ten matching files.
+//! 10 MiB prospective segment boundary and retains at most ten matching files
+//! when cleanup succeeds. One complete event may exceed 10 MiB; failed rotation
+//! or cleanup reports degraded retention while logging continues.
 
 mod contract;
 mod files;
 mod policy;
 
 pub use contract::{
-    emit_action_debug_event, emit_db_debug_event, ActionDebugEvent, DbDebugEvent,
-    ACTION_EVENT_TARGET, DB_EVENT_TARGET,
+    ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
+    emit_db_debug_event,
 };
 pub use policy::{
-    DebugLoggingMode, DebugLoggingSettings, DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR,
-    DEBUG_LOGGING_SHORT_ARG,
+    DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR, DEBUG_LOGGING_SHORT_ARG, DebugLoggingMode,
+    DebugLoggingSettings,
 };
 
 use std::{
@@ -22,14 +24,14 @@ use std::{
     panic,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
         OnceLock,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
-use time::{format_description::FormatItem, macros::format_description, UtcOffset};
+use time::{UtcOffset, format_description::FormatItem, macros::format_description};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{fmt, prelude::*, Registry};
+use tracing_subscriber::{Registry, fmt, prelude::*};
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 static DEBUG_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);

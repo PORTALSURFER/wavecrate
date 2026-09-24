@@ -21,5 +21,10 @@ shipped Linux product platform.
 Use **Options -> Open config folder** in the app when you need logs, settings,
 or support context.
 
+Launch logs rotate before a complete event would cross 10 MiB and successful
+cleanup retains at most ten matching regular log files per profile. A single
+event larger than 10 MiB stays whole and may exceed that size; rotation or
+cleanup failures are reported and may temporarily exceed these bounds.
+
 - macOS: `~/Library/Application Support/.wavecrate/`
 - Windows: `%APPDATA%\\.wavecrate\\`
