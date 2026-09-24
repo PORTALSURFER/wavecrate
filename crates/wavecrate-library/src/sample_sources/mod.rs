@@ -34,11 +34,11 @@ pub use library::{
     LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, NewHarvestDerivation, SourceRegistrySnapshot,
 };
 pub use source_entry::{
-    HiddenDirectoryPolicy, SOURCE_FORMAT_POLICY_VERSION, SourceEntryClassification,
-    SourceEntryFileType, SourceEntryKind, SourceEntryProbeError, SourceEntryRejection,
-    SourceFileClassification, SourceTraversalPolicy, classify_path_without_following,
-    classify_path_without_following_with_policy, classify_source_entry,
-    classify_source_entry_with_policy, is_rejected_source_file_path,
+    HiddenDirectoryPolicy, SOURCE_DELETE_STAGING_DIR, SOURCE_FORMAT_POLICY_VERSION,
+    SourceEntryClassification, SourceEntryFileType, SourceEntryKind, SourceEntryProbeError,
+    SourceEntryRejection, SourceFileClassification, SourceTraversalPolicy,
+    classify_path_without_following, classify_path_without_following_with_policy,
+    classify_source_entry, classify_source_entry_with_policy, is_rejected_source_file_path,
 };
 
 /// Identifier for a configured sample source.

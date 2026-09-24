@@ -12,6 +12,9 @@ use super::{is_apple_double_sidecar, is_recognized_audio, is_supported_audio};
 /// Version of the source format-classification policy persisted with index-only rows.
 pub const SOURCE_FORMAT_POLICY_VERSION: u32 = 1;
 
+/// Top-level source directory holding retained folder deletes for recovery.
+pub const SOURCE_DELETE_STAGING_DIR: &str = ".wavecrate_delete_staging";
+
 /// Whether hidden directories participate in source traversal.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HiddenDirectoryPolicy {
@@ -141,6 +144,8 @@ pub enum SourceEntryRejection {
     AppleDouble,
     /// Wavecrate's embedded source database and SQLite sidecars are implementation metadata.
     SourceDatabase,
+    /// App-owned retained deletes must never reappear as source samples.
+    DeleteStaging,
     /// A hidden directory excluded by the configured traversal policy.
     HiddenDirectory,
     /// The entry is neither a regular file nor a directory.
@@ -225,6 +230,9 @@ pub fn classify_source_entry_with_policy(
     file_type: SourceEntryFileType,
     policy: SourceTraversalPolicy,
 ) -> SourceEntryClassification {
+    if is_delete_staging_path(relative_path) {
+        return SourceEntryClassification::Rejected(SourceEntryRejection::DeleteStaging);
+    }
     match file_type {
         SourceEntryFileType::Link => {
             SourceEntryClassification::Rejected(SourceEntryRejection::Link)
@@ -270,7 +278,17 @@ pub fn classify_source_entry_with_policy(
 /// This predicate is usable when entry-type inspection fails, before callers
 /// can construct a complete [`SourceEntryClassification`].
 pub fn is_rejected_source_file_path(relative_path: &Path) -> bool {
-    is_apple_double_sidecar(relative_path) || is_source_database_artifact(relative_path)
+    is_delete_staging_path(relative_path)
+        || is_apple_double_sidecar(relative_path)
+        || is_source_database_artifact(relative_path)
+}
+
+fn is_delete_staging_path(relative_path: &Path) -> bool {
+    matches!(
+        relative_path.components().next(),
+        Some(Component::Normal(name))
+            if name == std::ffi::OsStr::new(SOURCE_DELETE_STAGING_DIR)
+    )
 }
 
 fn is_source_database_artifact(relative_path: &Path) -> bool {
@@ -365,6 +383,23 @@ mod tests {
 
     #[test]
     fn policy_agrees_on_visible_and_indexed_entries() {
+        let retained_delete = Path::new(".wavecrate_delete_staging/operation/sample.wav");
+        assert_eq!(
+            classify_source_entry(
+                Path::new(SOURCE_DELETE_STAGING_DIR),
+                SourceEntryFileType::Directory,
+            ),
+            SourceEntryClassification::Rejected(SourceEntryRejection::DeleteStaging)
+        );
+        assert!(!classify_source_entry(retained_delete, SourceEntryFileType::File).indexes_audio());
+        assert!(is_rejected_source_file_path(retained_delete));
+        assert!(
+            classify_source_entry(
+                Path::new("nested/.wavecrate_delete_staging/sample.wav"),
+                SourceEntryFileType::File,
+            )
+            .indexes_audio()
+        );
         assert_eq!(
             classify_source_entry(Path::new("drums"), SourceEntryFileType::Directory),
             SourceEntryClassification::Directory { hidden: false }
