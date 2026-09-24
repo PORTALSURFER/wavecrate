@@ -115,13 +115,8 @@ impl AppController {
             SampleSource::new_with_id(success.source_id.clone(), success.source_root.clone());
         for entry in &success.entries {
             self.insert_cached_entry(&source, entry.clone());
-            self.trigger_analysis_for_added_sample(
-                &source,
-                &entry.relative_path,
-                entry.file_size,
-                entry.modified_ns,
-            );
         }
+        self.trigger_analysis_for_added_samples(&source, &success.entries);
         self.record_selection_slice_batch_export_harvest_derivations(&success);
 
         if success.errors.is_empty() && self.loaded_waveform_matches_slice_batch(&success) {

@@ -95,6 +95,26 @@ impl AppController {
         });
     }
 
+    /// Reconcile files created by one operation together so their manifest writes cannot race.
+    pub(crate) fn trigger_analysis_for_added_samples(
+        &mut self,
+        source: &SampleSource,
+        entries: &[WavEntry],
+    ) {
+        if entries.is_empty() {
+            return;
+        }
+        debug_assert_eq!(
+            AnalysisTriggerReason::SampleAdded.policy(),
+            AnalysisTriggerPolicy::ChangedSamples
+        );
+        self.spawn_analysis_trigger(AnalysisTrigger::ChangedSamples {
+            source: source.clone(),
+            changed_samples: entries.iter().map(ChangedSampleInput::from_entry).collect(),
+            announce: false,
+        });
+    }
+
     /// Enqueue analysis for destructive edits that changed one or more samples on disk.
     pub(crate) fn trigger_analysis_for_content_change(
         &mut self,
