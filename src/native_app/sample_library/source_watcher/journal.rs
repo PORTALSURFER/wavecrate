@@ -670,6 +670,11 @@ impl AuditBarrier {
         self.ticket.clone()
     }
 
+    pub(super) fn matches_current_root(&self, source: &SampleSource) -> bool {
+        source_root_identity_no_follow(source).as_deref()
+            == Some(self.checkpoint.root_identity.as_str())
+    }
+
     pub(super) fn into_revision_bound(
         self,
         source_id: String,
