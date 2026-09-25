@@ -871,7 +871,18 @@ fn replay_fsevents(
     root_identity: String,
     event_id: u64,
 ) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
+    replay_fsevents_after_history(root, root_identity, event_id, || {})
+}
+
+#[cfg(target_os = "macos")]
+fn replay_fsevents_after_history(
+    root: &Path,
+    root_identity: String,
+    event_id: u64,
+    after_history: impl FnOnce(),
+) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
     let replay = macos::replay(root, event_id)?;
+    after_history();
     // A replacement root can occupy the same path after the checkpoint identity was read.
     if root_identity_no_follow(root).as_deref() != Some(root_identity.as_str()) {
         return Err("source_root_identity_changed");
@@ -1278,6 +1289,26 @@ mod tests {
             replay_fsevents(&root, old_identity, cursor),
             Err("source_root_identity_changed")
         ));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents replay-to-proof root-replacement acceptance"]
+    fn native_history_rejects_root_replacement_after_replay_before_proof() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+        std::fs::write(root.join("created.wav"), b"fixture").expect("create source entry");
+
+        let result = replay_fsevents_after_history(&root, old_identity, cursor, || {
+            std::fs::rename(&root, directory.path().join("old-source"))
+                .expect("move original root after history replay");
+            std::fs::create_dir(&root).expect("replace root before proof");
+        });
+        assert!(matches!(result, Err("source_root_identity_changed")));
     }
 
     #[cfg(unix)]
