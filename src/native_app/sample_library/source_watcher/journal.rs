@@ -883,6 +883,15 @@ fn replay_fsevents_after_history(
 ) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
     let replay = macos::replay(root, event_id)?;
     after_history();
+    validate_replay_root(root, root_identity, replay)
+}
+
+#[cfg(target_os = "macos")]
+fn validate_replay_root(
+    root: &Path,
+    root_identity: String,
+    replay: macos::HistoryReplay,
+) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
     // A replacement root can occupy the same path after the checkpoint identity was read.
     if root_identity_no_follow(root).as_deref() != Some(root_identity.as_str()) {
         return Err("source_root_identity_changed");
@@ -980,8 +989,31 @@ mod macos {
     }
 
     pub(super) fn replay(root: &Path, event_id: u64) -> Result<HistoryReplay, &'static str> {
+        replay_impl(root, event_id, None)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replay_with_start_hook(
+        root: &Path,
+        event_id: u64,
+        on_started: &mut dyn FnMut(),
+    ) -> Result<HistoryReplay, &'static str> {
+        replay_impl(root, event_id, Some(on_started))
+    }
+
+    fn replay_impl(
+        root: &Path,
+        event_id: u64,
+        mut on_started: Option<&mut dyn FnMut()>,
+    ) -> Result<HistoryReplay, &'static str> {
         let (result_tx, result_rx) = mpsc::sync_channel(1);
         let (run_loop_tx, run_loop_rx) = mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = if on_started.is_some() {
+            let (tx, rx) = mpsc::sync_channel(1);
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
         let root = root.to_path_buf();
         let watcher_generation = next_watcher_generation();
         let worker = std::thread::Builder::new()
@@ -992,6 +1024,7 @@ mod macos {
                     event_id,
                     watcher_generation,
                     run_loop_tx,
+                    resume_rx,
                 ));
             })
             .map_err(|_| "watcher_history_thread_unavailable")?;
@@ -1010,6 +1043,10 @@ mod macos {
                 return Err("watcher_history_start_timeout");
             }
         };
+        if let Some(on_started) = on_started.as_mut() {
+            on_started();
+            let _ = resume_tx.expect("start hook has resume sender").send(());
+        }
         let result = match result_rx.recv_timeout(HISTORY_TIMEOUT) {
             Ok(result) => result,
             Err(_) => {
@@ -1029,6 +1066,7 @@ mod macos {
         event_id: u64,
         watcher_generation: u64,
         run_loop_tx: mpsc::SyncSender<RunLoopHandle>,
+        resume_rx: Option<mpsc::Receiver<()>>,
     ) -> Result<HistoryReplay, &'static str> {
         let (ready_tx, ready_rx) = mpsc::channel();
         let context = Box::new(HistoryContext {
@@ -1083,6 +1121,17 @@ mod macos {
                 drop(Box::from_raw(context));
             }
             return Err("watcher_history_start_timeout");
+        }
+        if let Some(resume_rx) = resume_rx {
+            if resume_rx.recv_timeout(HISTORY_TIMEOUT).is_err() {
+                unsafe {
+                    fs::FSEventStreamStop(stream);
+                    fs::FSEventStreamInvalidate(stream);
+                    fs::FSEventStreamRelease(stream);
+                    drop(Box::from_raw(context));
+                }
+                return Err("watcher_history_start_timeout");
+            }
         }
         // `HistoryDone` is delivered on this run loop and stops it in the callback. The outer
         // receiver timeout in `replay` bounds a wedged CoreServices stream without ever blocking
@@ -1314,6 +1363,41 @@ mod tests {
             std::fs::create_dir(&root).expect("replace root before proof");
         });
         assert!(matches!(result, Err("source_root_identity_changed")));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents in-flight root-replacement acceptance"]
+    fn native_history_rejects_root_replacement_while_stream_is_started() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+
+        let mut replacement_result = None;
+        let replay = macos::replay_with_start_hook(&root, cursor, &mut || {
+            replacement_result = Some((|| -> std::io::Result<()> {
+                std::fs::rename(&root, directory.path().join("old-source"))?;
+                std::fs::create_dir(&root)?;
+                std::fs::write(root.join("replacement.wav"), b"fixture")?;
+                Ok(())
+            })());
+        });
+        replacement_result
+            .expect("stream-start hook ran")
+            .expect("replace root while stream is started");
+        let result = replay.and_then(|replay| validate_replay_root(&root, old_identity, replay));
+        assert!(
+            matches!(
+                result,
+                Err("watcher_history_gap"
+                    | "source_root_identity_changed"
+                    | "watcher_history_timeout")
+            ),
+            "root replacement must not produce continuity proof: {result:?}"
+        );
     }
 
     #[cfg(unix)]
