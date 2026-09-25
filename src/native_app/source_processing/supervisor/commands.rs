@@ -29,9 +29,34 @@ pub(super) fn request_source_manifest_audit(
     source_id: &str,
     reason: &'static str,
 ) {
+    request_source_manifest_audit_with_ticket(shared, source_id, reason, None, None);
+}
+
+pub(super) fn request_source_manifest_audit_with_ticket(
+    shared: &super::Shared,
+    source_id: &str,
+    reason: &'static str,
+    lifecycle_generation: Option<u64>,
+    audit_ticket: Option<super::JournalAuditTicket>,
+) {
     let mut control = shared.control();
     if !control.source_is_active(source_id) {
         return;
+    }
+    if let Some(generation) = lifecycle_generation
+        && control.source_lifecycle_generations.get(source_id) != Some(&generation)
+    {
+        return;
+    }
+    if let Some(audit_ticket) = audit_ticket {
+        let Some(generation) = lifecycle_generation else {
+            return;
+        };
+        // A newer captured barrier supersedes an earlier pending ticket. An
+        // already-running audit keeps its ticket; this arrival starts a retry.
+        control
+            .pending_journal_audit_tickets
+            .insert(source_id.to_string(), (generation, audit_ticket));
     }
     control
         .force_manifest_audit_sources
@@ -121,6 +146,22 @@ impl SourceProcessingSupervisor {
         reason: &'static str,
     ) {
         request_source_manifest_audit(self.shared.as_ref(), source_id, reason);
+    }
+
+    pub(in crate::native_app) fn request_source_manifest_audit_with_ticket(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+        lifecycle_generation: Option<u64>,
+        audit_ticket: Option<super::JournalAuditTicket>,
+    ) {
+        request_source_manifest_audit_with_ticket(
+            self.shared.as_ref(),
+            source_id,
+            reason,
+            lifecycle_generation,
+            audit_ticket,
+        );
     }
 
     /// Queue one opaque live-capture audit request without widening its covered boundary.

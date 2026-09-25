@@ -60,12 +60,14 @@ fn map_event(event: SourceProcessingEvent) -> GuiMessage {
             source_revision,
             complete,
             receipt,
+            audit_ticket,
         } => GuiMessage::SourceManifestAuditFinished {
             source_id: lifecycle.source_id,
             lifecycle_generation: lifecycle.generation,
             source_revision,
             complete,
             receipt,
+            audit_ticket,
         },
         SourceProcessingEvent::WatcherCheckpointCommitted { request, .. } => {
             GuiMessage::SourceWatcherCheckpointCommitted(request)
@@ -466,6 +468,7 @@ mod tests {
                 source_revision: Some(41),
                 complete: true,
                 receipt: None,
+                audit_ticket: None,
             }),
             GuiMessage::SourceManifestAuditFinished {
                 source_id,
@@ -473,7 +476,23 @@ mod tests {
                 source_revision: Some(41),
                 complete: true,
                 receipt: None,
+                audit_ticket: None,
             } if source_id == "source"
+        ));
+
+        let ticket = crate::native_app::sample_library::source_watcher::JournalAuditTicket::new();
+        assert!(matches!(
+            map_event(SourceProcessingEvent::ManifestAuditFinished {
+                lifecycle: SourceProcessingLifecycle::new("source", 23),
+                source_revision: Some(42),
+                complete: true,
+                receipt: None,
+                audit_ticket: Some(ticket.clone()),
+            }),
+            GuiMessage::SourceManifestAuditFinished {
+                audit_ticket: Some(mapped),
+                ..
+            } if mapped.same_as(&ticket)
         ));
     }
 }

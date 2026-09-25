@@ -14,7 +14,11 @@ pub(super) fn clear_satisfied_manifest_audit_request(shared: &Shared, source_id:
     // `dirty_sources` until the coordinator snapshots it, so preserve the
     // force flag for the closing audit instead of letting the older completion
     // erase it.
-    if !control.dirty_sources.contains(source_id) {
+    if !control.dirty_sources.contains(source_id)
+        && !control
+            .pending_journal_audit_tickets
+            .contains_key(source_id)
+    {
         control.force_manifest_audit_sources.remove(source_id);
     }
 }

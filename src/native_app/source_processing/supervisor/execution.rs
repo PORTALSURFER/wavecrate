@@ -5,8 +5,8 @@ use super::{
 };
 use super::{
     AtomicBool, ContentAuditActivity, ContentAuditBudget, ContentAuditStorage, DatabaseWriterGate,
-    Duration, ExecutionOutcome, Instant, ManifestAuditOutcome, Ordering, RuntimeCandidate,
-    RuntimeTask, SourceAuditRequest, SourceDatabase, SourceProcessingActivity,
+    Duration, ExecutionOutcome, Instant, JournalAuditTicket, ManifestAuditOutcome, Ordering,
+    RuntimeCandidate, RuntimeTask, SourceAuditRequest, SourceDatabase, SourceProcessingActivity,
     SourceProcessingEvent, SourceProcessingLifecycle, SourceProcessingPresentation,
     SourceProcessingProgressEvent,
     audit_source_and_record_with_budget_and_progress_and_writer_with_request,
@@ -30,6 +30,7 @@ pub(super) fn execute_candidate(
         content_audit_activity,
         SourceProcessingPresentation::UserRelevant,
         None,
+        None,
         publish_event,
     )
 }
@@ -42,6 +43,7 @@ pub(super) fn execute_candidate_with_presentation(
     content_audit_activity: ContentAuditActivity,
     presentation: SourceProcessingPresentation,
     audit_request: Option<SourceAuditRequest>,
+    audit_ticket: Option<JournalAuditTicket>,
     publish_event: &mut dyn FnMut(SourceProcessingEvent) -> bool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
@@ -140,6 +142,7 @@ pub(super) fn execute_candidate_with_presentation(
                             source_revision: None,
                             complete: false,
                             receipt: audit_request.as_ref().map(SourceAuditRequest::incomplete),
+                            audit_ticket,
                         });
                         return Err(error.to_string());
                     }
@@ -256,7 +259,7 @@ pub(super) fn execute_candidate_with_presentation(
                         .as_ref()
                         .is_some_and(|receipt| receipt.is_complete())
                 });
-            publish_event(SourceProcessingEvent::ManifestAuditFinished {
+            let finish_published = publish_event(SourceProcessingEvent::ManifestAuditFinished {
                 lifecycle: SourceProcessingLifecycle::new(
                     candidate.source.id.as_str(),
                     lifecycle_generation,
@@ -264,7 +267,15 @@ pub(super) fn execute_candidate_with_presentation(
                 source_revision: Some(committed_source_revision),
                 complete: authoritative_completion,
                 receipt,
+                audit_ticket,
             });
+            if !finish_published {
+                execution_outcome = if foreground_refresh_owns_reconciliation {
+                    ExecutionOutcome::FailedAwaitingForegroundRefresh
+                } else {
+                    ExecutionOutcome::Failed
+                };
+            }
             if let Some(error) = content_incomplete_error {
                 tracing::warn!(
                     target: "wavecrate::source_processing",

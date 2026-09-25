@@ -16,6 +16,7 @@ use serde::{
     de::{self, Deserializer, MapAccess, Visitor},
 };
 use std::fmt;
+use std::sync::Arc;
 use wavecrate::sample_sources::{
     SampleSource,
     db::{SourceDatabase, SourceWriteBatch},
@@ -635,10 +636,40 @@ fn read_checkpoint_from_batch(
     }
 }
 
+/// Process-local identity for the audit requested after one captured journal barrier.
+/// Cloning preserves identity; a later capture always receives a distinct allocation.
 #[derive(Clone, Debug)]
-pub(super) struct AuditBarrier(SourceWatcherCheckpoint);
+pub(in crate::native_app) struct JournalAuditTicket(Arc<()>);
+
+impl PartialEq for JournalAuditTicket {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for JournalAuditTicket {}
+
+impl JournalAuditTicket {
+    pub(in crate::native_app) fn new() -> Self {
+        Self(Arc::new(()))
+    }
+
+    pub(in crate::native_app) fn same_as(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct AuditBarrier {
+    checkpoint: SourceWatcherCheckpoint,
+    ticket: JournalAuditTicket,
+}
 
 impl AuditBarrier {
+    pub(super) fn ticket(&self) -> JournalAuditTicket {
+        self.ticket.clone()
+    }
+
     pub(super) fn into_revision_bound(
         self,
         source_id: String,
@@ -649,8 +680,8 @@ impl AuditBarrier {
             source_id,
             lifecycle_generation,
             source_revision,
-            root_identity: self.0.root_identity,
-            event_id: self.0.event_id,
+            root_identity: self.checkpoint.root_identity,
+            event_id: self.checkpoint.event_id,
             cause: CheckpointCause::CompletedFallbackAudit,
             continuity_proof: None,
         }
@@ -832,10 +863,10 @@ pub(super) fn capture_audit_barrier(
         .iter()
         .find(|source| source.id.as_str() == source_id)?;
     let root_identity = source_root_identity_no_follow(source)?;
-    Some(AuditBarrier(SourceWatcherCheckpoint::legacy(
-        root_identity,
-        event_id,
-    )))
+    Some(AuditBarrier {
+        checkpoint: SourceWatcherCheckpoint::legacy(root_identity, event_id),
+        ticket: JournalAuditTicket::new(),
+    })
 }
 
 fn source_database(source: &SampleSource) -> Result<SourceDatabase, String> {

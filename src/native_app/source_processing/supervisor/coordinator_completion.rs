@@ -83,6 +83,11 @@ pub(super) fn handle_completion(
         shared
             .control()
             .finish_source_audit_request(candidate.source.id.as_str(), complete);
+        shared.control().finish_journal_audit_ticket(
+            candidate.source.id.as_str(),
+            lifecycle_generation,
+            complete,
+        );
     }
     if matches!(
         &result,

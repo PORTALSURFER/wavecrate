@@ -1,4 +1,192 @@
 #[test]
+fn journal_gap_arriving_during_audit_keeps_its_own_deferred_ticket() {
+    let (_directory, source) = unhashed_source("journal-gap-ticket-order");
+    let shared = Shared::new(vec![source.clone()], None);
+    let generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let first = JournalAuditTicket::new();
+    let later = JournalAuditTicket::new();
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "first_journal_gap",
+        Some(generation),
+        Some(first.clone()),
+    );
+    {
+        let mut control = shared.control();
+        let started = control
+            .begin_journal_audit_ticket(source.id.as_str(), generation)
+            .expect("first audit starts with first barrier");
+        assert!(started.same_as(&first));
+    }
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "later_journal_gap",
+        Some(generation),
+        Some(later.clone()),
+    );
+    let mut control = shared.control();
+    assert!(
+        control
+            .active_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(|(_, ticket)| ticket.same_as(&first))
+    );
+    control.finish_journal_audit_ticket(source.id.as_str(), generation, true);
+    assert!(
+        control
+            .begin_journal_audit_ticket(source.id.as_str(), generation)
+            .is_some_and(|ticket| ticket.same_as(&later))
+    );
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+}
+
+#[test]
+fn retired_lifecycle_worker_cannot_claim_replacement_barrier_ticket() {
+    let (_directory, source) = unhashed_source("replacement-journal-ticket");
+    let shared = Shared::new(vec![source.clone()], None);
+    let old_generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let new_generation = old_generation + 1;
+    let ticket = JournalAuditTicket::new();
+    shared
+        .control()
+        .source_lifecycle_generations
+        .insert(source.id.as_str().to_string(), new_generation);
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "replacement_journal_gap",
+        Some(new_generation),
+        Some(ticket.clone()),
+    );
+    let mut control = shared.control();
+    assert!(
+        control
+            .begin_journal_audit_ticket(source.id.as_str(), old_generation)
+            .is_none()
+    );
+    assert!(
+        control
+            .begin_journal_audit_ticket(source.id.as_str(), new_generation)
+            .is_some_and(|claimed| claimed.same_as(&ticket))
+    );
+}
+
+#[test]
+fn delayed_retired_lifecycle_gap_cannot_replace_current_barrier_ticket() {
+    let (_directory, source) = unhashed_source("retired-journal-gap");
+    let shared = Shared::new(vec![source.clone()], None);
+    let old_generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let new_generation = old_generation + 1;
+    let current = JournalAuditTicket::new();
+    shared
+        .control()
+        .source_lifecycle_generations
+        .insert(source.id.as_str().to_string(), new_generation);
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "current_journal_gap",
+        Some(new_generation),
+        Some(current.clone()),
+    );
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "retired_journal_gap",
+        Some(old_generation),
+        Some(JournalAuditTicket::new()),
+    );
+    assert!(
+        shared
+            .control()
+            .pending_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(
+                |(generation, ticket)| *generation == new_generation && ticket.same_as(&current)
+            )
+    );
+}
+
+#[test]
+fn journal_gap_after_worker_start_remains_scheduled_when_older_audit_finishes() {
+    let (_directory, source) = unhashed_source("journal-gap-after-start");
+    let shared = Shared::new(vec![source.clone()], None);
+    let generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let ticket = JournalAuditTicket::new();
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "later_journal_gap",
+        Some(generation),
+        Some(ticket.clone()),
+    );
+    {
+        let mut control = shared.control();
+        // The older audit started without a ticket before this gap arrived.
+        control.dirty_sources.remove(source.id.as_str());
+        control.finish_journal_audit_ticket(source.id.as_str(), generation, true);
+    }
+    clear_satisfied_manifest_audit_request(&shared, source.id.as_str());
+    let control = shared.control();
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(
+        control
+            .pending_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(|(_, pending)| pending.same_as(&ticket))
+    );
+}
+
+#[test]
+fn incomplete_journal_audit_requeues_its_exact_barrier_ticket() {
+    let (_directory, source) = unhashed_source("incomplete-journal-ticket");
+    let shared = Shared::new(vec![source.clone()], None);
+    let generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let ticket = JournalAuditTicket::new();
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "journal_gap",
+        Some(generation),
+        Some(ticket.clone()),
+    );
+    let mut control = shared.control();
+    assert!(
+        control
+            .begin_journal_audit_ticket(source.id.as_str(), generation)
+            .is_some()
+    );
+    control
+        .force_manifest_audit_sources
+        .remove(source.id.as_str());
+    control.dirty_sources.remove(source.id.as_str());
+    control.finish_journal_audit_ticket(source.id.as_str(), generation, false);
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(
+        control
+            .pending_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(|(_, pending)| pending.same_as(&ticket))
+    );
+}
+
+#[test]
 fn shutdown_waits_for_external_scan_admissions_and_rejects_late_permits() {
     let (_directory, source) = unhashed_source("admission-race");
     let mut supervisor = SourceProcessingSupervisor::dormant();
@@ -600,6 +788,7 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request.clone()),
+        None,
         &mut |event| {
             if !interrupted && matches!(event, SourceProcessingEvent::Progress(_)) {
                 std::fs::rename(&source.root, &displaced_root).expect("displace source root");
@@ -655,6 +844,7 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request.clone()),
+        None,
         &mut |event| {
             retry_events.push(event);
             true
@@ -720,6 +910,7 @@ fn failed_audit_receipt_cannot_finish_native_watcher_barrier() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request),
+        None,
         &mut |event| {
             events.push(event);
             true
@@ -775,6 +966,7 @@ fn rejected_committed_audit_event_cannot_finish_watcher_barrier() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request),
+        None,
         &mut |event| {
             if matches!(event, SourceProcessingEvent::ManifestAuditCommitted { .. }) {
                 return false;
@@ -798,6 +990,54 @@ fn rejected_committed_audit_event_cannot_finish_watcher_barrier() {
         event,
         SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
     )));
+}
+
+#[test]
+fn rejected_finish_event_keeps_journal_audit_ticket_retryable() {
+    let (_directory, source) = unhashed_source("rejected-journal-finish");
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let ticket = JournalAuditTicket::new();
+    let mut committed_delivered = false;
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        None,
+        Some(ticket.clone()),
+        &mut |event| match event {
+            SourceProcessingEvent::ManifestAuditCommitted { .. } => {
+                committed_delivered = true;
+                true
+            }
+            SourceProcessingEvent::ManifestAuditFinished {
+                audit_ticket: Some(returned),
+                ..
+            } => {
+                assert!(returned.same_as(&ticket));
+                false
+            }
+            _ => true,
+        },
+    )
+    .expect("audit commit remains retryable when finish delivery is rejected");
+
+    assert!(committed_delivered);
+    assert!(matches!(
+        outcome,
+        ExecutionOutcome::Failed | ExecutionOutcome::FailedAwaitingForegroundRefresh
+    ));
 }
 
 #[test]

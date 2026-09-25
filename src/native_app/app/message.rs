@@ -121,6 +121,8 @@ pub(in crate::native_app) enum GuiMessage {
     SourceWatcherJournalGap {
         source_id: String,
         reason: &'static str,
+        lifecycle_generation: Option<u64>,
+        audit_ticket: Option<crate::native_app::sample_library::source_watcher::JournalAuditTicket>,
     },
     /// A proofless live watcher handoff requires a source-scoped authoritative manifest audit.
     /// The request is opaque typed evidence; the source-processing owner performs the audit.
@@ -151,6 +153,7 @@ pub(in crate::native_app) enum GuiMessage {
         source_revision: Option<u64>,
         complete: bool,
         receipt: Option<wavecrate_library::sample_sources::reconciliation::SourceAuditReceipt>,
+        audit_ticket: Option<crate::native_app::sample_library::source_watcher::JournalAuditTicket>,
     },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),

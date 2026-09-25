@@ -135,6 +135,14 @@ impl SourceProcessingSupervisor {
             .force_manifest_audit_sources
             .retain(|source_id| retained_source_ids.contains(source_id));
         control
+            .pending_journal_audit_tickets
+            .retain(|source_id, _| {
+                retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+            });
+        control.active_journal_audit_tickets.retain(|source_id, _| {
+            retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+        });
+        control
             .pending_source_audit_requests
             .retain(|source_id, _| {
                 retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
