@@ -77,7 +77,10 @@ fn held_execution_worker_defers_finished_event_until_result_is_handled() {
         false,
         false,
     ));
-    assert!(matches!(receiver.try_recv(), Ok(SourceProcessingEvent::Completed)));
+    assert!(matches!(
+        receiver.try_recv(),
+        Ok(SourceProcessingEvent::Completed)
+    ));
 }
 
 #[test]
@@ -167,7 +170,11 @@ fn completion_from_removed_lifecycle_cannot_mutate_readded_source_state() {
             .contains(source.id.as_str()),
         "old completion must not block discovery for the re-added lifecycle"
     );
-    assert_eq!(candidates.len(), 1, "new lifecycle candidate must remain queued");
+    assert_eq!(
+        candidates.len(),
+        1,
+        "new lifecycle candidate must remain queued"
+    );
     drop(control);
     assert_eq!(shared.telemetry().stale, 1);
 }
@@ -231,9 +238,7 @@ fn final_similarity_layout_completion_wakes_durable_reconciliation() {
 
     let control = shared.control();
     assert!(
-        control
-            .dirty_sources
-            .contains(source.id.as_str()),
+        control.dirty_sources.contains(source.id.as_str()),
         "final similarity layout completion must request a fresh durable snapshot"
     );
     assert_eq!(control.wake_reason, "source_stage_progress");
@@ -516,13 +521,17 @@ fn post_commit_cancellation_does_not_finish_watcher_barrier() {
         task: RuntimeTask::ManifestAudit { accelerated: false },
     };
     let cancel = AtomicBool::new(false);
+    let audit_ticket = JournalAuditTicket::new();
     let mut events = Vec::new();
-    let outcome = execute_candidate(
+    let outcome = execute_candidate_with_presentation(
         &candidate,
         0,
         &cancel,
         &DatabaseWriterGate::default(),
         ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        None,
+        Some(audit_ticket.clone()),
         &mut |event| {
             if matches!(event, SourceProcessingEvent::ManifestAuditCommitted { .. }) {
                 cancel.store(true, Ordering::Release);
@@ -541,8 +550,9 @@ fn post_commit_cancellation_does_not_finish_watcher_barrier() {
         event,
         SourceProcessingEvent::ManifestAuditFinished {
             complete: false,
+            audit_ticket: Some(ticket),
             ..
-        }
+        } if ticket.same_as(&audit_ticket)
     )));
 }
 

@@ -776,6 +776,7 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
         source: source.clone(),
         task: RuntimeTask::ManifestAudit { accelerated: false },
     };
+    let audit_ticket = JournalAuditTicket::new();
     let displaced_parent = tempfile::tempdir().expect("displaced source parent");
     let displaced_root = displaced_parent.path().join("displaced-root");
     let mut interrupted = false;
@@ -788,7 +789,7 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request.clone()),
-        None,
+        Some(audit_ticket.clone()),
         &mut |event| {
             if !interrupted && matches!(event, SourceProcessingEvent::Progress(_)) {
                 std::fs::rename(&source.root, &displaced_root).expect("displace source root");
@@ -813,6 +814,14 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
     assert!(!first_events.iter().any(|event| matches!(
         event,
         SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
+    )));
+    assert!(first_events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: false,
+            audit_ticket: Some(ticket),
+            ..
+        } if ticket.same_as(&audit_ticket)
     )));
     let incomplete = first_events
         .iter()
@@ -844,7 +853,7 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
         ContentAuditActivity::default(),
         SourceProcessingPresentation::UserRelevant,
         Some(request.clone()),
-        None,
+        Some(audit_ticket.clone()),
         &mut |event| {
             retry_events.push(event);
             true
@@ -862,6 +871,14 @@ fn interrupted_runtime_audit_retains_watcher_barrier_until_complete_retry() {
             _ => None,
         })
         .expect("complete retry must publish authoritative receipt");
+    assert!(retry_events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: true,
+            audit_ticket: Some(ticket),
+            ..
+        } if ticket.same_as(&audit_ticket)
+    )));
     assert_eq!(complete.request(), &request);
     assert_eq!(complete.covered_boundary(), request.boundary());
     assert!(
