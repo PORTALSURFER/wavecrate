@@ -610,7 +610,7 @@ fn run_source_watcher(
             }) => {
                 finish_journal_barrier_audit(
                     &message_tx,
-                    &state.sources,
+                    &state,
                     &mut audit_barriers,
                     &mut deferred_audit_barrier_sources,
                     source_id,
@@ -1936,7 +1936,7 @@ fn drain_watcher_captures(
 
 fn finish_journal_barrier_audit(
     message_tx: &Sender<GuiMessage>,
-    sources: &[SampleSource],
+    state: &GuiSourceWatchState,
     audit_barriers: &mut HashMap<String, journal::AuditBarrier>,
     deferred_audit_barrier_sources: &mut HashSet<String>,
     source_id: String,
@@ -1945,6 +1945,14 @@ fn finish_journal_barrier_audit(
     complete: bool,
 ) {
     if !complete {
+        return;
+    }
+    // An audit from a removed source lifecycle must not consume the barrier or
+    // deferred recovery marker belonging to its replacement.
+    if !state
+        .registration_for_source(&source_id)
+        .is_some_and(|registration| registration.lifecycle_generation == lifecycle_generation)
+    {
         return;
     }
     let Some(source_revision) = source_revision else {
@@ -1965,7 +1973,7 @@ fn finish_journal_barrier_audit(
         // The unavailable-watcher audit predates watcher recovery. Capture only now,
         // after that audit has completed, then schedule a fresh audit tied to this
         // barrier instead of letting the older completion advance a new cursor.
-        if let Some(barrier) = journal::capture_audit_barrier(sources, &source_id) {
+        if let Some(barrier) = journal::capture_audit_barrier(&state.sources, &source_id) {
             audit_barriers.insert(source_id.clone(), barrier);
             let _ = message_tx.send(GuiMessage::SourceWatcherJournalGap {
                 source_id,
@@ -2893,7 +2901,9 @@ mod lifecycle_tests {
             directory.path().to_path_buf(),
         );
         let source_id = source.id.as_str().to_string();
-        let sources = vec![source];
+        let sources = vec![source.clone()];
+        let mut state = GuiSourceWatchState::default();
+        state.set_registrations(vec![SourceProcessingRegistration::new(source, 3)]);
         let mut audit_barriers = HashMap::new();
         audit_barriers.insert(
             source_id.clone(),
@@ -2904,7 +2914,7 @@ mod lifecycle_tests {
 
         finish_journal_barrier_audit(
             &message_tx,
-            &sources,
+            &state,
             &mut audit_barriers,
             &mut deferred_audit_barrier_sources,
             source_id.clone(),
@@ -2914,7 +2924,7 @@ mod lifecycle_tests {
         );
         finish_journal_barrier_audit(
             &message_tx,
-            &sources,
+            &state,
             &mut audit_barriers,
             &mut deferred_audit_barrier_sources,
             source_id.clone(),
@@ -2938,14 +2948,15 @@ mod lifecycle_tests {
             directory.path().to_path_buf(),
         );
         let source_id = source.id.as_str().to_string();
-        let sources = vec![source];
+        let mut state = GuiSourceWatchState::default();
+        state.set_registrations(vec![SourceProcessingRegistration::new(source, 4)]);
         let mut audit_barriers = HashMap::new();
         let mut deferred_audit_barrier_sources = HashSet::from([source_id.clone()]);
         let (message_tx, message_rx) = std::sync::mpsc::channel();
 
         finish_journal_barrier_audit(
             &message_tx,
-            &sources,
+            &state,
             &mut audit_barriers,
             &mut deferred_audit_barrier_sources,
             source_id.clone(),
@@ -2955,7 +2966,7 @@ mod lifecycle_tests {
         );
         finish_journal_barrier_audit(
             &message_tx,
-            &sources,
+            &state,
             &mut audit_barriers,
             &mut deferred_audit_barrier_sources,
             source_id.clone(),
@@ -2980,7 +2991,9 @@ mod lifecycle_tests {
             directory.path().to_path_buf(),
         );
         let source_id = source.id.as_str().to_string();
-        let sources = vec![source];
+        let sources = vec![source.clone()];
+        let mut state = GuiSourceWatchState::default();
+        state.set_registrations(vec![SourceProcessingRegistration::new(source, 5)]);
         let mut audit_barriers = HashMap::new();
         audit_barriers.insert(
             source_id.clone(),
@@ -2991,7 +3004,7 @@ mod lifecycle_tests {
 
         finish_journal_barrier_audit(
             &message_tx,
-            &sources,
+            &state,
             &mut audit_barriers,
             &mut deferred_audit_barrier_sources,
             source_id.clone(),
@@ -3019,6 +3032,58 @@ mod lifecycle_tests {
         assert!(matches!(
             message_rx.try_recv(),
             Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+    }
+
+    #[test]
+    fn stale_lifecycle_completion_keeps_replacement_barriers_pending() {
+        let directory = tempfile::tempdir().expect("source root");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("replacement-barrier"),
+            directory.path().to_path_buf(),
+        );
+        let source_id = source.id.as_str().to_string();
+        let mut state = GuiSourceWatchState::default();
+        state.set_registrations(vec![SourceProcessingRegistration::new(source, 12)]);
+        let mut audit_barriers = HashMap::from([(
+            source_id.clone(),
+            journal::capture_audit_barrier(&state.sources, &source_id).expect("audit barrier"),
+        )]);
+        let mut deferred_audit_barrier_sources = HashSet::from([source_id.clone()]);
+        let (message_tx, message_rx) = std::sync::mpsc::channel();
+
+        finish_journal_barrier_audit(
+            &message_tx,
+            &state,
+            &mut audit_barriers,
+            &mut deferred_audit_barrier_sources,
+            source_id.clone(),
+            11,
+            Some(7),
+            true,
+        );
+
+        assert!(audit_barriers.contains_key(&source_id));
+        assert!(deferred_audit_barrier_sources.contains(&source_id));
+        assert!(matches!(
+            message_rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+
+        finish_journal_barrier_audit(
+            &message_tx,
+            &state,
+            &mut audit_barriers,
+            &mut deferred_audit_barrier_sources,
+            source_id,
+            12,
+            Some(8),
+            true,
+        );
+        assert!(matches!(
+            message_rx.recv().expect("current checkpoint"),
+            GuiMessage::SourceWatcherCheckpointReady(checkpoint)
+                if checkpoint.lifecycle_generation == 12 && checkpoint.source_revision == 8
         ));
     }
 
