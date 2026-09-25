@@ -1242,15 +1242,20 @@ mod tests {
 
         let created = root.join("created.wav");
         std::fs::write(&created, b"fixture").expect("create source entry");
-        let live_event = rx
-            .recv_timeout(std::time::Duration::from_secs(5))
-            .expect("live watcher event")
-            .expect("valid live watcher event");
-        assert!(
-            live_event.paths.contains(&created),
-            "live watcher omitted the created entry: {:?}",
-            live_event.paths
-        );
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut observed_paths = Vec::new();
+        while !observed_paths.contains(&created) {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "live watcher omitted the created entry: {observed_paths:?}"
+            );
+            let event = rx
+                .recv_timeout(remaining)
+                .expect("live watcher event before deadline")
+                .expect("valid live watcher event");
+            observed_paths.extend(event.paths);
+        }
         let root_identity = root_identity_no_follow(&root).expect("source root identity");
         let (paths, proof) =
             replay_fsevents(&root, root_identity, cursor).expect("replay native FSEvents history");
