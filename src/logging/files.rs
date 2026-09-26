@@ -7,12 +7,12 @@ use std::{
     time::SystemTime,
 };
 
-use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
+use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
 
 use super::LoggingError;
 use crate::app_dirs;
 
-/// Maximum number of log files to retain.
+/// Maximum number of matching regular log files to retain after successful cleanup.
 const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "wavecrate";
 
@@ -100,7 +100,8 @@ pub(crate) fn resolve_log_profile_paths() -> Result<LogProfilePaths, LoggingErro
     Ok(LogProfilePaths { app_root, logs_dir })
 }
 
-/// Prepare the per-launch log file and prune old log files.
+/// Prepare the per-launch log file and prune matching logs to ten files.
+/// The worker rotates at a prospective 10 MiB boundary after startup.
 pub(super) fn prepare_launch_log_file() -> Result<LaunchLogFile, LoggingError> {
     let log_dir = resolve_log_profile_paths()?.logs_dir;
     let (run, log_path, file) = start_log_run(&log_dir, now_local_or_utc())?;
@@ -130,7 +131,7 @@ pub(super) fn report_degraded_logging(stage: &str, detail: &str) {
     );
 }
 
-/// Return the newest `.log` file under one log directory.
+/// Return the newest matching regular `.log` file under one log directory.
 pub(crate) fn newest_log_file(dir: &Path) -> Result<Option<PathBuf>, LoggingError> {
     let mut entries = log_files_by_modified_time(dir)?;
     sort_log_entries(&mut entries);
@@ -322,7 +323,7 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> LoggingError {
 mod tests {
     use super::*;
     use crate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
-    use filetime::{set_file_mtime, FileTime};
+    use filetime::{FileTime, set_file_mtime};
     use std::{io::Write, path::Path, thread, time::Duration};
     use tempfile::tempdir;
 
@@ -522,10 +523,12 @@ mod tests {
         assert!(unrelated_directory.is_dir());
         assert_eq!(fs::read(&other_profile_log).unwrap(), b"keep");
         #[cfg(unix)]
-        assert!(fs::symlink_metadata(&symlink_path)
-            .unwrap()
-            .file_type()
-            .is_symlink());
+        assert!(
+            fs::symlink_metadata(&symlink_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
     }
 
     #[test]
