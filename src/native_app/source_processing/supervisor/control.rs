@@ -1,7 +1,8 @@
 use super::{
-    AcceptedManifestRevision, Arc, AtomicBool, BTreeMap, BTreeSet, CommittedSourceDelta, Ordering,
-    PendingProjectionFence, PendingReadinessDelta, PendingReadinessDeltaMerge,
-    PendingSourceRetirement, PriorityContext, SampleSource, source_storage_identity_matches,
+    AcceptedManifestRevision, Arc, AtomicBool, BTreeMap, BTreeSet, CommittedSourceDelta,
+    JournalAuditTicket, Ordering, PendingProjectionFence, PendingReadinessDelta,
+    PendingReadinessDeltaMerge, PendingSourceRetirement, PriorityContext, SampleSource,
+    source_storage_identity_matches,
 };
 use crate::native_app::sample_library::source_watcher::RevisionBoundCheckpoint;
 use std::collections::VecDeque;
@@ -44,6 +45,8 @@ pub(super) struct ControlState {
     pub(super) accepted_manifest_revisions: BTreeMap<String, AcceptedManifestRevision>,
     pub(super) awaiting_foreground_refresh_sources: BTreeSet<String>,
     pub(super) force_manifest_audit_sources: BTreeSet<String>,
+    pub(super) pending_journal_audit_tickets: BTreeMap<String, (u64, JournalAuditTicket)>,
+    pub(super) active_journal_audit_tickets: BTreeMap<String, (u64, JournalAuditTicket)>,
     pub(super) pending_source_audit_requests: BTreeMap<String, SourceAuditRequest>,
     pub(super) active_source_audit_requests: BTreeMap<String, SourceAuditRequest>,
     pub(super) force_reanalysis_sources: BTreeSet<String>,
@@ -63,6 +66,54 @@ pub(super) struct ControlState {
 }
 
 impl ControlState {
+    pub(super) fn begin_journal_audit_ticket(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+    ) -> Option<JournalAuditTicket> {
+        let (generation, ticket) = self.pending_journal_audit_tickets.get(source_id)?;
+        if *generation != lifecycle_generation {
+            return None;
+        }
+        let ticket = ticket.clone();
+        self.pending_journal_audit_tickets.remove(source_id);
+        self.active_journal_audit_tickets.insert(
+            source_id.to_string(),
+            (lifecycle_generation, ticket.clone()),
+        );
+        Some(ticket)
+    }
+
+    pub(super) fn finish_journal_audit_ticket(
+        &mut self,
+        source_id: &str,
+        lifecycle_generation: u64,
+        complete: bool,
+    ) {
+        if self
+            .active_journal_audit_tickets
+            .get(source_id)
+            .is_some_and(|(generation, _)| *generation != lifecycle_generation)
+        {
+            return;
+        }
+        if let Some(active) = self.active_journal_audit_tickets.remove(source_id)
+            && !complete
+            && self.source_is_active(source_id)
+        {
+            self.pending_journal_audit_tickets
+                .entry(source_id.to_string())
+                .or_insert(active);
+        }
+        if self.pending_journal_audit_tickets.contains_key(source_id)
+            && self.source_is_active(source_id)
+        {
+            self.force_manifest_audit_sources
+                .insert(source_id.to_string());
+            self.mark_source_dirty(source_id, "journal_audit_deferred");
+        }
+    }
+
     pub(super) fn source_registrations(&self) -> Vec<SourceProcessingRegistration> {
         self.sources
             .iter()

@@ -194,17 +194,13 @@ pub fn audit_source_and_record_with_budget_and_progress_and_writer(
         writer,
         None,
     )? {
-        ManifestAuditOutcome::Complete {
-            stats,
-            content_incomplete,
-            ..
-        } => match content_incomplete {
-            Some(error) => Err(ScanError::Incomplete {
+        ManifestAuditOutcome::Complete { stats, .. } => Ok(stats),
+        ManifestAuditOutcome::ContentCheckpointPaused { stats, error, .. } => {
+            Err(ScanError::Incomplete {
                 committed: Box::new(stats),
                 error,
-            }),
-            None => Ok(stats),
-        },
+            })
+        }
         ManifestAuditOutcome::Incomplete {
             committed, error, ..
         } => Err(ScanError::Incomplete {
@@ -245,15 +241,22 @@ pub fn audit_source_and_record_with_budget_and_progress_and_writer_with_request(
 ///
 /// Manifest traversal coverage is represented independently from resumable content
 /// verification. Callers that own watcher recovery barriers must advance them only for the
-/// `Complete` variant; a `Complete` outcome may still carry a content checkpoint pause.
+/// `Complete` or `ContentCheckpointPaused` variants.
 #[derive(Debug)]
 pub enum ManifestAuditOutcome {
     /// The authoritative manifest traversal and reconciliation completed.
     Complete {
         /// Statistics and committed manifest delta from the audit.
         stats: ScanStats,
-        /// Content verification stopped after a durable checkpoint, if applicable.
-        content_incomplete: Option<String>,
+        /// Opaque authority from the complete manifest commit and held source-root capability.
+        audit_commit: SourceAuditCommit,
+    },
+    /// Manifest traversal completed, while content verification has a resumable checkpoint.
+    ContentCheckpointPaused {
+        /// Statistics and committed manifest delta from the audit.
+        stats: ScanStats,
+        /// Diagnostic describing the paused content work.
+        error: String,
         /// Opaque authority from the complete manifest commit and held source-root capability.
         audit_commit: SourceAuditCommit,
     },
@@ -311,17 +314,13 @@ fn audit_source_and_record_after_scan(
         before_record,
         after_scan,
     )? {
-        ManifestAuditOutcome::Complete {
-            stats,
-            content_incomplete,
-            ..
-        } => match content_incomplete {
-            Some(error) => Err(ScanError::Incomplete {
+        ManifestAuditOutcome::Complete { stats, .. } => Ok(stats),
+        ManifestAuditOutcome::ContentCheckpointPaused { stats, error, .. } => {
+            Err(ScanError::Incomplete {
                 committed: Box::new(stats),
                 error,
-            }),
-            None => Ok(stats),
-        },
+            })
+        }
         ManifestAuditOutcome::Incomplete {
             committed, error, ..
         } => Err(ScanError::Incomplete {
@@ -418,11 +417,11 @@ fn audit_source_and_record_after_scan_outcome(
         }
         Err(error) => return Err(error),
     }
-    if content_incomplete.is_some() {
-        return Ok(ManifestAuditOutcome::Complete {
+    if let Some(error) = content_incomplete {
+        return Ok(ManifestAuditOutcome::ContentCheckpointPaused {
             stats,
-            content_incomplete,
-            audit_commit: audit_commit.clone(),
+            error,
+            audit_commit,
         });
     }
     finalize_pending_rename_completion(
@@ -434,7 +433,6 @@ fn audit_source_and_record_after_scan_outcome(
     )?;
     Ok(ManifestAuditOutcome::Complete {
         stats,
-        content_incomplete,
         audit_commit,
     })
 }

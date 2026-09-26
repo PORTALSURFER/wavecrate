@@ -54,6 +54,7 @@ use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
     native_similarity_artifact_version,
 };
+use crate::native_app::sample_library::source_watcher::JournalAuditTicket;
 use crate::native_app::waveform::invalidate_persisted_waveform_cache_ref;
 
 mod admission;

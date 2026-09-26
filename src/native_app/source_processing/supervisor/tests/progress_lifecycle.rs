@@ -77,7 +77,10 @@ fn held_execution_worker_defers_finished_event_until_result_is_handled() {
         false,
         false,
     ));
-    assert!(matches!(receiver.try_recv(), Ok(SourceProcessingEvent::Completed)));
+    assert!(matches!(
+        receiver.try_recv(),
+        Ok(SourceProcessingEvent::Completed)
+    ));
 }
 
 #[test]
@@ -167,7 +170,11 @@ fn completion_from_removed_lifecycle_cannot_mutate_readded_source_state() {
             .contains(source.id.as_str()),
         "old completion must not block discovery for the re-added lifecycle"
     );
-    assert_eq!(candidates.len(), 1, "new lifecycle candidate must remain queued");
+    assert_eq!(
+        candidates.len(),
+        1,
+        "new lifecycle candidate must remain queued"
+    );
     drop(control);
     assert_eq!(shared.telemetry().stale, 1);
 }
@@ -231,9 +238,7 @@ fn final_similarity_layout_completion_wakes_durable_reconciliation() {
 
     let control = shared.control();
     assert!(
-        control
-            .dirty_sources
-            .contains(source.id.as_str()),
+        control.dirty_sources.contains(source.id.as_str()),
         "final similarity layout completion must request a fresh durable snapshot"
     );
     assert_eq!(control.wake_reason, "source_stage_progress");
@@ -479,11 +484,11 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
 fn delivered_manifest_handoff_survives_post_commit_cancellation() {
     assert_eq!(
         manifest_audit_execution_outcome(true, false, true),
-        ExecutionOutcome::CompletedAwaitingForegroundRefresh
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
     );
     assert_eq!(
         manifest_audit_execution_outcome(true, true, true),
-        ExecutionOutcome::FailedAwaitingForegroundRefresh
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
     );
     assert_eq!(
         manifest_audit_execution_outcome(false, false, true),
@@ -493,6 +498,214 @@ fn delivered_manifest_handoff_survives_post_commit_cancellation() {
         manifest_audit_execution_outcome(false, true, false),
         ExecutionOutcome::Failed
     );
+}
+
+#[test]
+fn post_commit_cancellation_does_not_finish_watcher_barrier() {
+    let directory = tempfile::tempdir().expect("manifest audit source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("cancelled-audit-barrier"),
+        directory.path().to_path_buf(),
+    );
+    source.open_db().expect("create source database");
+    std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+        .expect("write missed watcher file");
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let cancel = AtomicBool::new(false);
+    let audit_ticket = JournalAuditTicket::new();
+    let mut events = Vec::new();
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &cancel,
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        None,
+        Some(audit_ticket.clone()),
+        &mut |event| {
+            if matches!(event, SourceProcessingEvent::ManifestAuditCommitted { .. }) {
+                cancel.store(true, Ordering::Release);
+            }
+            events.push(event);
+            true
+        },
+    )
+    .expect("committed audit handoff survives cancellation");
+    assert_eq!(
+        outcome,
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
+    );
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditCommitted { complete: true, .. }
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: false,
+            audit_ticket: Some(ticket),
+            ..
+        } if ticket.same_as(&audit_ticket)
+    )));
+}
+
+#[test]
+fn cancellation_after_complete_finish_keeps_the_published_audit_outcome() {
+    let directory = tempfile::tempdir().expect("manifest audit source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("finished-audit-cancellation"),
+        directory.path().to_path_buf(),
+    );
+    source.open_db().expect("create source database");
+    std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+        .expect("write missed watcher file");
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let cancel = AtomicBool::new(false);
+    let audit_ticket = JournalAuditTicket::new();
+    let mut events = Vec::new();
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &cancel,
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        None,
+        Some(audit_ticket.clone()),
+        &mut |event| {
+            if matches!(
+                event,
+                SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
+            ) {
+                cancel.store(true, Ordering::Release);
+            }
+            events.push(event);
+            true
+        },
+    )
+    .expect("completed audit result survives late cancellation");
+    assert_eq!(
+        outcome,
+        ExecutionOutcome::CompletedAwaitingForegroundRefresh
+    );
+    assert!(cancel.load(Ordering::Acquire));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: true,
+            audit_ticket: Some(ticket),
+            ..
+        } if ticket.same_as(&audit_ticket)
+    )));
+}
+
+#[test]
+fn cancelled_manifest_handoff_retains_forced_audit_until_foreground_refresh() {
+    let directory = tempfile::tempdir().expect("temporary source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("cancelled-audit-handoff"),
+        directory.path().to_path_buf(),
+    );
+    let shared = Arc::new(Shared::new(vec![source.clone()], None));
+    let cancel = shared.control().source_work_cancels[source.id.as_str()].clone();
+    let in_flight = shared
+        .begin_in_flight_work(source.id.as_str(), &cancel)
+        .expect("begin manifest audit work");
+    let lifecycle_generation = in_flight.lifecycle_generation;
+    let audit_ticket = JournalAuditTicket::new();
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "journal_gap",
+        Some(lifecycle_generation),
+        Some(audit_ticket.clone()),
+    );
+    assert!(
+        shared
+            .control()
+            .begin_journal_audit_ticket(source.id.as_str(), lifecycle_generation)
+            .is_some()
+    );
+    let permit = shared
+        .budgets()
+        .try_acquire(source.id.as_str(), ProcessingLane::Scan)
+        .expect("reserve scan budget");
+    {
+        let mut control = shared.control();
+        control.dirty_sources.clear();
+        control
+            .force_manifest_audit_sources
+            .insert(source.id.as_str().to_string());
+    }
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Scan, 0, 0),
+        source: source.clone(),
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let mut candidates = Vec::new();
+    let mut source_stats = BTreeMap::new();
+    let mut state = CoordinatorExecutionState {
+        next_retry_at: None,
+        pending_similarity_refresh_lifecycles: BTreeSet::new(),
+        last_similarity_refresh_publish_at: None,
+        active_progress_source: None,
+        last_progress_publish_at: None,
+        progress_visible: false,
+        routine_maintenance_sources: BTreeSet::new(),
+    };
+    handle_completion(
+        &shared,
+        &mut candidates,
+        &mut source_stats,
+        &mut state,
+        ExecutionResult {
+            candidate,
+            permit,
+            lifecycle_generation,
+            result: Ok(ExecutionOutcome::CancelledAwaitingForegroundRefresh),
+            elapsed_ms: 1.0,
+            in_flight,
+        },
+    );
+
+    let control = shared.control();
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert!(
+        control
+            .awaiting_foreground_refresh_sources
+            .contains(source.id.as_str())
+    );
+    assert!(
+        control
+            .pending_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(|(_, pending)| pending.same_as(&audit_ticket))
+    );
+    drop(control);
+    assert_eq!(shared.telemetry().cancelled, 1);
 }
 
 #[test]

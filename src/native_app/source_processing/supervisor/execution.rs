@@ -5,8 +5,8 @@ use super::{
 };
 use super::{
     AtomicBool, ContentAuditActivity, ContentAuditBudget, ContentAuditStorage, DatabaseWriterGate,
-    Duration, ExecutionOutcome, Instant, ManifestAuditOutcome, Ordering, RuntimeCandidate,
-    RuntimeTask, SourceAuditRequest, SourceDatabase, SourceProcessingActivity,
+    Duration, ExecutionOutcome, Instant, JournalAuditTicket, ManifestAuditOutcome, Ordering,
+    RuntimeCandidate, RuntimeTask, SourceAuditRequest, SourceDatabase, SourceProcessingActivity,
     SourceProcessingEvent, SourceProcessingLifecycle, SourceProcessingPresentation,
     SourceProcessingProgressEvent,
     audit_source_and_record_with_budget_and_progress_and_writer_with_request,
@@ -30,6 +30,7 @@ pub(super) fn execute_candidate(
         content_audit_activity,
         SourceProcessingPresentation::UserRelevant,
         None,
+        None,
         publish_event,
     )
 }
@@ -42,6 +43,7 @@ pub(super) fn execute_candidate_with_presentation(
     content_audit_activity: ContentAuditActivity,
     presentation: SourceProcessingPresentation,
     audit_request: Option<SourceAuditRequest>,
+    audit_ticket: Option<JournalAuditTicket>,
     publish_event: &mut dyn FnMut(SourceProcessingEvent) -> bool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
@@ -121,9 +123,13 @@ pub(super) fn execute_candidate_with_presentation(
                 ) {
                     Ok(ManifestAuditOutcome::Complete {
                         stats,
-                        content_incomplete,
                         audit_commit,
-                    }) => (stats, true, content_incomplete, Some(audit_commit)),
+                    }) => (stats, true, None, Some(audit_commit)),
+                    Ok(ManifestAuditOutcome::ContentCheckpointPaused {
+                        stats,
+                        error,
+                        audit_commit,
+                    }) => (stats, true, Some(error), Some(audit_commit)),
                     Ok(ManifestAuditOutcome::Incomplete {
                         committed, error, ..
                     }) => (committed, false, Some(error), None),
@@ -136,6 +142,7 @@ pub(super) fn execute_candidate_with_presentation(
                             source_revision: None,
                             complete: false,
                             receipt: audit_request.as_ref().map(SourceAuditRequest::incomplete),
+                            audit_ticket,
                         });
                         return Err(error.to_string());
                     }
@@ -205,6 +212,11 @@ pub(super) fn execute_candidate_with_presentation(
                 !manifest_complete,
                 cancelled,
             );
+            // A committed database revision without a delivered delta is not a completed audit
+            // handoff. Preserve cancellation as its own outcome when both conditions occur.
+            if !audit_published && !cancelled {
+                execution_outcome = ExecutionOutcome::Failed;
+            }
             let receipt = if matches!(
                 execution_outcome,
                 ExecutionOutcome::Completed | ExecutionOutcome::CompletedAwaitingForegroundRefresh
@@ -227,17 +239,43 @@ pub(super) fn execute_candidate_with_presentation(
                     .as_ref()
                     .is_some_and(|receipt| receipt.is_complete())
             {
-                execution_outcome = ExecutionOutcome::Failed;
+                execution_outcome = if foreground_refresh_owns_reconciliation {
+                    ExecutionOutcome::FailedAwaitingForegroundRefresh
+                } else {
+                    ExecutionOutcome::Failed
+                };
             }
-            publish_event(SourceProcessingEvent::ManifestAuditFinished {
+            // The finish event also retires the native watcher journal barrier. A complete
+            // traversal alone is insufficient when cancellation or receipt validation failed.
+            let authoritative_completion = manifest_complete
+                && !cancelled
+                && matches!(
+                    execution_outcome,
+                    ExecutionOutcome::Completed
+                        | ExecutionOutcome::CompletedAwaitingForegroundRefresh
+                )
+                && audit_request.is_none_or(|_| {
+                    receipt
+                        .as_ref()
+                        .is_some_and(|receipt| receipt.is_complete())
+                });
+            let finish_published = publish_event(SourceProcessingEvent::ManifestAuditFinished {
                 lifecycle: SourceProcessingLifecycle::new(
                     candidate.source.id.as_str(),
                     lifecycle_generation,
                 ),
                 source_revision: Some(committed_source_revision),
-                complete: manifest_complete,
+                complete: authoritative_completion,
                 receipt,
+                audit_ticket,
             });
+            if !finish_published {
+                execution_outcome = if foreground_refresh_owns_reconciliation {
+                    ExecutionOutcome::FailedAwaitingForegroundRefresh
+                } else {
+                    ExecutionOutcome::Failed
+                };
+            }
             if let Some(error) = content_incomplete_error {
                 tracing::warn!(
                     target: "wavecrate::source_processing",
@@ -253,10 +291,19 @@ pub(super) fn execute_candidate_with_presentation(
             execute_readiness_target(&candidate.source, target, cancel, database_writer)
         }
     };
+    // Once a complete audit finish was published, a later cancel cannot retract its watcher
+    // barrier. Preserve the outcome observed by the watcher and supervisor as one decision.
     if matches!(
+        (&candidate.task, &result),
+        (
+            RuntimeTask::ManifestAudit { .. },
+            Ok(ExecutionOutcome::Completed | ExecutionOutcome::CompletedAwaitingForegroundRefresh)
+        )
+    ) || matches!(
         result,
         Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
-            | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+            | ExecutionOutcome::FailedAwaitingForegroundRefresh
+            | ExecutionOutcome::CancelledAwaitingForegroundRefresh)
     ) {
         result
     } else if cancel.load(Ordering::Acquire) {
@@ -276,8 +323,9 @@ pub(super) fn manifest_audit_execution_outcome(
         incomplete,
         cancelled,
     ) {
-        (true, false, _) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
-        (true, true, _) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
+        (true, _, true) => ExecutionOutcome::CancelledAwaitingForegroundRefresh,
+        (true, false, false) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
+        (true, true, false) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
         (false, _, true) => ExecutionOutcome::Cancelled,
         (false, false, false) => ExecutionOutcome::Completed,
         (false, true, false) => ExecutionOutcome::Failed,

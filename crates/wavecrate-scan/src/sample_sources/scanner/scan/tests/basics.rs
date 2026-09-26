@@ -1074,15 +1074,10 @@ fn typed_manifest_audit_outcome_keeps_coverage_complete_when_content_pauses() {
         })
         .unwrap();
 
-    let ManifestAuditOutcome::Complete {
-        stats,
-        content_incomplete,
-        ..
-    } = outcome
-    else {
+    let ManifestAuditOutcome::ContentCheckpointPaused { stats, error, .. } = outcome else {
         panic!("content verification pause must not downgrade manifest coverage");
     };
-    assert_eq!(content_incomplete.as_deref(), Some("Scan canceled"));
+    assert_eq!(error, "Scan canceled");
     assert_eq!(stats.committed_delta.created.len(), 1);
     assert_eq!(
         db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)

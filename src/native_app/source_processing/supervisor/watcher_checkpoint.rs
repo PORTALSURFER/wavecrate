@@ -46,6 +46,19 @@ fn process_watcher_checkpoint(shared: &Arc<Shared>, request: RevisionBoundCheckp
     }
     let outcome = {
         let _writer = shared.database_writer.lock(DatabasePhase::Publish);
+        // Fence installation also holds this writer gate. A request that began before the
+        // handoff must wait for its projection to resolve rather than advance the durable cursor
+        // underneath the browser's pending revision.
+        {
+            let mut control = shared.control();
+            if control
+                .pending_projection_fences
+                .contains_key(&request.source_id)
+            {
+                control.pending_watcher_checkpoints.push_back(request);
+                return;
+            }
+        }
         let Some(current_source) = configured_source_for_request(shared, &request) else {
             tracing::debug!(
                 source_id = request.source_id.as_str(),
@@ -167,8 +180,9 @@ fn configured_source_for_request(
 }
 
 fn live_root_identity(source: &SampleSource) -> Option<String> {
-    std::fs::metadata(&source.root)
+    std::fs::symlink_metadata(&source.root)
         .ok()
+        .filter(|metadata| metadata.file_type().is_dir())
         .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
 }
 
@@ -185,6 +199,7 @@ mod tests {
         time::{Duration, Instant},
     };
     use wavecrate::sample_sources::SourceId;
+    use wavecrate::sample_sources::scanner::CommittedSourceDelta;
     use wavecrate_library::sample_sources::{SourceDatabase, db::META_SOURCE_WATCHER_CHECKPOINT};
 
     fn source(root: &std::path::Path, id: &str) -> SampleSource {
@@ -326,6 +341,136 @@ mod tests {
             checkpoint_bytes(&source).expect("checkpoint bytes"),
             committed
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_replacement_root_cannot_advance_checkpoint() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let root = directory.path().join("root");
+        std::fs::create_dir(&root).expect("create source root");
+        let source = source(&root, "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let original_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &original_identity);
+        let before = checkpoint_bytes(&source).expect("prior checkpoint");
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).expect("move original root");
+        std::os::unix::fs::symlink(&moved, &root).expect("replace named root with symlink");
+
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        handle.submit_watcher_checkpoint(request(&source, generation, original_identity));
+        process_pending_watcher_checkpoints(&shared);
+
+        assert_eq!(checkpoint_bytes(&source).as_deref(), Some(before.as_str()));
+        assert!(
+            shared
+                .control()
+                .force_manifest_audit_sources
+                .contains(source.id.as_str()),
+            "a symlinked source root requires a fresh manifest audit"
+        );
+    }
+
+    #[test]
+    fn checkpoint_waits_for_same_source_projection_handoff() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let source = source(directory.path(), "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let root_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &root_identity);
+        let original = checkpoint_bytes(&source).expect("prior checkpoint");
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        let ticket = handle
+            .acquire_scan_for_generation(source.id.as_str(), generation)
+            .expect("admit scan")
+            .release_after_projection_handoff(CommittedSourceDelta {
+                revision: 0,
+                ..CommittedSourceDelta::default()
+            });
+
+        let checkpoint_request = request(&source, generation, root_identity);
+        assert!(
+            ticket.replay_matches_fenced_checkpoint(
+                checkpoint_request
+                    .continuity_proof
+                    .as_ref()
+                    .expect("replay proof")
+            )
+        );
+        handle.submit_watcher_checkpoint(checkpoint_request);
+        process_pending_watcher_checkpoints(&shared);
+        assert_eq!(
+            checkpoint_bytes(&source).as_deref(),
+            Some(original.as_str())
+        );
+        assert_eq!(shared.control().pending_watcher_checkpoints.len(), 1);
+
+        let wake_before_resolution = shared.control().wake_generation;
+        assert!(ticket.accept());
+        assert!(
+            shared.control().wake_generation > wake_before_resolution,
+            "empty handoff acceptance must wake the owner of deferred checkpoints"
+        );
+        process_pending_watcher_checkpoints(&shared);
+        let committed = checkpoint_bytes(&source).expect("committed checkpoint");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&committed).expect("checkpoint JSON")["event_id"],
+            8
+        );
+        assert!(shared.control().pending_watcher_checkpoints.is_empty());
+    }
+
+    #[test]
+    fn fenced_replay_recheck_rejects_checkpoint_advanced_after_worker_read() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let source = source(directory.path(), "source-a");
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let generation = shared.control().source_lifecycle_generations["source-a"];
+        let root_identity = root_identity(&source);
+        seed_checkpoint(&source, generation, &root_identity);
+        let proof = request(&source, generation, root_identity)
+            .continuity_proof
+            .expect("replay proof");
+        let database = SourceDatabase::open_for_test_fixture_source_write(&source.root)
+            .expect("source database");
+        assert!(
+            crate::native_app::sample_library::source_watcher::replay_matches_durable_checkpoint(
+                &database,
+                source.id.as_str(),
+                &proof,
+            ),
+            "worker's early read initially accepts the replay"
+        );
+        let mut advanced: serde_json::Value =
+            serde_json::from_str(&checkpoint_bytes(&source).expect("prior checkpoint"))
+                .expect("checkpoint JSON");
+        advanced["event_id"] = serde_json::json!(8);
+        advanced["continuity_proof"]["replay_coverage_end_event_id"] = serde_json::json!(8);
+        advanced["continuity_proof"]["acknowledged_end_event_id"] = serde_json::json!(8);
+        seed_checkpoint_value(&source, &advanced.to_string());
+
+        let handle = super::super::SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        };
+        let ticket = handle
+            .acquire_scan_for_generation(source.id.as_str(), generation)
+            .expect("admit scan")
+            .release_after_projection_handoff(CommittedSourceDelta {
+                revision: 0,
+                ..CommittedSourceDelta::default()
+            });
+        assert!(
+            !ticket.replay_matches_fenced_checkpoint(&proof),
+            "the stale replay must not enter the browser projection"
+        );
+        ticket.reject("stale_replay_test_cleanup");
     }
 
     #[test]

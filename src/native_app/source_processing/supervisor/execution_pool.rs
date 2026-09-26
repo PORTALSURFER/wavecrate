@@ -181,6 +181,17 @@ fn run_worker(
         } else {
             None
         };
+        let audit_ticket = if matches!(
+            &request.candidate.task,
+            super::RuntimeTask::ManifestAudit { .. }
+        ) {
+            shared.control().begin_journal_audit_ticket(
+                request.candidate.source.id.as_str(),
+                lifecycle_generation,
+            )
+        } else {
+            None
+        };
         let result = execute_candidate_with_presentation(
             &request.candidate,
             lifecycle_generation,
@@ -189,6 +200,7 @@ fn run_worker(
             content_audit_activity,
             request.presentation,
             audit_request,
+            audit_ticket,
             &mut |event| shared.publish_event(event),
         );
         let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;

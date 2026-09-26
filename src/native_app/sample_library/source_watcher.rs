@@ -31,7 +31,8 @@ pub(in crate::native_app) use handle::GuiSourceWatcherHandle;
 #[cfg(test)]
 pub(in crate::native_app) use journal::WatcherBackend;
 pub(in crate::native_app) use journal::{
-    CheckpointAdvanceOutcome, CheckpointCause, RevisionBoundCheckpoint, WatcherContinuityProof,
+    CheckpointAdvanceOutcome, CheckpointCause, JournalAuditTicket, RevisionBoundCheckpoint,
+    WatcherContinuityProof, replay_matches_durable_checkpoint,
     targeted_replay_request_has_valid_proof, watcher_replay_evidence_is_well_formed,
     write_revision_bound_checkpoint,
 };

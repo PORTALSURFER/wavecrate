@@ -17,11 +17,14 @@ use wavecrate_scan::sample_sources::scanner::{
 
 use crate::native_app::{
     app::{
-        BrowserProjectionDelta, SourceFilesystemSyncAuditReason, SourceFilesystemSyncResult,
-        SourceFilesystemSyncSuccess,
+        BrowserProjectionDelta, CommittedWatcherCoverage, SourceFilesystemSyncAuditReason,
+        SourceFilesystemSyncResult, SourceFilesystemSyncSuccess,
     },
     sample_library::folder_browser::model::file_entry_with_snapshot_metadata,
-    sample_library::source_watcher::WatcherContinuityProof,
+    sample_library::source_watcher::{
+        WatcherContinuityProof, replay_matches_durable_checkpoint,
+        watcher_replay_evidence_is_well_formed,
+    },
 };
 
 const MAX_SYNC_ATTEMPTS: usize = 3;
@@ -76,8 +79,9 @@ pub(in crate::native_app) fn sync_source_database_paths(
 }
 
 pub(in crate::native_app) fn capture_source_root_identity(root: &Path) -> Option<String> {
-    std::fs::metadata(root)
+    std::fs::symlink_metadata(root)
         .ok()
+        .filter(|metadata| metadata.file_type().is_dir())
         .and_then(|metadata| stable_filesystem_identity(root, &metadata))
 }
 
@@ -385,7 +389,7 @@ fn sync_source_database_target_once(
     }
     let database = SourceDatabase::open_for_background_job_with_database_root(root, database_root);
     drop(_writer);
-    let result = database
+    let mut result = database
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
             let scan_result = match target {
@@ -439,6 +443,14 @@ fn sync_source_database_target_once(
                     }
                 }
             };
+            if incomplete_error.is_none()
+                && let Some(proof) = watcher_continuity_proof
+                && !replay_matches_durable_checkpoint(&db, source_id, proof)
+            {
+                incomplete_error = Some(String::from(
+                    "watcher replay no longer matches the durable prior checkpoint",
+                ));
+            }
             let browser_projection_delta = if browser_delta_eligible && incomplete_error.is_none() {
                 match build_browser_projection_delta(
                     root,
@@ -480,11 +492,39 @@ fn sync_source_database_target_once(
                 committed_delta: completed.committed_delta,
                 committed_source_index_delta: completed.committed_source_index_delta,
                 browser_projection_delta,
+                committed_watcher_coverage: None,
                 projection_handoff_ticket: None,
             })
         });
+    let committed_root_identity = capture_source_root_identity(root);
+    if let Ok(success) = &mut result {
+        if committed_root_identity != root_identity {
+            success.incomplete_error = Some(String::from(
+                "source root identity changed after targeted database commit",
+            ));
+            success.browser_projection_delta = None;
+        } else if success.incomplete_error.is_none()
+            && !cancel.load(Ordering::Acquire)
+            && let Some(proof) = watcher_continuity_proof
+            && let SourceDatabaseSyncTarget::ExactEntries(exact_entries) = target
+            && !exact_entries.is_empty()
+            && committed_root_identity.as_deref() == Some(proof.root_identity.as_str())
+            && watcher_replay_evidence_is_well_formed(
+                Some(proof.acknowledged_end_event_id),
+                Some(proof),
+            )
+        {
+            success.committed_watcher_coverage = Some(CommittedWatcherCoverage {
+                source_id: source_id.to_string(),
+                root_identity: proof.root_identity.clone(),
+                source_revision: success.committed_delta.revision,
+                exact_entries: exact_entries.to_vec(),
+                replay_proof: proof.clone(),
+            });
+        }
+    }
     SourceDatabaseSyncAttempt {
-        root_identity,
+        root_identity: committed_root_identity,
         result,
         retryable: true,
     }
@@ -788,6 +828,41 @@ mod tests {
         }
     }
 
+    struct RootReplacingWriter {
+        root: PathBuf,
+        displaced: PathBuf,
+        manifest_locks: std::sync::atomic::AtomicUsize,
+    }
+
+    struct RootReplacingGuard {
+        root: PathBuf,
+        displaced: PathBuf,
+        replace_after_commit: bool,
+    }
+
+    impl Drop for RootReplacingGuard {
+        fn drop(&mut self) {
+            if self.replace_after_commit {
+                std::fs::rename(&self.root, &self.displaced)
+                    .expect("displace root after committed scan checkpoint");
+                std::fs::create_dir(&self.root).expect("replace source root");
+            }
+        }
+    }
+
+    impl ScanWriter for RootReplacingWriter {
+        type Guard = RootReplacingGuard;
+
+        fn lock(&self, phase: ScanWritePhase) -> Self::Guard {
+            RootReplacingGuard {
+                root: self.root.clone(),
+                displaced: self.displaced.clone(),
+                replace_after_commit: phase == ScanWritePhase::Manifest
+                    && self.manifest_locks.fetch_add(1, Ordering::AcqRel) == 1,
+            }
+        }
+    }
+
     #[derive(Clone)]
     struct CountingWriter {
         database_open_started: Arc<AtomicBool>,
@@ -814,6 +889,31 @@ mod tests {
             replay_coverage_end_event_id: event_id,
             acknowledged_end_event_id: event_id,
         }
+    }
+
+    fn seed_durable_fallback_cursor(
+        root: &Path,
+        database_root: &Path,
+        root_identity: &str,
+        source_id: &str,
+        event_id: u64,
+    ) {
+        let db = SourceDatabase::open_for_background_job_with_database_root(root, database_root)
+            .expect("open source database for fallback checkpoint");
+        let checkpoint = serde_json::json!({
+            "root_identity": root_identity,
+            "event_id": event_id,
+            "format_version": 2,
+            "source_id": source_id,
+            "lifecycle_generation": 7,
+            "source_revision": db.get_revision().expect("source revision"),
+            "cause": "completed_fallback_audit",
+        });
+        db.set_metadata(
+            wavecrate_library::sample_sources::db::META_SOURCE_WATCHER_CHECKPOINT,
+            &checkpoint.to_string(),
+        )
+        .expect("seed durable fallback cursor");
     }
 
     fn exact_scope() -> wavecrate_library::sample_sources::reconciliation::ReconciliationScope {
@@ -881,6 +981,49 @@ mod tests {
         let database_path = database_root.join(".wavecrate.db");
         let root_identity = capture_source_root_identity(root.path()).expect("root identity");
         let proof = watcher_proof(&root_identity, 73);
+        seed_durable_fallback_cursor(root.path(), &database_root, &root_identity, "source-a", 72);
+
+        let result = sync_source_database_scopes_with_writer(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            database_root,
+            vec![exact_scope()],
+            1,
+            Some(root_identity.clone()),
+            &AtomicBool::new(false),
+            Some(proof.clone()),
+            &UncoordinatedScanWriter,
+        );
+
+        assert!(result.audit_required.is_none());
+        let success = result.result.expect("exact scope sync");
+        assert_eq!(success.renames_reconciled, 0);
+        assert_eq!(success.committed_delta.created.len(), 1);
+        assert!(success.incomplete_error.is_none());
+        assert!(success.browser_projection_delta.is_some());
+        let coverage = success
+            .committed_watcher_coverage
+            .expect("exact committed watcher coverage");
+        assert_eq!(coverage.source_id, "source-a");
+        assert_eq!(coverage.root_identity, root_identity);
+        assert_eq!(coverage.source_revision, success.committed_delta.revision);
+        assert_eq!(coverage.exact_entries.len(), 1);
+        assert_eq!(coverage.exact_entries[0].as_path(), Path::new("exact.wav"));
+        assert_eq!(coverage.replay_proof, proof);
+        assert!(success.projection_handoff_ticket.is_none());
+        assert!(database_path.is_file());
+        assert!(!root.path().join(".wavecrate.db").exists());
+    }
+
+    #[test]
+    fn cursor_gap_after_exact_commit_retains_delta_without_watcher_coverage() {
+        let root = tempfile::tempdir().expect("source root");
+        std::fs::write(root.path().join("exact.wav"), b"exact").expect("exact file");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let database_root = database_parent.path().join("source-db");
+        let root_identity = capture_source_root_identity(root.path()).expect("root identity");
+        seed_durable_fallback_cursor(root.path(), &database_root, &root_identity, "source-a", 71);
+        let proof = watcher_proof(&root_identity, 73);
 
         let result = sync_source_database_scopes_with_writer(
             String::from("source-a"),
@@ -894,15 +1037,96 @@ mod tests {
             &UncoordinatedScanWriter,
         );
 
-        assert!(result.audit_required.is_none());
-        let success = result.result.expect("exact scope sync");
-        assert_eq!(success.renames_reconciled, 0);
+        let success = result.result.expect("committed delta remains available");
         assert_eq!(success.committed_delta.created.len(), 1);
-        assert!(success.incomplete_error.is_none());
-        assert!(success.browser_projection_delta.is_some());
-        assert!(success.projection_handoff_ticket.is_none());
-        assert!(database_path.is_file());
-        assert!(!root.path().join(".wavecrate.db").exists());
+        assert!(success.incomplete_error.is_some());
+        assert!(success.browser_projection_delta.is_none());
+        assert!(success.committed_watcher_coverage.is_none());
+    }
+
+    #[test]
+    fn missing_durable_cursor_after_exact_commit_retains_delta_without_watcher_coverage() {
+        let root = tempfile::tempdir().expect("source root");
+        std::fs::write(root.path().join("exact.wav"), b"exact").expect("exact file");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let root_identity = capture_source_root_identity(root.path()).expect("root identity");
+
+        let result = sync_source_database_scopes_with_writer(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            database_parent.path().join("source-db"),
+            vec![exact_scope()],
+            1,
+            Some(root_identity.clone()),
+            &AtomicBool::new(false),
+            Some(watcher_proof(&root_identity, 73)),
+            &UncoordinatedScanWriter,
+        );
+
+        let success = result.result.expect("committed delta remains available");
+        assert_eq!(success.committed_delta.created.len(), 1);
+        assert!(success.incomplete_error.is_some());
+        assert!(success.browser_projection_delta.is_none());
+        assert!(success.committed_watcher_coverage.is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_source_root_cannot_supply_watcher_authority() {
+        let parent = tempfile::tempdir().expect("source parent");
+        let real_root = parent.path().join("real-root");
+        let linked_root = parent.path().join("linked-root");
+        std::fs::create_dir(&real_root).expect("create real root");
+        std::os::unix::fs::symlink(&real_root, &linked_root).expect("link source root");
+
+        assert!(capture_source_root_identity(&real_root).is_some());
+        assert!(
+            capture_source_root_identity(&linked_root).is_none(),
+            "a no-follow source root must not inherit the linked directory identity"
+        );
+    }
+
+    #[test]
+    fn root_replacement_after_commit_retains_delta_without_watcher_coverage() {
+        let parent = tempfile::tempdir().expect("source parent");
+        let root = parent.path().join("source");
+        let displaced = parent.path().join("displaced");
+        std::fs::create_dir(&root).expect("create source root");
+        std::fs::write(root.join("exact.wav"), b"exact").expect("exact file");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let database_root = database_parent.path().join("source-db");
+        let root_identity = capture_source_root_identity(&root).expect("source root identity");
+        seed_durable_fallback_cursor(&root, &database_root, &root_identity, "source-a", 72);
+        let writer = RootReplacingWriter {
+            root: root.clone(),
+            displaced: displaced.clone(),
+            manifest_locks: std::sync::atomic::AtomicUsize::new(0),
+        };
+
+        let result = sync_source_database_scopes_with_writer(
+            String::from("source-a"),
+            root.clone(),
+            database_root,
+            vec![exact_scope()],
+            1,
+            Some(root_identity.clone()),
+            &AtomicBool::new(false),
+            Some(watcher_proof(&root_identity, 73)),
+            &writer,
+        );
+
+        assert!(displaced.join("exact.wav").is_file());
+        assert_ne!(
+            result.root_identity.as_deref(),
+            Some(root_identity.as_str())
+        );
+        let success = result
+            .result
+            .expect("committed partial delta remains available");
+        assert_eq!(success.committed_delta.created.len(), 1);
+        assert!(success.incomplete_error.is_some());
+        assert!(success.browser_projection_delta.is_none());
+        assert!(success.committed_watcher_coverage.is_none());
     }
 
     #[test]

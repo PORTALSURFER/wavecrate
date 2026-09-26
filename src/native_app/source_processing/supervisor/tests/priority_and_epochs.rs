@@ -81,7 +81,12 @@ fn priority_only_wakes_reuse_candidates_without_source_rediscovery() {
         directory.path().to_path_buf(),
     );
     source.open_db().expect("create priority source database");
-    let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+    let (sender, _receiver) = std::sync::mpsc::channel();
+    let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_event_sink(
+        vec![source.clone()],
+        false,
+        Some(Arc::new(sender)),
+    );
     // The empty-source fixture converges through startup, manifest-audit, and readiness
     // handoffs. Do not capture the baseline at a transient queue-empty boundary between them.
     wait_until(Duration::from_secs(5), || {
@@ -123,7 +128,12 @@ fn playback_and_foreground_resumes_reuse_the_retained_source_snapshot() {
         directory.path().to_path_buf(),
     );
     source.open_db().expect("create resume source database");
-    let mut supervisor = SourceProcessingSupervisor::start(vec![source]);
+    let (sender, _receiver) = std::sync::mpsc::channel();
+    let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_event_sink(
+        vec![source],
+        false,
+        Some(Arc::new(sender)),
+    );
     // The empty-source fixture converges through startup, manifest-audit, and readiness
     // handoffs. Do not capture the baseline at a transient queue-empty boundary between them.
     wait_until(Duration::from_secs(5), || {

@@ -5,7 +5,9 @@ use wavecrate::sample_sources::{
     scanner::CommittedSourceDelta,
 };
 
-use crate::native_app::sample_library::source_watcher::RevisionBoundCheckpoint;
+use crate::native_app::sample_library::source_watcher::{
+    JournalAuditTicket, RevisionBoundCheckpoint,
+};
 
 /// Identifies one configured lifetime of a source.
 ///
@@ -122,6 +124,7 @@ pub(in crate::native_app) enum SourceProcessingEvent {
         source_revision: Option<u64>,
         complete: bool,
         receipt: Option<wavecrate_library::sample_sources::reconciliation::SourceAuditReceipt>,
+        audit_ticket: Option<JournalAuditTicket>,
     },
     WatcherCheckpointCommitted {
         lifecycle: SourceProcessingLifecycle,

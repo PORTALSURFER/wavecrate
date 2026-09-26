@@ -16,6 +16,7 @@ use serde::{
     de::{self, Deserializer, MapAccess, Visitor},
 };
 use std::fmt;
+use std::sync::Arc;
 use wavecrate::sample_sources::{
     SampleSource,
     db::{SourceDatabase, SourceWriteBatch},
@@ -353,6 +354,45 @@ pub(in crate::native_app) fn targeted_replay_request_has_valid_proof(
         })
 }
 
+/// Check the replay boundary against the durable prior cursor before a committed targeted
+/// delta may become browser coverage. The later source-owner checkpoint write rechecks this
+/// decision under its write batch; this read-only gate keeps known gaps out of the UI handoff.
+pub(in crate::native_app) fn replay_matches_durable_checkpoint(
+    database: &SourceDatabase,
+    source_id: &str,
+    proof: &WatcherContinuityProof,
+) -> bool {
+    let Ok(Some(value)) = database.get_metadata(META_SOURCE_WATCHER_CHECKPOINT) else {
+        return false;
+    };
+    let Ok(current) = parse_checkpoint(&value) else {
+        return false;
+    };
+    let Ok(source_revision) = database.get_revision() else {
+        return false;
+    };
+    let Some(current_lifecycle_generation) = current.lifecycle_generation else {
+        return false;
+    };
+    let requested = RevisionBoundCheckpoint {
+        source_id: source_id.to_string(),
+        lifecycle_generation: current_lifecycle_generation,
+        source_revision,
+        root_identity: proof.root_identity.clone(),
+        event_id: proof.acknowledged_end_event_id,
+        cause: CheckpointCause::TargetedReplay,
+        continuity_proof: Some(proof.clone()),
+    };
+    decide_checkpoint_advance(
+        Some(&current),
+        &requested,
+        source_id,
+        current_lifecycle_generation,
+        source_revision,
+        &proof.root_identity,
+    ) == CheckpointAdvanceOutcome::Applied
+}
+
 fn decide_checkpoint_advance(
     current: Option<&SourceWatcherCheckpoint>,
     requested: &RevisionBoundCheckpoint,
@@ -596,10 +636,45 @@ fn read_checkpoint_from_batch(
     }
 }
 
+/// Process-local identity for the audit requested after one captured journal barrier.
+/// Cloning preserves identity; a later capture always receives a distinct allocation.
 #[derive(Clone, Debug)]
-pub(super) struct AuditBarrier(SourceWatcherCheckpoint);
+pub(in crate::native_app) struct JournalAuditTicket(Arc<()>);
+
+impl PartialEq for JournalAuditTicket {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for JournalAuditTicket {}
+
+impl JournalAuditTicket {
+    pub(in crate::native_app) fn new() -> Self {
+        Self(Arc::new(()))
+    }
+
+    pub(in crate::native_app) fn same_as(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct AuditBarrier {
+    checkpoint: SourceWatcherCheckpoint,
+    ticket: JournalAuditTicket,
+}
 
 impl AuditBarrier {
+    pub(super) fn ticket(&self) -> JournalAuditTicket {
+        self.ticket.clone()
+    }
+
+    pub(super) fn matches_current_root(&self, source: &SampleSource) -> bool {
+        source_root_identity_no_follow(source).as_deref()
+            == Some(self.checkpoint.root_identity.as_str())
+    }
+
     pub(super) fn into_revision_bound(
         self,
         source_id: String,
@@ -610,8 +685,8 @@ impl AuditBarrier {
             source_id,
             lifecycle_generation,
             source_revision,
-            root_identity: self.0.root_identity,
-            event_id: self.0.event_id,
+            root_identity: self.checkpoint.root_identity,
+            event_id: self.checkpoint.event_id,
             cause: CheckpointCause::CompletedFallbackAudit,
             continuity_proof: None,
         }
@@ -680,10 +755,7 @@ fn recover_source(source: &SampleSource, native_watcher: bool) -> JournalRecover
             reason: "watcher_backend_has_no_durable_journal",
         };
     }
-    let Some(root_identity) = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
-    else {
+    let Some(root_identity) = source_root_identity_no_follow(source) else {
         return JournalRecovery::FullAudit {
             reason: "source_root_identity_unavailable",
         };
@@ -739,6 +811,17 @@ fn recover_source(source: &SampleSource, native_watcher: bool) -> JournalRecover
     }
 }
 
+fn source_root_identity_no_follow(source: &SampleSource) -> Option<String> {
+    root_identity_no_follow(&source.root)
+}
+
+fn root_identity_no_follow(root: &Path) -> Option<String> {
+    std::fs::symlink_metadata(root)
+        .ok()
+        .filter(|metadata| metadata.file_type().is_dir())
+        .and_then(|metadata| stable_filesystem_identity(root, &metadata))
+}
+
 /// Advance a replay cursor only after the target filesystem reconciliation has committed.
 #[cfg(test)]
 pub(super) fn advance_after_reconciliation(
@@ -752,10 +835,7 @@ pub(super) fn advance_after_reconciliation(
     else {
         return;
     };
-    let Some(root_identity) = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
-    else {
+    let Some(root_identity) = source_root_identity_no_follow(source) else {
         return;
     };
     let Ok(Some(mut checkpoint)) = load_checkpoint(source) else {
@@ -787,13 +867,11 @@ pub(super) fn capture_audit_barrier(
     let source = sources
         .iter()
         .find(|source| source.id.as_str() == source_id)?;
-    let root_identity = std::fs::metadata(&source.root)
-        .ok()
-        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))?;
-    Some(AuditBarrier(SourceWatcherCheckpoint::legacy(
-        root_identity,
-        event_id,
-    )))
+    let root_identity = source_root_identity_no_follow(source)?;
+    Some(AuditBarrier {
+        checkpoint: SourceWatcherCheckpoint::legacy(root_identity, event_id),
+        ticket: JournalAuditTicket::new(),
+    })
 }
 
 fn source_database(source: &SampleSource) -> Result<SourceDatabase, String> {
@@ -829,18 +907,41 @@ fn replay_fsevents(
     root_identity: String,
     event_id: u64,
 ) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
-    macos::replay(root, event_id).map(|replay| {
-        let proof = WatcherContinuityProof {
-            root_identity,
-            backend: WatcherBackend::Fsevents,
-            backend_device: replay.backend_device,
-            watcher_generation: replay.watcher_generation,
-            replay_coverage_start_event_id: replay.replay_start_event_id,
-            replay_coverage_end_event_id: replay.replay_end_event_id,
-            acknowledged_end_event_id: replay.replay_end_event_id,
-        };
-        (replay.paths, proof)
-    })
+    replay_fsevents_after_history(root, root_identity, event_id, || {})
+}
+
+#[cfg(target_os = "macos")]
+fn replay_fsevents_after_history(
+    root: &Path,
+    root_identity: String,
+    event_id: u64,
+    after_history: impl FnOnce(),
+) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
+    let replay = macos::replay(root, event_id)?;
+    after_history();
+    validate_replay_root(root, root_identity, replay)
+}
+
+#[cfg(target_os = "macos")]
+fn validate_replay_root(
+    root: &Path,
+    root_identity: String,
+    replay: macos::HistoryReplay,
+) -> Result<(Vec<PathBuf>, WatcherContinuityProof), &'static str> {
+    // A replacement root can occupy the same path after the checkpoint identity was read.
+    if root_identity_no_follow(root).as_deref() != Some(root_identity.as_str()) {
+        return Err("source_root_identity_changed");
+    }
+    let proof = WatcherContinuityProof {
+        root_identity,
+        backend: WatcherBackend::Fsevents,
+        backend_device: replay.backend_device,
+        watcher_generation: replay.watcher_generation,
+        replay_coverage_start_event_id: replay.replay_start_event_id,
+        replay_coverage_end_event_id: replay.replay_end_event_id,
+        acknowledged_end_event_id: replay.replay_end_event_id,
+    };
+    Ok((replay.paths, proof))
 }
 
 #[cfg(target_os = "macos")]
@@ -849,6 +950,7 @@ mod macos {
     use fsevent_sys::{self as fs, core_foundation as cf};
     use std::{
         ffi::{CStr, c_void},
+        os::unix::fs::MetadataExt,
         ptr,
         sync::{Mutex, OnceLock, atomic::AtomicU64, mpsc},
         time::Duration,
@@ -923,8 +1025,31 @@ mod macos {
     }
 
     pub(super) fn replay(root: &Path, event_id: u64) -> Result<HistoryReplay, &'static str> {
+        replay_impl(root, event_id, None)
+    }
+
+    #[cfg(test)]
+    pub(super) fn replay_with_start_hook(
+        root: &Path,
+        event_id: u64,
+        on_started: &mut dyn FnMut(),
+    ) -> Result<HistoryReplay, &'static str> {
+        replay_impl(root, event_id, Some(on_started))
+    }
+
+    fn replay_impl(
+        root: &Path,
+        event_id: u64,
+        mut on_started: Option<&mut dyn FnMut()>,
+    ) -> Result<HistoryReplay, &'static str> {
         let (result_tx, result_rx) = mpsc::sync_channel(1);
         let (run_loop_tx, run_loop_rx) = mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = if on_started.is_some() {
+            let (tx, rx) = mpsc::sync_channel(1);
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
         let root = root.to_path_buf();
         let watcher_generation = next_watcher_generation();
         let worker = std::thread::Builder::new()
@@ -935,6 +1060,7 @@ mod macos {
                     event_id,
                     watcher_generation,
                     run_loop_tx,
+                    resume_rx,
                 ));
             })
             .map_err(|_| "watcher_history_thread_unavailable")?;
@@ -953,6 +1079,10 @@ mod macos {
                 return Err("watcher_history_start_timeout");
             }
         };
+        if let Some(on_started) = on_started.as_mut() {
+            on_started();
+            let _ = resume_tx.expect("start hook has resume sender").send(());
+        }
         let result = match result_rx.recv_timeout(HISTORY_TIMEOUT) {
             Ok(result) => result,
             Err(_) => {
@@ -972,6 +1102,7 @@ mod macos {
         event_id: u64,
         watcher_generation: u64,
         run_loop_tx: mpsc::SyncSender<RunLoopHandle>,
+        resume_rx: Option<mpsc::Receiver<()>>,
     ) -> Result<HistoryReplay, &'static str> {
         let (ready_tx, ready_rx) = mpsc::channel();
         let context = Box::new(HistoryContext {
@@ -987,19 +1118,6 @@ mod macos {
                 return Err(error);
             }
         };
-        let backend_device = match u64::try_from(unsafe {
-            fs::FSEventStreamGetDeviceBeingWatched(stream as fs::ConstFSEventStreamRef)
-        }) {
-            Ok(device) if device != 0 => device,
-            _ => {
-                unsafe {
-                    fs::FSEventStreamInvalidate(stream);
-                    fs::FSEventStreamRelease(stream);
-                    drop(Box::from_raw(context));
-                }
-                return Err("watcher_history_device_unavailable");
-            }
-        };
         let run_loop = unsafe { cf::CFRunLoopGetCurrent() };
         unsafe {
             fs::FSEventStreamScheduleWithRunLoop(stream, run_loop, cf::kCFRunLoopDefaultMode);
@@ -1010,6 +1128,25 @@ mod macos {
                 return Err("watcher_history_start_failed");
             }
         }
+        // This is a path-based stream, not a per-device stream. Bind replay to the unfollowed
+        // source root's device without querying the per-device stream accessor.
+        let backend_device = match std::fs::symlink_metadata(root)
+            .ok()
+            .filter(|metadata| metadata.file_type().is_dir())
+            .map(|metadata| metadata.dev())
+            .filter(|device| *device != 0)
+        {
+            Some(device) => device,
+            None => {
+                unsafe {
+                    fs::FSEventStreamStop(stream);
+                    fs::FSEventStreamInvalidate(stream);
+                    fs::FSEventStreamRelease(stream);
+                    drop(Box::from_raw(context));
+                }
+                return Err("watcher_history_device_unavailable");
+            }
+        };
         let retained_run_loop = unsafe { CFRetain(run_loop) as cf::CFRunLoopRef };
         if run_loop_tx.send(RunLoopHandle(retained_run_loop)).is_err() {
             unsafe {
@@ -1020,6 +1157,17 @@ mod macos {
                 drop(Box::from_raw(context));
             }
             return Err("watcher_history_start_timeout");
+        }
+        if let Some(resume_rx) = resume_rx {
+            if resume_rx.recv_timeout(HISTORY_TIMEOUT).is_err() {
+                unsafe {
+                    fs::FSEventStreamStop(stream);
+                    fs::FSEventStreamInvalidate(stream);
+                    fs::FSEventStreamRelease(stream);
+                    drop(Box::from_raw(context));
+                }
+                return Err("watcher_history_start_timeout");
+            }
         }
         // `HistoryDone` is delivered on this run loop and stops it in the callback. The outer
         // receiver timeout in `replay` bounds a wedged CoreServices stream without ever blocking
@@ -1080,6 +1228,7 @@ mod macos {
             copy_description: None,
         };
         let stream = unsafe {
+            // RootChanged is a replay gap only if the stream requests root-path changes.
             fs::FSEventStreamCreate(
                 cf::kCFAllocatorDefault,
                 history_callback,
@@ -1087,7 +1236,9 @@ mod macos {
                 paths,
                 event_id,
                 0.0,
-                fs::kFSEventStreamCreateFlagFileEvents | fs::kFSEventStreamCreateFlagNoDefer,
+                fs::kFSEventStreamCreateFlagFileEvents
+                    | fs::kFSEventStreamCreateFlagNoDefer
+                    | fs::kFSEventStreamCreateFlagWatchRoot,
             )
         };
         unsafe { cf::CFRelease(paths) };
@@ -1153,6 +1304,158 @@ mod tests {
     use super::*;
     use wavecrate::sample_sources::SourceId;
     use wavecrate_library::sample_sources::SourceDatabase;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents acceptance; requires a host that can start a history stream"]
+    fn native_fsevents_history_replays_created_file() {
+        use notify::Watcher as _;
+        use std::os::unix::fs::MetadataExt as _;
+
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create source root");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut live = notify::recommended_watcher(move |event| {
+            let _ = tx.send(event);
+        })
+        .expect("start live FSEvents watcher");
+        live.watch(&root, notify::RecursiveMode::Recursive)
+            .expect("watch source root");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+
+        let created = root.join("created.wav");
+        std::fs::write(&created, b"fixture").expect("create source entry");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut observed_paths = Vec::new();
+        while !observed_paths.contains(&created) {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "live watcher omitted the created entry: {observed_paths:?}"
+            );
+            let event = rx
+                .recv_timeout(remaining)
+                .expect("live watcher event before deadline")
+                .expect("valid live watcher event");
+            observed_paths.extend(event.paths);
+        }
+        let root_identity = root_identity_no_follow(&root).expect("source root identity");
+        let (paths, proof) =
+            replay_fsevents(&root, root_identity, cursor).expect("replay native FSEvents history");
+        assert_eq!(
+            proof.backend_device,
+            std::fs::symlink_metadata(&root)
+                .expect("source root metadata")
+                .dev()
+        );
+        assert!(
+            paths.contains(&created),
+            "native replay omitted the created entry: {:?}",
+            paths
+        );
+        assert!(proof.replay_coverage_end_event_id >= cursor);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents root-replacement acceptance"]
+    fn native_history_cannot_bind_replacement_root_to_old_identity() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        std::fs::rename(&root, directory.path().join("old-source")).expect("move original root");
+        std::fs::create_dir(&root).expect("create replacement root");
+        assert_ne!(
+            root_identity_no_follow(&root).expect("replacement root identity"),
+            old_identity
+        );
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        std::fs::write(root.join("replacement.wav"), b"fixture").expect("create replacement entry");
+
+        assert!(matches!(
+            replay_fsevents(&root, old_identity, cursor),
+            Err("source_root_identity_changed")
+        ));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents replay-to-proof root-replacement acceptance"]
+    fn native_history_rejects_root_replacement_after_replay_before_proof() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+        std::fs::write(root.join("created.wav"), b"fixture").expect("create source entry");
+
+        let result = replay_fsevents_after_history(&root, old_identity, cursor, || {
+            std::fs::rename(&root, directory.path().join("old-source"))
+                .expect("move original root after history replay");
+            std::fs::create_dir(&root).expect("replace root before proof");
+        });
+        assert!(matches!(result, Err("source_root_identity_changed")));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "manual native FSEvents in-flight root-replacement acceptance"]
+    fn native_history_rejects_root_replacement_while_stream_is_started() {
+        let directory = tempfile::tempdir_in("/private/tmp").expect("source directory");
+        let root = directory.path().join("source");
+        std::fs::create_dir(&root).expect("create original root");
+        let old_identity = root_identity_no_follow(&root).expect("original root identity");
+        let cursor = unsafe { fsevent_sys::FSEventsGetCurrentEventId() };
+        assert_ne!(cursor, 0, "FSEvents cursor must be available");
+
+        let mut replacement_result = None;
+        let replay = macos::replay_with_start_hook(&root, cursor, &mut || {
+            replacement_result = Some((|| -> std::io::Result<()> {
+                std::fs::rename(&root, directory.path().join("old-source"))?;
+                std::fs::create_dir(&root)?;
+                std::fs::write(root.join("replacement.wav"), b"fixture")?;
+                Ok(())
+            })());
+        });
+        replacement_result
+            .expect("stream-start hook ran")
+            .expect("replace root while stream is started");
+        let result = replay.and_then(|replay| validate_replay_root(&root, old_identity, replay));
+        assert!(
+            matches!(
+                result,
+                Err("watcher_history_gap"
+                    | "source_root_identity_changed"
+                    | "watcher_history_timeout")
+            ),
+            "root replacement must not produce continuity proof: {result:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_replacement_root_cannot_supply_replay_or_audit_barrier() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let root = directory.path().join("root");
+        std::fs::create_dir(&root).expect("create source root");
+        let source = SampleSource::new_with_id(SourceId::from_string("source-a"), root.clone());
+        assert!(capture_audit_barrier(&[source.clone()], "source-a").is_some());
+        let moved = directory.path().join("moved");
+        std::fs::rename(&root, &moved).expect("move original root");
+        std::os::unix::fs::symlink(&moved, &root).expect("replace named root with symlink");
+
+        assert!(capture_audit_barrier(&[source.clone()], "source-a").is_none());
+        assert_eq!(
+            recover_source(&source, true),
+            JournalRecovery::FullAudit {
+                reason: "source_root_identity_unavailable"
+            }
+        );
+    }
 
     fn continuity_proof(
         root_identity: &str,

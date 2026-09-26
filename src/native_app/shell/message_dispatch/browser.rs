@@ -166,10 +166,20 @@ impl NativeAppState {
                     &deferred_audit_sources,
                 );
             }
-            GuiMessage::SourceWatcherJournalGap { source_id, reason } => {
+            GuiMessage::SourceWatcherJournalGap {
+                source_id,
+                reason,
+                lifecycle_generation,
+                audit_ticket,
+            } => {
                 self.background
                     .source_processing
-                    .request_source_manifest_audit(&source_id, reason);
+                    .request_source_manifest_audit_with_ticket(
+                        &source_id,
+                        reason,
+                        lifecycle_generation,
+                        audit_ticket,
+                    );
             }
             GuiMessage::SourceWatcherManifestAuditRequested { request } => {
                 self.background
@@ -234,6 +244,7 @@ impl NativeAppState {
                 source_revision,
                 complete,
                 receipt,
+                audit_ticket,
             } => {
                 if let Some(watcher) = self.library.source_watcher.as_ref()
                     && let Some(receipt) = receipt
@@ -250,6 +261,7 @@ impl NativeAppState {
                             lifecycle_generation,
                             source_revision,
                             complete,
+                            audit_ticket,
                         );
                     }
                 }
