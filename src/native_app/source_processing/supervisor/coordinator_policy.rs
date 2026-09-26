@@ -29,7 +29,8 @@ pub(super) fn candidate_invalidation_scope(
             Some(
                 ExecutionOutcome::Completed
                 | ExecutionOutcome::CompletedAwaitingForegroundRefresh
-                | ExecutionOutcome::FailedAwaitingForegroundRefresh,
+                | ExecutionOutcome::FailedAwaitingForegroundRefresh
+                | ExecutionOutcome::CancelledAwaitingForegroundRefresh,
             ),
         ) => CandidateInvalidationScope::Source,
         (RuntimeTask::Readiness(target), Some(ExecutionOutcome::Completed))

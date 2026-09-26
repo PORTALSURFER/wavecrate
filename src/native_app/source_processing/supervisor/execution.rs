@@ -227,7 +227,11 @@ pub(super) fn execute_candidate_with_presentation(
                     .as_ref()
                     .is_some_and(|receipt| receipt.is_complete())
             {
-                execution_outcome = ExecutionOutcome::Failed;
+                execution_outcome = if foreground_refresh_owns_reconciliation {
+                    ExecutionOutcome::FailedAwaitingForegroundRefresh
+                } else {
+                    ExecutionOutcome::Failed
+                };
             }
             publish_event(SourceProcessingEvent::ManifestAuditFinished {
                 lifecycle: SourceProcessingLifecycle::new(
@@ -235,7 +239,13 @@ pub(super) fn execute_candidate_with_presentation(
                     lifecycle_generation,
                 ),
                 source_revision: Some(committed_source_revision),
-                complete: manifest_complete,
+                // Watcher barriers require the terminal owner outcome, not merely a completed
+                // manifest traversal: cancellation or a failed receipt must retain the barrier.
+                complete: matches!(
+                    execution_outcome,
+                    ExecutionOutcome::Completed
+                        | ExecutionOutcome::CompletedAwaitingForegroundRefresh
+                ),
                 receipt,
             });
             if let Some(error) = content_incomplete_error {
@@ -256,7 +266,8 @@ pub(super) fn execute_candidate_with_presentation(
     if matches!(
         result,
         Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
-            | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+            | ExecutionOutcome::FailedAwaitingForegroundRefresh
+            | ExecutionOutcome::CancelledAwaitingForegroundRefresh)
     ) {
         result
     } else if cancel.load(Ordering::Acquire) {
@@ -276,8 +287,9 @@ pub(super) fn manifest_audit_execution_outcome(
         incomplete,
         cancelled,
     ) {
-        (true, false, _) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
-        (true, true, _) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
+        (true, _, true) => ExecutionOutcome::CancelledAwaitingForegroundRefresh,
+        (true, false, false) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
+        (true, true, false) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
         (false, _, true) => ExecutionOutcome::Cancelled,
         (false, false, false) => ExecutionOutcome::Completed,
         (false, true, false) => ExecutionOutcome::Failed,

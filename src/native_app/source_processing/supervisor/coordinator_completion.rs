@@ -53,7 +53,8 @@ pub(super) fn handle_completion(
             && matches!(
                 result,
                 Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
-                    | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+                    | ExecutionOutcome::FailedAwaitingForegroundRefresh
+                    | ExecutionOutcome::CancelledAwaitingForegroundRefresh)
             )
         {
             control
@@ -150,7 +151,8 @@ pub(super) fn handle_completion(
                         telemetry.failed = telemetry.failed.saturating_add(1);
                     }
                     ExecutionOutcome::Stale => telemetry.stale = telemetry.stale.saturating_add(1),
-                    ExecutionOutcome::Cancelled => {
+                    ExecutionOutcome::Cancelled
+                    | ExecutionOutcome::CancelledAwaitingForegroundRefresh => {
                         telemetry.cancelled = telemetry.cancelled.saturating_add(1)
                     }
                     ExecutionOutcome::Parked | ExecutionOutcome::NotClaimed => {}
