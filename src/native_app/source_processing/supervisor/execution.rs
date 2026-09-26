@@ -291,7 +291,15 @@ pub(super) fn execute_candidate_with_presentation(
             execute_readiness_target(&candidate.source, target, cancel, database_writer)
         }
     };
+    // Once a complete audit finish was published, a later cancel cannot retract its watcher
+    // barrier. Preserve the outcome observed by the watcher and supervisor as one decision.
     if matches!(
+        (&candidate.task, &result),
+        (
+            RuntimeTask::ManifestAudit { .. },
+            Ok(ExecutionOutcome::Completed | ExecutionOutcome::CompletedAwaitingForegroundRefresh)
+        )
+    ) || matches!(
         result,
         Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
             | ExecutionOutcome::FailedAwaitingForegroundRefresh

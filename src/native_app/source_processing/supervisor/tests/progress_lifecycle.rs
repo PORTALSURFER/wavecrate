@@ -560,6 +560,65 @@ fn post_commit_cancellation_does_not_finish_watcher_barrier() {
 }
 
 #[test]
+fn cancellation_after_complete_finish_keeps_the_published_audit_outcome() {
+    let directory = tempfile::tempdir().expect("manifest audit source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("finished-audit-cancellation"),
+        directory.path().to_path_buf(),
+    );
+    source.open_db().expect("create source database");
+    std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+        .expect("write missed watcher file");
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(
+            source.id.as_str(),
+            ProcessingLane::Scan,
+            0,
+            now_epoch_seconds(),
+        ),
+        source,
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let cancel = AtomicBool::new(false);
+    let audit_ticket = JournalAuditTicket::new();
+    let mut events = Vec::new();
+    let outcome = execute_candidate_with_presentation(
+        &candidate,
+        0,
+        &cancel,
+        &DatabaseWriterGate::default(),
+        ContentAuditActivity::default(),
+        SourceProcessingPresentation::UserRelevant,
+        None,
+        Some(audit_ticket.clone()),
+        &mut |event| {
+            if matches!(
+                event,
+                SourceProcessingEvent::ManifestAuditFinished { complete: true, .. }
+            ) {
+                cancel.store(true, Ordering::Release);
+            }
+            events.push(event);
+            true
+        },
+    )
+    .expect("completed audit result survives late cancellation");
+    assert_eq!(
+        outcome,
+        ExecutionOutcome::CompletedAwaitingForegroundRefresh
+    );
+    assert!(cancel.load(Ordering::Acquire));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        SourceProcessingEvent::ManifestAuditFinished {
+            complete: true,
+            audit_ticket: Some(ticket),
+            ..
+        } if ticket.same_as(&audit_ticket)
+    )));
+}
+
+#[test]
 fn cancelled_manifest_handoff_retains_forced_audit_until_foreground_refresh() {
     let directory = tempfile::tempdir().expect("temporary source");
     let source = SampleSource::new_with_id(
