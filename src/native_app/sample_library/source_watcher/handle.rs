@@ -3052,6 +3052,45 @@ mod lifecycle_tests {
             message_rx.try_recv(),
             Err(std::sync::mpsc::TryRecvError::Empty)
         ));
+
+        let audit_ticket = audit_barriers[&source_id].ticket();
+        finish_journal_barrier_audit(
+            &message_tx,
+            &state,
+            &mut audit_barriers,
+            &mut deferred_audit_barrier_sources,
+            &mut completed_barrier_revisions,
+            source_id.clone(),
+            3,
+            Some(8),
+            true,
+            Some(audit_ticket.clone()),
+        );
+        let checkpoint = match message_rx.recv().expect("retained audit barrier") {
+            GuiMessage::SourceWatcherCheckpointReady(checkpoint) => checkpoint,
+            message => panic!("expected watcher checkpoint, got {message:?}"),
+        };
+        assert_eq!(checkpoint.source_id, source_id);
+        assert_eq!(checkpoint.lifecycle_generation, 3);
+        assert_eq!(checkpoint.source_revision, 8);
+        assert!(audit_barriers.is_empty());
+
+        finish_journal_barrier_audit(
+            &message_tx,
+            &state,
+            &mut audit_barriers,
+            &mut deferred_audit_barrier_sources,
+            &mut completed_barrier_revisions,
+            source_id,
+            3,
+            Some(8),
+            true,
+            Some(audit_ticket),
+        );
+        assert!(matches!(
+            message_rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
     }
 
     #[test]

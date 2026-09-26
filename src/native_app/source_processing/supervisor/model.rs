@@ -143,10 +143,18 @@ pub(super) enum ReadinessExecutionOutcome {
 pub(super) enum ExecutionOutcome {
     Completed,
     CompletedAwaitingForegroundRefresh,
-    Retried { retry_at: i64 },
+    Retried {
+        retry_at: i64,
+    },
     Failed,
     FailedAwaitingForegroundRefresh,
-    PrerequisiteInvalidated { retry_at: i64, reason: &'static str },
+    /// A committed delta still needs its foreground handoff, but the audit cannot
+    /// clear watcher coverage.
+    CancelledAwaitingForegroundRefresh,
+    PrerequisiteInvalidated {
+        retry_at: i64,
+        reason: &'static str,
+    },
     Stale,
     Cancelled,
     Parked,

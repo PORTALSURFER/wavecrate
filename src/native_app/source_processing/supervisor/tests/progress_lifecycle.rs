@@ -484,11 +484,11 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
 fn delivered_manifest_handoff_survives_post_commit_cancellation() {
     assert_eq!(
         manifest_audit_execution_outcome(true, false, true),
-        ExecutionOutcome::FailedAwaitingForegroundRefresh
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
     );
     assert_eq!(
         manifest_audit_execution_outcome(true, true, true),
-        ExecutionOutcome::FailedAwaitingForegroundRefresh
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
     );
     assert_eq!(
         manifest_audit_execution_outcome(false, false, true),
@@ -541,7 +541,10 @@ fn post_commit_cancellation_does_not_finish_watcher_barrier() {
         },
     )
     .expect("committed audit handoff survives cancellation");
-    assert_eq!(outcome, ExecutionOutcome::FailedAwaitingForegroundRefresh);
+    assert_eq!(
+        outcome,
+        ExecutionOutcome::CancelledAwaitingForegroundRefresh
+    );
     assert!(events.iter().any(|event| matches!(
         event,
         SourceProcessingEvent::ManifestAuditCommitted { complete: true, .. }
@@ -554,6 +557,76 @@ fn post_commit_cancellation_does_not_finish_watcher_barrier() {
             ..
         } if ticket.same_as(&audit_ticket)
     )));
+}
+
+#[test]
+fn cancelled_manifest_handoff_retains_forced_audit_until_foreground_refresh() {
+    let directory = tempfile::tempdir().expect("temporary source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("cancelled-audit-handoff"),
+        directory.path().to_path_buf(),
+    );
+    let shared = Arc::new(Shared::new(vec![source.clone()], None));
+    let cancel = shared.control().source_work_cancels[source.id.as_str()].clone();
+    let in_flight = shared
+        .begin_in_flight_work(source.id.as_str(), &cancel)
+        .expect("begin manifest audit work");
+    let lifecycle_generation = in_flight.lifecycle_generation;
+    let permit = shared
+        .budgets()
+        .try_acquire(source.id.as_str(), ProcessingLane::Scan)
+        .expect("reserve scan budget");
+    {
+        let mut control = shared.control();
+        control.dirty_sources.clear();
+        control
+            .force_manifest_audit_sources
+            .insert(source.id.as_str().to_string());
+    }
+    let candidate = RuntimeCandidate {
+        schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Scan, 0, 0),
+        source: source.clone(),
+        task: RuntimeTask::ManifestAudit { accelerated: false },
+    };
+    let mut candidates = Vec::new();
+    let mut source_stats = BTreeMap::new();
+    let mut state = CoordinatorExecutionState {
+        next_retry_at: None,
+        pending_similarity_refresh_lifecycles: BTreeSet::new(),
+        last_similarity_refresh_publish_at: None,
+        active_progress_source: None,
+        last_progress_publish_at: None,
+        progress_visible: false,
+        routine_maintenance_sources: BTreeSet::new(),
+    };
+    handle_completion(
+        &shared,
+        &mut candidates,
+        &mut source_stats,
+        &mut state,
+        ExecutionResult {
+            candidate,
+            permit,
+            lifecycle_generation,
+            result: Ok(ExecutionOutcome::CancelledAwaitingForegroundRefresh),
+            elapsed_ms: 1.0,
+            in_flight,
+        },
+    );
+
+    let control = shared.control();
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert!(
+        control
+            .awaiting_foreground_refresh_sources
+            .contains(source.id.as_str())
+    );
+    drop(control);
+    assert_eq!(shared.telemetry().cancelled, 1);
 }
 
 #[test]

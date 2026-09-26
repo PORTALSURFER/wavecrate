@@ -294,7 +294,8 @@ pub(super) fn execute_candidate_with_presentation(
     if matches!(
         result,
         Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
-            | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+            | ExecutionOutcome::FailedAwaitingForegroundRefresh
+            | ExecutionOutcome::CancelledAwaitingForegroundRefresh)
     ) {
         result
     } else if cancel.load(Ordering::Acquire) {
@@ -314,9 +315,9 @@ pub(super) fn manifest_audit_execution_outcome(
         incomplete,
         cancelled,
     ) {
-        (true, false, true) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
+        (true, _, true) => ExecutionOutcome::CancelledAwaitingForegroundRefresh,
         (true, false, false) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
-        (true, true, _) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
+        (true, true, false) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
         (false, _, true) => ExecutionOutcome::Cancelled,
         (false, false, false) => ExecutionOutcome::Completed,
         (false, true, false) => ExecutionOutcome::Failed,
