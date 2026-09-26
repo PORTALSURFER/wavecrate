@@ -572,6 +572,20 @@ fn cancelled_manifest_handoff_retains_forced_audit_until_foreground_refresh() {
         .begin_in_flight_work(source.id.as_str(), &cancel)
         .expect("begin manifest audit work");
     let lifecycle_generation = in_flight.lifecycle_generation;
+    let audit_ticket = JournalAuditTicket::new();
+    commands::request_source_manifest_audit_with_ticket(
+        &shared,
+        source.id.as_str(),
+        "journal_gap",
+        Some(lifecycle_generation),
+        Some(audit_ticket.clone()),
+    );
+    assert!(
+        shared
+            .control()
+            .begin_journal_audit_ticket(source.id.as_str(), lifecycle_generation)
+            .is_some()
+    );
     let permit = shared
         .budgets()
         .try_acquire(source.id.as_str(), ProcessingLane::Scan)
@@ -624,6 +638,12 @@ fn cancelled_manifest_handoff_retains_forced_audit_until_foreground_refresh() {
         control
             .awaiting_foreground_refresh_sources
             .contains(source.id.as_str())
+    );
+    assert!(
+        control
+            .pending_journal_audit_tickets
+            .get(source.id.as_str())
+            .is_some_and(|(_, pending)| pending.same_as(&audit_ticket))
     );
     drop(control);
     assert_eq!(shared.telemetry().cancelled, 1);
